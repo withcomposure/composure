@@ -1,0 +1,1 @@
+CREATE DATABASE pressmark_test;

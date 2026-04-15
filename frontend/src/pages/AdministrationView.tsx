@@ -1,0 +1,1900 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  Copy,
+  Crown,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Lock,
+  Mail,
+  Monitor,
+  RefreshCw,
+  Search,
+  Send,
+  Settings,
+  Shield,
+  Trash2,
+  User,
+  UserPlus,
+  Users,
+} from 'lucide-react'
+import { ActionMenu } from '../components/ActionMenu'
+import { CustomDropdown } from '../components/CustomDropdown'
+import { NumberStepper } from '../components/NumberStepper'
+import { PopupDialog } from '../components/PopupDialog'
+import { SegmentedControl } from '../components/SegmentedControl'
+import { ToggleSwitch } from '../components/ToggleSwitch'
+import { fmtTime, fmtRelativeTime, fetchJson, getErrorMessage, navigateToProjects, navigateToSettings } from './utils'
+
+interface AdminUser {
+  id: string
+  email: string
+  displayName: string
+  role: 'user' | 'admin'
+  status: 'active' | 'suspended'
+  maxProjects: number | null
+  lastLoginAt: number | null
+  createdAt: number
+}
+
+interface PasswordResetLinkRecord {
+  token: string
+  tokenPreview: string
+  createdAt: number
+  expiresAt: number
+  usedAt: number | null
+  expiredEarlyAt: number | null
+}
+
+interface InviteTokenRecord {
+  token: string
+  tokenPreview: string
+  createdAt: number
+  expiresAt: number
+  email: string | null
+  usedAt: number | null
+}
+
+interface ServerSettings {
+  passwordResetExpiryHours: number
+  signupMode: 'open' | 'invite-only'
+  guestSignupsEnabled: boolean
+  inviteExpiryHours: number
+  maxProjectsPerUser: string
+  maxConcurrentJobs: number
+  maxUploadFileSizeBytes: number | 'unlimited'
+  maxTextFileSizeBytes: number | 'unlimited'
+  maxFilesPerProject: number | 'unlimited'
+  trashRetentionDays: number
+  largeFileThresholdChars: number
+}
+
+interface SmtpSettingsMasked {
+  host: string
+  port: number
+  username: string
+  hasPassword: boolean
+  senderName: string
+  senderAddress: string
+  encryption: 'none' | 'starttls' | 'tls'
+}
+
+interface JobQueueSummary {
+  runningCount: number
+  waitingCount: number
+  lastCompletedAt: number | null
+  lastFailedJob: { id: string; type: string; error: string | null; finishedAt: number } | null
+  totalDone: number
+  totalFailed: number
+  totalInvalid: number
+  totalStalled: number
+}
+
+interface BackgroundJobSummary {
+  id: string
+  type: string
+  status: 'waiting' | 'running' | 'done' | 'failed' | 'invalid' | 'stalled'
+  userId: string | null
+  userEmail: string | null
+  userDisplayName: string | null
+  projectId: string | null
+  projectTitle: string | null
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  error: string | null
+}
+
+type HealthStatus = 'healthy' | 'degraded' | 'stalled'
+
+type EncryptionOption = 'none' | 'starttls' | 'tls'
+
+const encryptionOptions: Array<{ value: EncryptionOption; label: string; icon: typeof Lock }> = [
+  { value: 'none', label: 'None', icon: Shield },
+  { value: 'starttls', label: 'STARTTLS', icon: Lock },
+  { value: 'tls', label: 'TLS/SSL', icon: Lock },
+]
+
+const JOB_TIMEFRAME_OPTIONS = [
+  { value: '3600', label: '1h' },
+  { value: '7200', label: '2h' },
+  { value: '21600', label: '6h' },
+  { value: '43200', label: '12h' },
+  { value: '86400', label: '24h' },
+] as const
+
+interface AdministrationViewProps {
+  currentUserId: string
+  onForceLogin: (message?: string) => void
+}
+
+type RoleOption = 'user' | 'admin'
+
+const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof User }> = [
+  { value: 'user', label: 'User', icon: User },
+  { value: 'admin', label: 'Admin', icon: Crown },
+]
+
+function validatePassword(password: string): string | null {
+  if (password.trim().length < 8) {
+    return 'Password must be at least 8 characters.'
+  }
+  return null
+}
+
+export function AdministrationView({ currentUserId, onForceLogin }: AdministrationViewProps) {
+  const [query, setQuery] = useState('')
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [usersError, setUsersError] = useState<string | null>(null)
+
+  const [passwordResetExpiryHours, setPasswordResetExpiryHours] = useState(24)
+  const [signupMode, setSignupMode] = useState<'open' | 'invite-only'>('open')
+  const [guestSignupsEnabled, setGuestSignupsEnabled] = useState(true)
+  const [inviteExpiryHours, setInviteExpiryHours] = useState(72)
+  const [defaultProjectLimitMode, setDefaultProjectLimitMode] = useState<'on' | 'unlimited'>('unlimited')
+  const [defaultProjectLimitValue, setDefaultProjectLimitValue] = useState(50)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(3)
+  const [maxUploadMode, setMaxUploadMode] = useState<'on' | 'unlimited'>('on')
+  const [maxUploadValue, setMaxUploadValue] = useState(50)
+  const [maxTextMode, setMaxTextMode] = useState<'on' | 'unlimited'>('on')
+  const [maxTextValue, setMaxTextValue] = useState(5)
+  const [maxFilesMode, setMaxFilesMode] = useState<'on' | 'unlimited'>('on')
+  const [maxFilesValue, setMaxFilesValue] = useState(200)
+  const [trashRetentionDays, setTrashRetentionDays] = useState(30)
+  const [largeFileThreshold, setLargeFileThreshold] = useState(500)  // in thousands of chars
+  const [serverSettingsSaved, setServerSettingsSaved] = useState({
+    signupMode: 'open' as 'open' | 'invite-only',
+    guestSignupsEnabled: true,
+    inviteExpiryHours: 72,
+    passwordResetExpiryHours: 24,
+    maxConcurrentJobs: 3,
+    defaultProjectLimitMode: 'unlimited' as 'on' | 'unlimited',
+    defaultProjectLimitValue: 50,
+    maxUploadMode: 'on' as 'on' | 'unlimited',
+    maxUploadValue: 50,
+    maxTextMode: 'on' as 'on' | 'unlimited',
+    maxTextValue: 5,
+    maxFilesMode: 'on' as 'on' | 'unlimited',
+    maxFilesValue: 200,
+    trashRetentionDays: 30,
+    largeFileThreshold: 500,
+  })
+
+  const [invites, setInvites] = useState<InviteTokenRecord[]>([])
+  const [invitesBusy, setInvitesBusy] = useState(false)
+  const [invitesError, setInvitesError] = useState<string | null>(null)
+  const [generatedInviteUrl, setGeneratedInviteUrl] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const generatedInviteRef = useRef<HTMLInputElement | null>(null)
+
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createEmail, setCreateEmail] = useState('')
+  const [createDisplayName, setCreateDisplayName] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [createRole, setCreateRole] = useState<RoleOption>('user')
+  const [createMaxProjectsMode, setCreateMaxProjectsMode] = useState<'custom' | 'unlimited' | 'inherit'>('inherit')
+  const [createMaxProjectsValue, setCreateMaxProjectsValue] = useState(50)
+
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
+  const [editDisplayName, setEditDisplayName] = useState('')
+  const [editRole, setEditRole] = useState<RoleOption>('user')
+  const [editSuspended, setEditSuspended] = useState(false)
+  const [editMaxProjectsMode, setEditMaxProjectsMode] = useState<'custom' | 'unlimited' | 'inherit'>('inherit')
+  const [editMaxProjectsValue, setEditMaxProjectsValue] = useState(50)
+  const [editNewPassword, setEditNewPassword] = useState('')
+  const [editConfirmPassword, setEditConfirmPassword] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null)
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [generatedResetUrl, setGeneratedResetUrl] = useState('')
+  const [existingResetLinks, setExistingResetLinks] = useState<PasswordResetLinkRecord[]>([])
+
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
+
+  const [activeSection, setActiveSection] = useState<'users' | 'server' | 'invitations' | 'email' | 'monitoring'>('users')
+
+  // SMTP state
+  const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState(587)
+  const [smtpUsername, setSmtpUsername] = useState('')
+  const [smtpPassword, setSmtpPassword] = useState('')
+  const [smtpHasPassword, setSmtpHasPassword] = useState(false)
+  const [smtpSenderName, setSmtpSenderName] = useState('')
+  const [smtpSenderAddress, setSmtpSenderAddress] = useState('')
+  const [smtpEncryption, setSmtpEncryption] = useState<EncryptionOption>('starttls')
+  const [smtpBusy, setSmtpBusy] = useState(false)
+  const [smtpError, setSmtpError] = useState<string | null>(null)
+  const [smtpShowPassword, setSmtpShowPassword] = useState(false)
+  const [smtpSaved, setSmtpSaved] = useState({ host: '', port: 587, username: '', senderName: '', senderAddress: '', encryption: 'starttls' as EncryptionOption })
+  const [testEmailTo, setTestEmailTo] = useState('')
+  const [testEmailBusy, setTestEmailBusy] = useState(false)
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  // Monitoring state
+  const [jobSummary, setJobSummary] = useState<JobQueueSummary | null>(null)
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>('healthy')
+  const [recentJobs, setRecentJobs] = useState<BackgroundJobSummary[]>([])
+  const [jobsTimeframe, setJobsTimeframe] = useState<string>('86400')
+  const [monitoringBusy, setMonitoringBusy] = useState(false)
+  const [monitoringError, setMonitoringError] = useState<string | null>(null)
+
+  const loadUsers = useCallback(async (search: string) => {
+    setLoadingUsers(true)
+    setUsersError(null)
+    try {
+      const response = await fetchJson<{ users: AdminUser[] }>(`/api/admin/users?q=${encodeURIComponent(search)}`)
+      setUsers(response.users)
+    } catch (err) {
+      setUsersError(getErrorMessage(err))
+      setUsers([])
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [])
+
+  const loadServerSettings = useCallback(async () => {
+    try {
+      const response = await fetchJson<ServerSettings>('/api/admin/server-settings')
+      setPasswordResetExpiryHours(response.passwordResetExpiryHours)
+      setSignupMode(response.signupMode)
+      setGuestSignupsEnabled(response.guestSignupsEnabled)
+      setInviteExpiryHours(response.inviteExpiryHours)
+      setMaxConcurrentJobs(response.maxConcurrentJobs)
+      const limitMode = response.maxProjectsPerUser !== 'unlimited' ? 'on' as const : 'unlimited' as const
+      const limitValue = response.maxProjectsPerUser !== 'unlimited' ? (Number.parseInt(response.maxProjectsPerUser, 10) || 50) : 50
+      setDefaultProjectLimitMode(limitMode)
+      setDefaultProjectLimitValue(limitValue)
+
+      const uplMode = response.maxUploadFileSizeBytes === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const uplVal = typeof response.maxUploadFileSizeBytes === 'number' ? Math.round(response.maxUploadFileSizeBytes / (1024 * 1024)) : 50
+      setMaxUploadMode(uplMode)
+      setMaxUploadValue(uplVal)
+      const txtMode = response.maxTextFileSizeBytes === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const txtVal = typeof response.maxTextFileSizeBytes === 'number' ? Math.round(response.maxTextFileSizeBytes / (1024 * 1024)) : 5
+      setMaxTextMode(txtMode)
+      setMaxTextValue(txtVal)
+      const fMode = response.maxFilesPerProject === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const fVal = typeof response.maxFilesPerProject === 'number' ? response.maxFilesPerProject : 200
+      setMaxFilesMode(fMode)
+      setMaxFilesValue(fVal)
+      setTrashRetentionDays(response.trashRetentionDays ?? 30)
+      const lfThreshold = Math.round((response.largeFileThresholdChars ?? 500_000) / 1000)
+      setLargeFileThreshold(lfThreshold)
+
+      setServerSettingsSaved({
+        signupMode: response.signupMode,
+        guestSignupsEnabled: response.guestSignupsEnabled,
+        inviteExpiryHours: response.inviteExpiryHours,
+        passwordResetExpiryHours: response.passwordResetExpiryHours,
+        maxConcurrentJobs: response.maxConcurrentJobs,
+        defaultProjectLimitMode: limitMode,
+        defaultProjectLimitValue: limitValue,
+        maxUploadMode: uplMode,
+        maxUploadValue: uplVal,
+        maxTextMode: txtMode,
+        maxTextValue: txtVal,
+        maxFilesMode: fMode,
+        maxFilesValue: fVal,
+        trashRetentionDays: response.trashRetentionDays ?? 30,
+        largeFileThreshold: lfThreshold,
+      })
+    } catch (err) {
+      setSettingsError(getErrorMessage(err))
+    }
+  }, [])
+
+  const loadInvites = useCallback(async () => {
+    try {
+      const response = await fetchJson<{ invites: InviteTokenRecord[] }>('/api/admin/invites')
+      setInvites(response.invites)
+    } catch (err) {
+      setInvitesError(getErrorMessage(err))
+    }
+  }, [])
+
+  const loadSmtpSettings = useCallback(async () => {
+    try {
+      const response = await fetchJson<SmtpSettingsMasked>('/api/admin/smtp')
+      setSmtpHost(response.host)
+      setSmtpPort(response.port)
+      setSmtpUsername(response.username)
+      setSmtpHasPassword(response.hasPassword)
+      setSmtpSenderName(response.senderName)
+      setSmtpSenderAddress(response.senderAddress)
+      setSmtpEncryption(response.encryption)
+      setSmtpSaved({ host: response.host, port: response.port, username: response.username, senderName: response.senderName, senderAddress: response.senderAddress, encryption: response.encryption })
+    } catch (err) {
+      setSmtpError(getErrorMessage(err))
+    }
+  }, [])
+
+  const loadMonitoringData = useCallback(async (seconds: string) => {
+    setMonitoringBusy(true)
+    setMonitoringError(null)
+    try {
+      const response = await fetchJson<{ jobs: BackgroundJobSummary[]; health: HealthStatus }>(`/api/admin/monitoring/jobs?seconds=${seconds}`)
+      setRecentJobs(response.jobs)
+      setHealthStatus(response.health)
+      const summaryResponse = await fetchJson<{ summary: JobQueueSummary; health: HealthStatus }>(`/api/admin/monitoring/summary?seconds=${seconds}`)
+      setJobSummary(summaryResponse.summary)
+      setHealthStatus(summaryResponse.health)
+    } catch (err) {
+      setMonitoringError(getErrorMessage(err))
+    } finally {
+      setMonitoringBusy(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadUsers(query)
+    }, 120)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [loadUsers, query])
+
+  useEffect(() => {
+    void loadServerSettings()
+    void loadInvites()
+    void loadSmtpSettings()
+    void loadMonitoringData(jobsTimeframe)
+  }, [loadServerSettings, loadInvites, loadSmtpSettings, loadMonitoringData, jobsTimeframe])
+
+  const beginEditUser = useCallback((user: AdminUser) => {
+    setEditingUser(user)
+    setEditDisplayName(user.displayName)
+    setEditRole(user.role)
+    setEditSuspended(user.status === 'suspended')
+    setEditMaxProjectsMode(user.maxProjects == null ? 'inherit' : user.maxProjects === 0 ? 'unlimited' : 'custom')
+    setEditMaxProjectsValue(user.maxProjects != null && user.maxProjects > 0 ? user.maxProjects : 50)
+    setEditNewPassword('')
+    setEditConfirmPassword('')
+    setEditError(null)
+  }, [])
+
+  const openResetModal = useCallback(async (user: AdminUser) => {
+    setResetTarget(user)
+    setGeneratedResetUrl('')
+    setResetError(null)
+    setResetBusy(true)
+    try {
+      const createResponse = await fetchJson<{ url: string }>(`/api/admin/users/${user.id}/password-reset-link`, {
+        method: 'POST',
+      })
+      const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/api/admin/users/${user.id}/password-reset-links`)
+      setGeneratedResetUrl(createResponse.url)
+      setExistingResetLinks(linksResponse.links)
+    } catch (err) {
+      setResetError(getErrorMessage(err))
+    } finally {
+      setResetBusy(false)
+    }
+  }, [])
+
+  const refreshResetLinks = useCallback(async (userId: string) => {
+    const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/api/admin/users/${userId}/password-reset-links`)
+    setExistingResetLinks(linksResponse.links)
+  }, [])
+
+  const expireResetLink = useCallback(async (token: string) => {
+    if (!resetTarget) return
+    setResetBusy(true)
+    setResetError(null)
+    try {
+      await fetchJson<{ ok: boolean }>(`/api/admin/password-reset-links/${encodeURIComponent(token)}/expire`, {
+        method: 'POST',
+      })
+      await refreshResetLinks(resetTarget.id)
+    } catch (err) {
+      setResetError(getErrorMessage(err))
+    } finally {
+      setResetBusy(false)
+    }
+  }, [refreshResetLinks, resetTarget])
+
+  const submitCreateUser = useCallback(async () => {
+    const email = createEmail.trim().toLowerCase()
+    const displayName = createDisplayName.trim()
+    const passwordError = validatePassword(createPassword)
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setCreateError('Enter a valid email address.')
+      return
+    }
+    if (displayName.length < 2) {
+      setCreateError('Display name must be at least 2 characters.')
+      return
+    }
+    if (passwordError) {
+      setCreateError(passwordError)
+      return
+    }
+
+    setCreateBusy(true)
+    setCreateError(null)
+    try {
+      await fetchJson<{ user: AdminUser }>('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          displayName,
+          password: createPassword,
+          role: createRole,
+          maxProjects: createMaxProjectsMode === 'custom' ? createMaxProjectsValue : createMaxProjectsMode === 'unlimited' ? 0 : null,
+        }),
+      })
+      setShowCreateModal(false)
+      setCreateEmail('')
+      setCreateDisplayName('')
+      setCreatePassword('')
+      setCreateRole('user')
+      setCreateMaxProjectsMode('inherit')
+      setCreateMaxProjectsValue(50)
+      await loadUsers(query)
+    } catch (err) {
+      setCreateError(getErrorMessage(err))
+    } finally {
+      setCreateBusy(false)
+    }
+  }, [createEmail, createDisplayName, createPassword, createRole, createMaxProjectsMode, createMaxProjectsValue, loadUsers, query])
+
+  const submitEditUser = useCallback(async () => {
+    if (!editingUser) return
+
+    const displayName = editDisplayName.trim()
+    if (displayName.length < 2) {
+      setEditError('Display name must be at least 2 characters.')
+      return
+    }
+
+    if (editNewPassword.trim().length > 0) {
+      const passwordError = validatePassword(editNewPassword)
+      if (passwordError) {
+        setEditError(passwordError)
+        return
+      }
+      if (editNewPassword !== editConfirmPassword) {
+        setEditError('New password and confirmation do not match.')
+        return
+      }
+    }
+
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      const response = await fetchJson<{ user: AdminUser; forceRelogin?: boolean }>(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName,
+          role: editRole,
+          suspended: editSuspended,
+          maxProjects: editMaxProjectsMode === 'custom' ? editMaxProjectsValue : editMaxProjectsMode === 'unlimited' ? 0 : null,
+          newPassword: editNewPassword.trim().length > 0 ? editNewPassword : undefined,
+        }),
+      })
+
+      setEditingUser(null)
+      setEditNewPassword('')
+      setEditConfirmPassword('')
+      await loadUsers(query)
+
+      if (response.forceRelogin) {
+        onForceLogin('Your password was changed. Please log in again.')
+      }
+    } catch (err) {
+      setEditError(getErrorMessage(err))
+    } finally {
+      setEditBusy(false)
+    }
+  }, [editConfirmPassword, editDisplayName, editMaxProjectsMode, editMaxProjectsValue, editNewPassword, editRole, editSuspended, editingUser, loadUsers, onForceLogin, query])
+
+  const deleteSelectedUser = useCallback(async () => {
+    if (!deleteTarget) return
+
+    if (deleteConfirmEmail.trim().toLowerCase() !== deleteTarget.email.toLowerCase()) {
+      setDeleteError('Type the exact email address to confirm deletion.')
+      return
+    }
+
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      const response = await fetchJson<{ ok: boolean; forceRelogin?: boolean }>(`/api/admin/users/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmEmail: deleteConfirmEmail.trim() }),
+      })
+      setDeleteTarget(null)
+      setDeleteConfirmEmail('')
+      await loadUsers(query)
+      if (response.forceRelogin) {
+        onForceLogin('Your account was removed. Please log in again.')
+      }
+    } catch (err) {
+      setDeleteError(getErrorMessage(err))
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [deleteConfirmEmail, deleteTarget, loadUsers, onForceLogin, query])
+
+  const saveServerSettings = useCallback(async () => {
+    setSettingsBusy(true)
+    setSettingsError(null)
+    try {
+      const response = await fetchJson<ServerSettings>('/api/admin/server-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signupMode,
+          guestSignupsEnabled,
+          inviteExpiryHours,
+          passwordResetExpiryHours,
+          maxConcurrentJobs,
+          maxProjectsPerUser: defaultProjectLimitMode === 'unlimited' ? 'unlimited' : String(defaultProjectLimitValue),
+          maxUploadFileSizeBytes: maxUploadMode === 'unlimited' ? 'unlimited' : maxUploadValue * 1024 * 1024,
+          maxTextFileSizeBytes: maxTextMode === 'unlimited' ? 'unlimited' : maxTextValue * 1024 * 1024,
+          maxFilesPerProject: maxFilesMode === 'unlimited' ? 'unlimited' : maxFilesValue,
+          trashRetentionDays,
+          largeFileThresholdChars: largeFileThreshold * 1000,
+        }),
+      })
+      setPasswordResetExpiryHours(response.passwordResetExpiryHours)
+      setSignupMode(response.signupMode)
+      setGuestSignupsEnabled(response.guestSignupsEnabled)
+      setInviteExpiryHours(response.inviteExpiryHours)
+      setMaxConcurrentJobs(response.maxConcurrentJobs)
+      const limitMode = response.maxProjectsPerUser !== 'unlimited' ? 'on' as const : 'unlimited' as const
+      const limitValue = response.maxProjectsPerUser !== 'unlimited' ? (Number.parseInt(response.maxProjectsPerUser, 10) || 50) : 50
+      setDefaultProjectLimitMode(limitMode)
+      setDefaultProjectLimitValue(limitValue)
+
+      const uplMode2 = response.maxUploadFileSizeBytes === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const uplVal2 = typeof response.maxUploadFileSizeBytes === 'number' ? Math.round(response.maxUploadFileSizeBytes / (1024 * 1024)) : 50
+      setMaxUploadMode(uplMode2)
+      setMaxUploadValue(uplVal2)
+      const txtMode2 = response.maxTextFileSizeBytes === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const txtVal2 = typeof response.maxTextFileSizeBytes === 'number' ? Math.round(response.maxTextFileSizeBytes / (1024 * 1024)) : 5
+      setMaxTextMode(txtMode2)
+      setMaxTextValue(txtVal2)
+      const fMode2 = response.maxFilesPerProject === 'unlimited' ? 'unlimited' as const : 'on' as const
+      const fVal2 = typeof response.maxFilesPerProject === 'number' ? response.maxFilesPerProject : 200
+      setMaxFilesMode(fMode2)
+      setMaxFilesValue(fVal2)
+      setTrashRetentionDays(response.trashRetentionDays ?? 30)
+      const lfThreshold2 = Math.round((response.largeFileThresholdChars ?? 500_000) / 1000)
+      setLargeFileThreshold(lfThreshold2)
+
+      setServerSettingsSaved({
+        signupMode: response.signupMode,
+        guestSignupsEnabled: response.guestSignupsEnabled,
+        inviteExpiryHours: response.inviteExpiryHours,
+        passwordResetExpiryHours: response.passwordResetExpiryHours,
+        maxConcurrentJobs: response.maxConcurrentJobs,
+        defaultProjectLimitMode: limitMode,
+        defaultProjectLimitValue: limitValue,
+        maxUploadMode: uplMode2,
+        maxUploadValue: uplVal2,
+        maxTextMode: txtMode2,
+        maxTextValue: txtVal2,
+        maxFilesMode: fMode2,
+        maxFilesValue: fVal2,
+        trashRetentionDays: response.trashRetentionDays ?? 30,
+        largeFileThreshold: lfThreshold2,
+      })
+    } catch (err) {
+      setSettingsError(getErrorMessage(err))
+    } finally {
+      setSettingsBusy(false)
+    }
+  }, [signupMode, guestSignupsEnabled, inviteExpiryHours, passwordResetExpiryHours, maxConcurrentJobs, defaultProjectLimitMode, defaultProjectLimitValue, maxUploadMode, maxUploadValue, maxTextMode, maxTextValue, maxFilesMode, maxFilesValue, trashRetentionDays, largeFileThreshold])
+
+  const createNewInvite = useCallback(async () => {
+    setInvitesBusy(true)
+    setInvitesError(null)
+    try {
+      const emailValue = inviteEmail.trim().toLowerCase()
+      const response = await fetchJson<{ url: string }>('/api/admin/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailValue || undefined }),
+      })
+      setGeneratedInviteUrl(response.url)
+      setInviteEmail('')
+      await loadInvites()
+      requestAnimationFrame(() => {
+        generatedInviteRef.current?.select()
+      })
+    } catch (err) {
+      setInvitesError(getErrorMessage(err))
+    } finally {
+      setInvitesBusy(false)
+    }
+  }, [inviteEmail, loadInvites])
+
+  const revokeInvite = useCallback(async (token: string) => {
+    setInvitesBusy(true)
+    setInvitesError(null)
+    try {
+      await fetchJson<{ ok: boolean }>(`/api/admin/invites/${encodeURIComponent(token)}`, {
+        method: 'DELETE',
+      })
+      await loadInvites()
+    } catch (err) {
+      setInvitesError(getErrorMessage(err))
+    } finally {
+      setInvitesBusy(false)
+    }
+  }, [loadInvites])
+
+  const saveSmtpSettings = useCallback(async () => {
+    setSmtpBusy(true)
+    setSmtpError(null)
+    try {
+      const response = await fetchJson<SmtpSettingsMasked>('/api/admin/smtp', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: smtpHost,
+          port: smtpPort,
+          username: smtpUsername,
+          password: smtpPassword || undefined,
+          senderName: smtpSenderName,
+          senderAddress: smtpSenderAddress,
+          encryption: smtpEncryption,
+        }),
+      })
+      setSmtpHost(response.host)
+      setSmtpPort(response.port)
+      setSmtpUsername(response.username)
+      setSmtpHasPassword(response.hasPassword)
+      setSmtpSenderName(response.senderName)
+      setSmtpSenderAddress(response.senderAddress)
+      setSmtpEncryption(response.encryption)
+      setSmtpPassword('')
+      setSmtpSaved({ host: response.host, port: response.port, username: response.username, senderName: response.senderName, senderAddress: response.senderAddress, encryption: response.encryption })
+    } catch (err) {
+      setSmtpError(getErrorMessage(err))
+    } finally {
+      setSmtpBusy(false)
+    }
+  }, [smtpHost, smtpPort, smtpUsername, smtpPassword, smtpSenderName, smtpSenderAddress, smtpEncryption])
+
+  const sendTestEmail = useCallback(async () => {
+    setTestEmailBusy(true)
+    setTestEmailResult(null)
+    try {
+      await fetchJson<{ ok: boolean }>('/api/admin/smtp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: testEmailTo.trim().toLowerCase() }),
+      })
+      setTestEmailResult({ ok: true, message: 'Test email sent successfully.' })
+    } catch (err) {
+      setTestEmailResult({ ok: false, message: getErrorMessage(err) })
+    } finally {
+      setTestEmailBusy(false)
+    }
+  }, [testEmailTo])
+
+  const smtpDirty = smtpHost !== smtpSaved.host || smtpPort !== smtpSaved.port || smtpUsername !== smtpSaved.username || smtpSenderName !== smtpSaved.senderName || smtpSenderAddress !== smtpSaved.senderAddress || smtpEncryption !== smtpSaved.encryption || smtpPassword !== ''
+  const smtpAllFilled = smtpHost.trim() !== '' && smtpPort > 0 && smtpUsername.trim() !== '' && smtpSenderName.trim() !== '' && smtpSenderAddress.trim() !== '' && (smtpHasPassword || smtpPassword.trim() !== '')
+
+  const serverSettingsDirty = signupMode !== serverSettingsSaved.signupMode || guestSignupsEnabled !== serverSettingsSaved.guestSignupsEnabled || inviteExpiryHours !== serverSettingsSaved.inviteExpiryHours || passwordResetExpiryHours !== serverSettingsSaved.passwordResetExpiryHours || maxConcurrentJobs !== serverSettingsSaved.maxConcurrentJobs || defaultProjectLimitMode !== serverSettingsSaved.defaultProjectLimitMode || (defaultProjectLimitMode === 'on' && defaultProjectLimitValue !== serverSettingsSaved.defaultProjectLimitValue) || maxUploadMode !== serverSettingsSaved.maxUploadMode || (maxUploadMode === 'on' && maxUploadValue !== serverSettingsSaved.maxUploadValue) || maxTextMode !== serverSettingsSaved.maxTextMode || (maxTextMode === 'on' && maxTextValue !== serverSettingsSaved.maxTextValue) || maxFilesMode !== serverSettingsSaved.maxFilesMode || (maxFilesMode === 'on' && maxFilesValue !== serverSettingsSaved.maxFilesValue) || trashRetentionDays !== serverSettingsSaved.trashRetentionDays || largeFileThreshold !== serverSettingsSaved.largeFileThreshold
+
+  const isSelfEditing = editingUser?.id === currentUserId
+
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({
+    users: null,
+    server: null,
+    invitations: null,
+    email: null,
+    monitoring: null,
+  })
+
+  useEffect(() => {
+    const mainEl = document.getElementById('admin-main-scroll')
+    if (!mainEl) return
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+      if (visible[0]) {
+        const id = visible[0].target.id.replace('admin-section-', '')
+        setActiveSection(id as typeof activeSection)
+      }
+    }, { root: mainEl, rootMargin: '-20% 0px -60% 0px', threshold: [0.2, 0.6] })
+
+    Object.values(sectionRefs.current).forEach((node) => {
+      if (node) observer.observe(node)
+    })
+
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div className="flex h-screen bg-pm-bg text-pm-text">
+      <aside className="hidden w-72 flex-col border-r border-pm-border bg-pm-surface lg:flex">
+        <div className="border-b border-pm-border p-4">
+          <button
+            onClick={navigateToProjects}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+          >
+            <ChevronLeft size={14} />
+            Back to projects
+          </button>
+        </div>
+        <div className="flex-1 p-4">
+          <div className="mb-4 text-xs uppercase tracking-wider text-pm-text-muted">Administration</div>
+          <div className="relative ml-2 space-y-4 border-l border-pm-border pl-4">
+            {[
+              { id: 'users', label: 'User Management', icon: Users },
+              { id: 'server', label: 'Server Settings', icon: Settings },
+              { id: 'invitations', label: 'Invitations', icon: UserPlus },
+              { id: 'email', label: 'Email', icon: Mail },
+              { id: 'monitoring', label: 'Monitoring', icon: Monitor },
+            ].map((item) => {
+              const Icon = item.icon
+              const active = activeSection === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() =>
+                    sectionRefs.current[item.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                  className={`relative flex items-center gap-2 text-sm ${active ? 'text-pm-text' : 'text-pm-text-muted hover:text-pm-text'}`}
+                >
+                  <span
+                    className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-pm-accent bg-pm-accent' : 'border-pm-border bg-pm-surface'}`}
+                  />
+                  <Icon size={14} />
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="border-t border-pm-border p-4">
+          <button
+            onClick={navigateToSettings}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+          >
+            <Settings size={14} />
+            Settings
+          </button>
+        </div>
+      </aside>
+
+      <main id="admin-main-scroll" className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <section id="admin-section-users" ref={(node) => { sectionRefs.current.users = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+            <div className="mb-4 flex items-center gap-2 text-sm font-medium">
+              <Users size={14} /> User Management
+            </div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="relative w-full max-w-md">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-pm-text-muted" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by name or email"
+                  className="w-full rounded-md border border-pm-border bg-pm-bg py-2 pl-9 pr-3 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover"
+              >
+                <UserPlus size={14} />
+                Add User
+              </button>
+            </div>
+
+            {usersError && <div className="mb-3 text-sm text-red-300">{usersError}</div>}
+
+            <div className="overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+                <div>Name</div>
+                <div>Email</div>
+                <div>Role</div>
+                <div>Status</div>
+                <div>Last Login</div>
+                <div>Created</div>
+                <div className="text-right">Actions</div>
+              </div>
+
+              {loadingUsers ? (
+                <div className="px-3 py-4 text-sm text-pm-text-muted">Loading users...</div>
+              ) : users.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-pm-text-muted">No users found.</div>
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user.id}
+                    onClick={() => beginEditUser(user)}
+                    className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-pm-border px-3 py-3 text-sm last:border-b-0 hover:bg-pm-surface-hover min-w-full"
+                  >
+                    <div className="truncate text-left text-pm-text">
+                      {user.displayName}
+                      {user.id === currentUserId && (
+                        <span className="ml-2 rounded-full border border-pm-border bg-pm-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-pm-text-muted">
+                          You
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate text-left text-pm-text-muted">{user.email}</div>
+                    <div className="text-pm-text">{user.role === 'admin' ? 'Admin' : 'User'}</div>
+                    <div className={user.status === 'active' ? 'text-emerald-300' : 'text-amber-300'}>{user.status}</div>
+                    <div className="text-pm-text-muted">{user.lastLoginAt ? fmtTime(user.lastLoginAt) : 'Never'}</div>
+                    <div className="text-pm-text-muted">{fmtTime(user.createdAt)}</div>
+                    <div className="flex justify-end">
+                      <ActionMenu
+                        ariaLabel={`Actions for ${user.email}`}
+                        items={[
+                          {
+                            id: 'reset',
+                            label: 'Password Reset Link',
+                            icon: KeyRound,
+                            onSelect: () => {
+                              void openResetModal(user)
+                            },
+                          },
+                          {
+                            id: 'delete',
+                            label: 'Delete Account...',
+                            icon: Trash2,
+                            danger: true,
+                            onSelect: () => {
+                              setDeleteTarget(user)
+                              setDeleteConfirmEmail('')
+                              setDeleteError(null)
+                            },
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section id="admin-section-server" ref={(node) => { sectionRefs.current.server = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Settings size={14} /> Server Settings
+              </div>
+              <button
+                type="button"
+                onClick={() => { void saveServerSettings() }}
+                disabled={settingsBusy || !serverSettingsDirty}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                  serverSettingsDirty
+                    ? 'border-transparent bg-pm-accent text-white hover:bg-pm-accent-hover'
+                    : 'border-pm-border bg-pm-bg text-pm-text-muted'
+                }`}
+              >
+                {!serverSettingsDirty && <Check size={12} />}
+                {settingsBusy ? 'Applying...' : serverSettingsDirty ? 'Apply Settings' : 'Saved'}
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/50">
+              <div className="flex items-center justify-between gap-3 px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Signup mode</div>
+                  <div className="text-xs text-pm-text-muted">Open signups lets anyone create an account. Invite only requires a valid invite link.</div>
+                </div>
+                <SegmentedControl
+                  value={signupMode}
+                  options={[
+                    { value: 'open', label: 'Open' },
+                    { value: 'invite-only', label: 'Invite-Only' },
+                  ] as const}
+                  onChange={setSignupMode}
+                  ariaLabel="Signup mode"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Guest access</div>
+                  <div className="text-xs text-pm-text-muted">Allow new visitors to continue as guest. Existing guests keep access when disabled.</div>
+                </div>
+                <ToggleSwitch
+                  checked={guestSignupsEnabled}
+                  onChange={setGuestSignupsEnabled}
+                  ariaLabel="Guest access"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Invite link expiry (hours)</div>
+                  <div className="text-xs text-pm-text-muted">Default expiry for newly generated invite links. Default: 72.</div>
+                </div>
+                <NumberStepper
+                  value={inviteExpiryHours}
+                  min={1}
+                  max={8760}
+                  suffix="h"
+                  ariaLabel="Invite link expiry hours"
+                  onChange={setInviteExpiryHours}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Default project limits</div>
+                  <div className="text-xs text-pm-text-muted">Maximum projects a user can create. Can be overridden per-user. Applies to authenticated users only.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {defaultProjectLimitMode === 'on' && (
+                    <NumberStepper
+                      value={defaultProjectLimitValue}
+                      min={1}
+                      max={10000}
+                      ariaLabel="Default project limit"
+                      onChange={setDefaultProjectLimitValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={defaultProjectLimitMode}
+                    options={['on', 'unlimited'] as const}
+                    onChange={setDefaultProjectLimitMode}
+                    ariaLabel="Default project limit mode"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Password reset token expiry (hours)</div>
+                  <div className="text-xs text-pm-text-muted">Default is 24 hours. Range: 0.08 to 168 hours.</div>
+                </div>
+                <NumberStepper
+                  value={passwordResetExpiryHours}
+                  min={0.08}
+                  max={168}
+                  step={0.25}
+                  suffix="h"
+                  ariaLabel="Password reset expiry hours"
+                  allowDecimals
+                  onChange={setPasswordResetExpiryHours}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Maximum concurrent jobs per compiler</div>
+                  <div className="text-xs text-pm-text-muted">How many compile jobs can run simultaneously on each compiler. Default: 3.</div>
+                </div>
+                <NumberStepper
+                  value={maxConcurrentJobs}
+                  min={1}
+                  max={50}
+                  ariaLabel="Maximum concurrent jobs"
+                  onChange={setMaxConcurrentJobs}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Maximum upload file size (MB)</div>
+                  <div className="text-xs text-pm-text-muted">Limit for individual uploaded asset files. Default: 50 MB.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {maxUploadMode === 'on' && (
+                    <NumberStepper
+                      value={maxUploadValue}
+                      min={1}
+                      max={500}
+                      suffix=" MB"
+                      ariaLabel="Maximum upload file size MB"
+                      onChange={setMaxUploadValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={maxUploadMode}
+                    options={['on', 'unlimited'] as const}
+                    onChange={setMaxUploadMode}
+                    ariaLabel="Upload file size limit mode"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Maximum text file size (MB)</div>
+                  <div className="text-xs text-pm-text-muted">Limit for individual text files in the editor. Default: 5 MB.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {maxTextMode === 'on' && (
+                    <NumberStepper
+                      value={maxTextValue}
+                      min={1}
+                      max={100}
+                      suffix=" MB"
+                      ariaLabel="Maximum text file size MB"
+                      onChange={setMaxTextValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={maxTextMode}
+                    options={['on', 'unlimited'] as const}
+                    onChange={setMaxTextMode}
+                    ariaLabel="Text file size limit mode"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Maximum files per project</div>
+                  <div className="text-xs text-pm-text-muted">Limit on total files (text + assets) in a project. Default: 200.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {maxFilesMode === 'on' && (
+                    <NumberStepper
+                      value={maxFilesValue}
+                      min={1}
+                      max={10000}
+                      ariaLabel="Maximum files per project"
+                      onChange={setMaxFilesValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={maxFilesMode}
+                    options={['on', 'unlimited'] as const}
+                    onChange={setMaxFilesMode}
+                    ariaLabel="Files per project limit mode"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Trash retention (days)</div>
+                  <div className="text-xs text-pm-text-muted">Deleted projects are permanently purged after this many days. Default: 30.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <NumberStepper
+                    value={trashRetentionDays}
+                    min={1}
+                    max={365}
+                    ariaLabel="Trash retention days"
+                    onChange={setTrashRetentionDays}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-pm-text">Large file mode threshold (K chars)</div>
+                  <div className="text-xs text-pm-text-muted">Files above this character count open in lightweight mode with reduced editor features. Default: 500K.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <NumberStepper
+                    value={largeFileThreshold}
+                    min={100}
+                    max={5000}
+                    step={100}
+                    suffix="K"
+                    ariaLabel="Large file mode threshold in thousands of characters"
+                    onChange={setLargeFileThreshold}
+                  />
+                </div>
+              </div>
+            </div>
+            {settingsError && <div className="mt-2 text-sm text-red-300">{settingsError}</div>}
+          </section>
+
+          <section id="admin-section-invitations" ref={(node) => { sectionRefs.current.invitations = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+            <div className="mb-4 flex items-center gap-2 text-sm font-medium">
+              <UserPlus size={14} /> Invitations
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <input
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="Restrict to email (optional)"
+                className="min-w-0 w-1/4 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+              />
+              <input
+                ref={generatedInviteRef}
+                value={generatedInviteUrl}
+                readOnly
+                placeholder="New invite links will appear here"
+                className="min-w-0 flex-1 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text-muted"
+              />
+              {generatedInviteUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(generatedInviteUrl)
+                  }}
+                  className="inline-flex items-center gap-1 shrink-0 rounded-md border border-pm-border px-3 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  void createNewInvite()
+                }}
+                disabled={invitesBusy}
+                className="inline-flex items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover disabled:opacity-60"
+              >
+                <UserPlus size={14} />
+                New Invite
+              </button>
+            </div>
+
+            {invitesError && <div className="mb-3 text-sm text-red-300">{invitesError}</div>}
+
+            <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+                <div>Token</div>
+                <div>Created</div>
+                <div>Expires</div>
+                <div>Used</div>
+                <div>Email</div>
+                <div className="text-right">Actions</div>
+              </div>
+              {invites.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-pm-text-muted">No invite tokens.</div>
+              ) : (
+                invites.map((invite) => (
+                  <div
+                    key={invite.token}
+                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-pm-border px-3 py-3 text-sm last:border-b-0 min-w-full"
+                  >
+                    <div className="truncate font-mono text-pm-text-muted">{invite.tokenPreview}</div>
+                    <div className="text-pm-text-muted">{fmtTime(invite.createdAt)}</div>
+                    <div className="text-pm-text-muted">{fmtTime(invite.expiresAt)}</div>
+                    <div className="text-pm-text-muted">{invite.usedAt ? fmtTime(invite.usedAt) : 'Unused'}</div>
+                    <div className="truncate text-pm-text-muted">{invite.email || '—'}</div>
+                    <div className="flex justify-end gap-1">
+                      {!invite.usedAt && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `${window.location.origin}/#/invite?token=${encodeURIComponent(invite.token)}`
+                              void navigator.clipboard.writeText(url)
+                            }}
+                            className="rounded-md border border-pm-border px-2 py-1 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void revokeInvite(invite.token)
+                            }}
+                            disabled={invitesBusy}
+                            className="rounded-md border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/15 disabled:opacity-60"
+                          >
+                            Revoke
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section id="admin-section-email" ref={(node) => { sectionRefs.current.email = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Mail size={14} /> Email (SMTP)
+              </div>
+              <button
+                type="button"
+                onClick={() => { void saveSmtpSettings() }}
+                disabled={smtpBusy || !smtpDirty}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                  smtpDirty
+                    ? 'border-transparent bg-pm-accent text-white hover:bg-pm-accent-hover'
+                    : 'border-pm-border bg-pm-bg text-pm-text-muted'
+                }`}
+              >
+                {!smtpDirty && <Check size={12} />}
+                {smtpBusy ? 'Applying...' : smtpDirty ? 'Apply Settings' : 'Saved'}
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/50">
+              {/* Host + Port */}
+              <div className="flex items-center gap-3 px-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-pm-text">Host</div>
+                  <div className="text-xs text-pm-text-muted">SMTP server hostname</div>
+                </div>
+                <input
+                  type="text"
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                  placeholder="smtp.example.com"
+                  className="w-42 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+                <NumberStepper
+                  value={smtpPort}
+                  min={1}
+                  max={65535}
+                  ariaLabel="SMTP port"
+                  onChange={setSmtpPort}
+                />
+              </div>
+
+              {/* Encryption */}
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-pm-text">Encryption</div>
+                  <div className="text-xs text-pm-text-muted">
+                    It is recommended to use the best encryption method supported by your SMTP server.{' '}
+                    <strong>STARTTLS</strong> (e.g., port 587) upgrades to TLS after connecting.{' '}
+                    <strong>TLS/SSL</strong> (e.g., port 465) is encrypted from the start.
+                  </div>
+                </div>
+                <CustomDropdown value={smtpEncryption} options={encryptionOptions} onChange={setSmtpEncryption} />
+              </div>
+
+              {/* Username */}
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-pm-text">Username</div>
+                  <div className="text-xs text-pm-text-muted">Authentication username (often your email)</div>
+                </div>
+                <input
+                  type="text"
+                  value={smtpUsername}
+                  onChange={(e) => setSmtpUsername(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-69 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-pm-text">Password</div>
+                  <div className="text-xs text-pm-text-muted">
+                    {smtpHasPassword ? 'A password is saved. Leave blank to keep it unchanged.' : 'No password set.'}
+                  </div>
+                </div>
+                <div className="relative shrink-0">
+                  <input
+                    type={smtpShowPassword ? 'text' : 'password'}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={smtpHasPassword ? '••••••••' : 'Enter password'}
+                    className="w-69 rounded-md border border-pm-border bg-pm-bg px-3 py-2 pr-9 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSmtpShowPassword((prev) => !prev)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-pm-text-muted hover:text-pm-text"
+                    tabIndex={-1}
+                  >
+                    {smtpShowPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sender Name + Sender Address */}
+              <div className="flex items-center gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-pm-text">Sender Name &amp; Address</div>
+                  <div className="text-xs text-pm-text-muted">Display name for outgoing emails</div>
+                </div>
+                <input
+                  type="text"
+                  value={smtpSenderName}
+                  onChange={(e) => setSmtpSenderName(e.target.value)}
+                  placeholder="Pressmark"
+                  className="w-28 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+                <input
+                  type="text"
+                  value={smtpSenderAddress}
+                  onChange={(e) => setSmtpSenderAddress(e.target.value)}
+                  placeholder="noreply@example.com"
+                  className="w-48 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+              </div>
+
+              {/* Test Email */}
+              <div className="flex items-center gap-3 border-t border-pm-border px-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-pm-text">Test Email</div>
+                  <div className="text-xs text-pm-text-muted">Once you've saved your settings, you can send a test email.</div>
+                </div>
+                <input
+                  type="text"
+                  value={testEmailTo}
+                  onChange={(e) => setTestEmailTo(e.target.value)}
+                  placeholder="recipient@example.com"
+                  className="w-48 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => { void sendTestEmail() }}
+                  disabled={testEmailBusy || !testEmailTo.trim() || smtpDirty || !smtpAllFilled}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover disabled:opacity-60"
+                >
+                  <Send size={14} />
+                  {testEmailBusy ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+
+            {smtpError && <div className="mt-2 text-sm text-red-300">{smtpError}</div>}
+            {testEmailResult && (
+              <div className={`mt-2 text-sm ${testEmailResult.ok ? 'text-green-400' : 'text-red-300'}`}>
+                {testEmailResult.message}
+              </div>
+            )}
+          </section>
+
+          <section id="admin-section-monitoring" ref={(node) => { sectionRefs.current.monitoring = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Monitor size={14} /> Monitoring
+                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  healthStatus === 'healthy' ? 'bg-green-500/20 text-green-400' :
+                  healthStatus === 'degraded' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    healthStatus === 'healthy' ? 'bg-green-400' :
+                    healthStatus === 'degraded' ? 'bg-yellow-400' :
+                    'bg-red-400'
+                  }`} />
+                  {healthStatus === 'healthy' ? 'Healthy' : healthStatus === 'degraded' ? 'Degraded' : 'Stalled'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <SegmentedControl
+                  value={jobsTimeframe}
+                  options={JOB_TIMEFRAME_OPTIONS}
+                  onChange={(next) => {
+                    setJobsTimeframe(next)
+                  }}
+                  ariaLabel="Monitoring timeframe"
+                />
+                <button
+                  type="button"
+                  onClick={() => { void loadMonitoringData(jobsTimeframe) }}
+                  disabled={monitoringBusy}
+                  className="inline-flex items-center gap-2 rounded-md border border-pm-border bg-pm-bg px-3 py-1.5 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-60"
+                >
+                  <RefreshCw size={14} className={monitoringBusy ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {monitoringError && <div className="mb-3 text-sm text-red-300">{monitoringError}</div>}
+
+            {/* Summary Cards */}
+            {jobSummary && (
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+                  <div className="text-xs text-pm-text-muted">Active / Queued</div>
+                  <div className="mt-1 text-lg font-semibold text-pm-text">
+                    {jobSummary.runningCount}{' / '}{jobSummary.waitingCount}
+                  </div>
+                </div>
+                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+                  <div className="text-xs text-pm-text-muted">Last Completed</div>
+                  <div className="mt-1 text-sm text-pm-text">
+                    {jobSummary.lastCompletedAt ? fmtRelativeTime(jobSummary.lastCompletedAt) : 'None'}
+                  </div>
+                </div>
+                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+                  <div className="text-xs text-pm-text-muted">Last Failed</div>
+                  <div className="mt-1 text-sm text-pm-text">
+                    {jobSummary.lastFailedJob ? (
+                      <span>
+                        <span className="text-red-300">{jobSummary.lastFailedJob.type}</span>{' '}
+                        <span className="text-pm-text-muted">{fmtRelativeTime(jobSummary.lastFailedJob.finishedAt)}</span>
+                        {jobSummary.lastFailedJob.error && (
+                          <div className="mt-0.5 truncate text-xs text-red-300/80">{jobSummary.lastFailedJob.error}</div>
+                        )}
+                      </span>
+                    ) : 'None'}
+                  </div>
+                </div>
+                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+                  <div className="text-xs text-pm-text-muted">Last {JOB_TIMEFRAME_OPTIONS.find((o) => o.value === jobsTimeframe)?.label ?? '24h'}</div>
+                  <div className="mt-1 text-sm text-pm-text">
+                    <span className="text-green-400">{jobSummary.totalDone} done</span>
+                    {' / '}
+                    <span className="text-red-300">{jobSummary.totalFailed} failed</span>
+                    {jobSummary.totalInvalid > 0 && (
+                      <>
+                        {' / '}
+                        <span className="text-yellow-400">{jobSummary.totalInvalid} invalid</span>
+                      </>
+                    )}
+                    {jobSummary.totalStalled > 0 && (
+                      <>
+                        {' / '}
+                        <span className="text-orange-400">{jobSummary.totalStalled} stalled</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Jobs table */}
+            <div className="text-xs font-medium text-pm-text mb-2">Jobs</div>
+            <div className="max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+                <span>User</span>
+                <span>Project</span>
+                <span>Type</span>
+                <span>Status</span>
+                <span>Created</span>
+                <span>Started</span>
+                <span>Finished</span>
+              </div>
+              {recentJobs.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-pm-text-muted">No jobs in this timeframe.</div>
+              ) : (
+                recentJobs.map((job) => (
+                  <div
+                    key={job.id}
+                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-pm-border px-3 py-2 text-sm text-pm-text min-w-full last:border-b-0"
+                  >
+                    <span className="truncate text-xs" title={job.userEmail ?? job.userId ?? 'unknown'}>
+                      {job.userDisplayName ?? job.userEmail ?? (job.userId ? `User ${job.userId.slice(0, 8)}` : '—')}
+                    </span>
+                    <span className="truncate text-xs" title={job.projectId ?? undefined}>
+                      {job.projectTitle ?? (job.projectId ? `${job.projectId.slice(0, 8)}…` : '—')}
+                    </span>
+                    <span className="text-xs">{job.type}</span>
+                    <span className={`text-xs font-medium ${
+                      job.status === 'done' ? 'text-green-400' :
+                      job.status === 'failed' ? 'text-red-300' :
+                      job.status === 'running' ? 'text-blue-400' :
+                      job.status === 'invalid' ? 'text-yellow-400' :
+                      job.status === 'stalled' ? 'text-orange-400' :
+                      job.status === 'waiting' ? 'text-sky-300' :
+                      'text-pm-text-muted'
+                    }`}>
+                      {job.status}
+                      {job.status === 'failed' && job.error && (
+                        <span className="block truncate font-normal text-red-300/70" title={job.error}>{job.error}</span>
+                      )}
+                      {job.status === 'invalid' && job.error && (
+                        <span className="block truncate font-normal text-yellow-400/70" title={job.error}>{job.error}</span>
+                      )}
+                      {job.status === 'stalled' && job.error && (
+                        <span className="block truncate font-normal text-orange-400/70" title={job.error}>{job.error}</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-pm-text-muted">{fmtTime(job.createdAt)}</span>
+                    <span className="text-xs text-pm-text-muted">{job.startedAt ? fmtTime(job.startedAt) : '—'}</span>
+                    <span className="text-xs text-pm-text-muted">{job.finishedAt ? fmtTime(job.finishedAt) : '—'}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <PopupDialog
+        open={showCreateModal}
+        title="Create User"
+        message="Create an account with a temporary password."
+        panelWidth="2xl"
+        dismiss={{
+          label: 'Cancel',
+          onClick: () => {
+            if (createBusy) return
+            setShowCreateModal(false)
+            setCreateError(null)
+          },
+          disabled: createBusy,
+        }}
+        actions={[
+          {
+            label: createBusy ? 'Creating...' : 'Create user',
+            onClick: () => {
+              void submitCreateUser()
+            },
+            disabled: createBusy,
+          },
+        ]}
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Email</div>
+            <input
+              value={createEmail}
+              onChange={(event) => setCreateEmail(event.target.value)}
+              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+              placeholder="new.user@example.com"
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Display name</div>
+            <input
+              value={createDisplayName}
+              onChange={(event) => setCreateDisplayName(event.target.value)}
+              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+              placeholder="Pressmark User"
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Temporary password</div>
+            <input
+              type="password"
+              value={createPassword}
+              onChange={(event) => setCreatePassword(event.target.value)}
+              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+            />
+          </div>
+          <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/30">
+            <div className="flex items-center justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm text-pm-text">Role</div>
+                <div className="text-xs text-pm-text-muted">Controls administration permissions for this user.</div>
+              </div>
+              <CustomDropdown value={createRole} options={roleOptions} onChange={setCreateRole} />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm text-pm-text">Project limit</div>
+                <div className="text-xs text-pm-text-muted">
+                  {createMaxProjectsMode === 'inherit'
+                    ? `Inherits server default (${defaultProjectLimitMode === 'unlimited' ? 'unlimited' : defaultProjectLimitValue}).`
+                    : createMaxProjectsMode === 'unlimited'
+                      ? 'Unlimited projects for this user.'
+                      : 'Custom limit for this user.'}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {createMaxProjectsMode === 'custom' && (
+                  <NumberStepper
+                    value={createMaxProjectsValue}
+                    min={1}
+                    max={10000}
+                    ariaLabel="Project limit for new user"
+                    widthClass="w-16"
+                    onChange={setCreateMaxProjectsValue}
+                  />
+                )}
+                <SegmentedControl
+                  value={createMaxProjectsMode}
+                  options={['custom', 'unlimited', 'inherit'] as const}
+                  onChange={setCreateMaxProjectsMode}
+                  ariaLabel="Project limit mode"
+                />
+              </div>
+            </div>
+          </div>
+          {createError && <div className="text-sm text-red-300">{createError}</div>}
+        </div>
+      </PopupDialog>
+
+      <PopupDialog
+        open={editingUser != null}
+        title={editingUser ? `Edit ${editingUser.displayName}` : 'Edit User'}
+        message={`Changes apply on save. Suspending ${editingUser?.displayName || 'the user'} takes effect on their next login. Changing their password will sign them out of all active sessions immediately.`}
+        panelWidth="2xl"
+        dismiss={{
+          label: 'Close',
+          onClick: () => {
+            if (editBusy) return
+            setEditingUser(null)
+            setEditError(null)
+          },
+          disabled: editBusy,
+        }}
+        actions={[
+          {
+            label: editBusy ? 'Saving...' : 'Save changes',
+            onClick: () => {
+              void submitEditUser()
+            },
+            disabled: editBusy || !editingUser,
+          },
+        ]}
+      >
+        {editingUser && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-wider text-pm-text-muted">Profile</div>
+            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/30">
+              <div className="grid gap-3 px-3 py-3 md:grid-cols-2">
+                <input
+                  value={editDisplayName}
+                  onChange={(event) => setEditDisplayName(event.target.value)}
+                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  placeholder="Display name"
+                />
+                <input
+                  value={editingUser.email}
+                  disabled
+                  className="w-full rounded-md border border-pm-border bg-pm-bg/70 px-3 py-2 text-sm text-pm-text-muted"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+                <div>
+                  <div className="text-sm text-pm-text">Role</div>
+                  <div className="text-xs text-pm-text-muted">
+                    {isSelfEditing
+                      ? 'Controls administration permissions. You cannot demote your own account.'
+                      : 'Controls administration permissions for this user.'}
+                  </div>
+                </div>
+                <CustomDropdown
+                  value={editRole}
+                  options={roleOptions}
+                  onChange={setEditRole}
+                  className={isSelfEditing ? 'pointer-events-none opacity-60' : ''}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+                <div>
+                  <div className="text-sm text-pm-text">Project limit</div>
+                  <div className="text-xs text-pm-text-muted">
+                    {editMaxProjectsMode === 'inherit'
+                      ? `Inherits server default (${defaultProjectLimitMode === 'unlimited' ? 'unlimited' : defaultProjectLimitValue}).`
+                      : editMaxProjectsMode === 'unlimited'
+                        ? 'Unlimited projects for this user.'
+                        : 'Custom limit for this user.'}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {editMaxProjectsMode === 'custom' && (
+                    <NumberStepper
+                      value={editMaxProjectsValue}
+                      min={1}
+                      max={10000}
+                      ariaLabel="Project limit for user"
+                      widthClass="w-16"
+                      onChange={setEditMaxProjectsValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={editMaxProjectsMode}
+                    options={['custom', 'unlimited', 'inherit'] as const}
+                    onChange={setEditMaxProjectsMode}
+                    ariaLabel="Project limit mode"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+                <div>
+                  <div className="text-sm text-pm-text">Suspended</div>
+                  <div className="text-xs text-pm-text-muted">
+                    {isSelfEditing
+                      ? 'Suspended users cannot log in. You cannot suspend your own account.'
+                      : 'Suspended users cannot log in.'}
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={editSuspended}
+                  onChange={(next) => {
+                    if (isSelfEditing && next) return
+                    setEditSuspended(next)
+                  }}
+                  ariaLabel="Toggle user suspension"
+                  disabled={isSelfEditing}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 text-xs uppercase tracking-wider text-pm-text-muted">Change Password</div>
+            <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+              <div className="grid gap-2 md:grid-cols-2">
+                <input
+                  type="password"
+                  value={editNewPassword}
+                  onChange={(event) => setEditNewPassword(event.target.value)}
+                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  placeholder="New password"
+                />
+                <input
+                  type="password"
+                  value={editConfirmPassword}
+                  onChange={(event) => setEditConfirmPassword(event.target.value)}
+                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  placeholder="Confirm password"
+                />
+              </div>
+            </div>
+
+            {editError && (
+              <div className="flex items-center gap-2 text-sm text-red-300">
+                <AlertCircle size={14} />
+                {editError}
+              </div>
+            )}
+          </div>
+        )}
+      </PopupDialog>
+
+      <PopupDialog
+        open={resetTarget != null}
+        title={resetTarget ? `Password Reset Link for ${resetTarget.displayName}` : 'Password Reset Link'}
+        message={`Share this single-use link with ${resetTarget?.displayName || 'the user'} securely.`}
+        panelWidth="3xl"
+        dismiss={{
+          label: 'Close',
+          onClick: () => {
+            if (resetBusy) return
+            setResetTarget(null)
+            setGeneratedResetUrl('')
+            setExistingResetLinks([])
+            setResetError(null)
+          },
+          disabled: resetBusy,
+        }}
+        actions={[]}
+      >
+        <div className="space-y-4">
+          {resetBusy ? (
+            <div className="text-sm text-pm-text-muted">Generating password reset link...</div>
+          ) : resetError ? (
+            <div className="text-sm text-red-300">{resetError}</div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <input
+                  value={generatedResetUrl}
+                  readOnly
+                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text-muted"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(generatedResetUrl)
+                  }}
+                  className="shrink-0 rounded-md border border-pm-border px-3 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                >
+                  Copy link
+                </button>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto overflow-x-hidden rounded-md border border-pm-border">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] gap-2 border-b border-pm-border bg-pm-surface px-3 py-2 text-[11px] uppercase tracking-wider text-pm-text-muted">
+                  <div>Token</div>
+                  <div>Created</div>
+                  <div>Used</div>
+                  <div className="text-right">Actions</div>
+                </div>
+                {existingResetLinks.length === 0 && (
+                  <div className="px-3 py-3 text-xs text-pm-text-muted">No links yet.</div>
+                )}
+                {existingResetLinks.map((link) => {
+                  const now = Math.floor(Date.now() / 1000)
+                  const autoExpired = link.expiresAt <= now
+                  const isExpireable = link.usedAt == null && link.expiredEarlyAt == null && !autoExpired
+                  return (
+                    <div
+                      key={link.token}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] items-center gap-2 border-b border-pm-border px-3 py-2 text-xs last:border-b-0"
+                    >
+                      <div className="truncate font-mono text-pm-text-muted">{link.tokenPreview}</div>
+                      <div className="text-pm-text-muted">{fmtTime(link.createdAt)}</div>
+                      <div className="text-pm-text-muted">{link.usedAt ? fmtTime(link.usedAt) : 'Unused'}</div>
+                      <div className="text-right">
+                        {isExpireable ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void expireResetLink(link.token)
+                            }}
+                            className="rounded-md border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/15"
+                          >
+                            Expire
+                          </button>
+                        ) : link.expiredEarlyAt != null ? (
+                          <span className="text-pm-text-muted">{fmtTime(link.expiredEarlyAt)}</span>
+                        ) : autoExpired ? (
+                          <span className="text-pm-text-muted">{fmtTime(link.expiresAt)}</span>
+                        ) : (
+                          <span className="text-pm-text-muted">Used</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </PopupDialog>
+
+      <PopupDialog
+        open={deleteTarget != null}
+        title={deleteTarget ? `Delete ${deleteTarget.displayName}` : 'Delete User'}
+        message="Type the account email to permanently delete this user."
+        dismiss={{
+          label: 'Cancel',
+          onClick: () => {
+            if (deleteBusy) return
+            setDeleteTarget(null)
+            setDeleteConfirmEmail('')
+            setDeleteError(null)
+          },
+          disabled: deleteBusy,
+        }}
+        actions={[
+          {
+            label: deleteBusy ? 'Deleting...' : 'Delete account',
+            variant: 'danger',
+            onClick: () => {
+              void deleteSelectedUser()
+            },
+            disabled: deleteBusy || !deleteTarget,
+          },
+        ]}
+      >
+        <div className="space-y-3">
+          {deleteTarget && (
+            <div className="text-xs text-pm-text-muted">
+              Confirm email: <span className="text-pm-text">{deleteTarget.email}</span>
+            </div>
+          )}
+          <input
+            value={deleteConfirmEmail}
+            onChange={(event) => setDeleteConfirmEmail(event.target.value)}
+            className="w-full rounded-md border border-red-500/40 bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none"
+            placeholder="Enter email to confirm"
+          />
+          {deleteError && <div className="text-sm text-red-300">{deleteError}</div>}
+        </div>
+      </PopupDialog>
+    </div>
+  )
+}

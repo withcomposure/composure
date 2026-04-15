@@ -1,0 +1,82 @@
+services:
+  pressmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-8080}:8080"
+    depends_on:
+      compiler-1:
+        condition: service_healthy
+      compiler-2:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATA_DIR=/app/data
+      - DATABASE_URL=${DATABASE_URL}
+      - COMPILERS=http://compiler-1:4000,http://compiler-2:4000
+    restart: unless-stopped
+    networks:
+      - pressmark-internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+  compiler-1:
+    build:
+      context: .
+      dockerfile: compiler/Dockerfile
+    environment:
+      - PORT=4000
+      - COMPILE_DIR=/var/pressmark/compiles
+      - TECTONIC_CACHE=/var/pressmark/caches/tectonic
+      - TYPST_CACHE=/var/pressmark/caches/typst
+      - ASSETS_DIR=/app/data/assets
+      - MAX_CONCURRENT_PROJECTS=4
+    volumes:
+      - ./data/assets:/app/data/assets:ro
+      - ./data/compiles/compiler-1:/var/pressmark/compiles
+      - ./data/caches/tectonic:/var/pressmark/caches/tectonic
+      - ./data/caches/typst:/var/pressmark/caches/typst
+    restart: unless-stopped
+    networks:
+      - pressmark-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+  compiler-2:
+    build:
+      context: .
+      dockerfile: compiler/Dockerfile
+    environment:
+      - PORT=4000
+      - COMPILE_DIR=/var/pressmark/compiles
+      - TECTONIC_CACHE=/var/pressmark/caches/tectonic
+      - TYPST_CACHE=/var/pressmark/caches/typst
+      - ASSETS_DIR=/app/data/assets
+      - MAX_CONCURRENT_PROJECTS=4
+    volumes:
+      - ./data/assets:/app/data/assets:ro
+      - ./data/compiles/compiler-2:/var/pressmark/compiles
+      - ./data/caches/tectonic:/var/pressmark/caches/tectonic
+      - ./data/caches/typst:/var/pressmark/caches/typst
+    restart: unless-stopped
+    networks:
+      - pressmark-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+networks:
+  pressmark-internal:
+    driver: bridge

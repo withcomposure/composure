@@ -1,0 +1,30 @@
+[
+  {
+    "id": "typst-article",
+    "name": "Article (Typst)",
+    "description": "A clean, minimal article template for short papers.",
+    "language": "typst",
+    "rootFile": "main.typ"
+  },
+  {
+    "id": "typst-thesis",
+    "name": "Thesis (Typst)",
+    "description": "A structured thesis with chapters and bibliography.",
+    "language": "typst",
+    "rootFile": "main.typ"
+  },
+  {
+    "id": "latex-ieee",
+    "name": "IEEE Conference (LaTeX)",
+    "description": "IEEE two-column conference paper template.",
+    "language": "latex",
+    "rootFile": "main.tex"
+  },
+  {
+    "id": "latex-article",
+    "name": "Article (LaTeX)",
+    "description": "Simple LaTeX article with sections and bibliography.",
+    "language": "latex",
+    "rootFile": "main.tex"
+  }
+]

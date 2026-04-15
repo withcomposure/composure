@@ -1,0 +1,119 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronDown, History, Tag } from 'lucide-react'
+import type { CommitEntry } from '../pages/types'
+import { fetchHistory, fmtRelativeTime } from '../pages/utils'
+
+interface VersionsDropdownProps {
+  projectId: string
+  activeFile: string
+  onViewDiff: (sha: string, filePath: string) => void
+}
+
+export function VersionsDropdown({ projectId, activeFile, onViewDiff }: VersionsDropdownProps) {
+  const [open, setOpen] = useState(false)
+  const [commitsByTarget, setCommitsByTarget] = useState<Record<string, CommitEntry[]>>({})
+  const containerRef = useRef<HTMLDivElement>(null)
+  const targetKey = activeFile ? `${projectId}:${activeFile}` : null
+  const commits = targetKey ? commitsByTarget[targetKey] : undefined
+  const loading = open && targetKey != null && commits == null
+
+  useEffect(() => {
+    if (!open || !activeFile || !targetKey || commits != null) return
+
+    let cancelled = false
+    void fetchHistory(projectId, { file: activeFile, limit: 50 })
+      .then((result) => {
+        if (!cancelled) {
+          setCommitsByTarget((prev) => ({ ...prev, [targetKey]: result }))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCommitsByTarget((prev) => ({ ...prev, [targetKey]: [] }))
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, projectId, activeFile, targetKey, commits])
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', handle, true)
+    return () => window.removeEventListener('pointerdown', handle, true)
+  }, [open])
+
+  const handleSelect = useCallback((sha: string) => {
+    setOpen(false)
+    onViewDiff(sha, activeFile)
+  }, [activeFile, onViewDiff])
+
+  if (!activeFile) return null
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border border-pm-border text-pm-text hover:bg-pm-surface-hover transition-all"
+        title="File version history"
+        aria-label="File version history"
+      >
+        <History size={12} />
+        <ChevronDown size={10} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-pm-border bg-pm-surface shadow-xl">
+          <div className="max-h-80 overflow-y-auto p-1.5">
+            {loading && (
+              <div className="flex items-center gap-2 px-2 py-3 text-xs text-pm-text-muted">
+                <span className="pm-spinner" aria-hidden="true" />
+                Loading...
+              </div>
+            )}
+
+            {!loading && (commits?.length ?? 0) === 0 && (
+              <div className="px-2 py-3 text-xs text-pm-text-muted">
+                No versions found for this file.
+              </div>
+            )}
+
+            {!loading && (commits ?? []).map((commit) => (
+              <button
+                key={commit.sha}
+                onClick={() => handleSelect(commit.sha)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-pm-surface-hover"
+              >
+                {commit.tag ? (
+                  <Tag size={12} className="text-pm-accent shrink-0" />
+                ) : (
+                  <div className="w-3 shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-pm-text">
+                      {fmtRelativeTime(commit.timestamp)}
+                    </span>
+                    {commit.tag && (
+                      <span className="truncate text-[10px] font-medium text-pm-accent">
+                        {commit.tag}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-mono text-pm-text-muted">
+                    {commit.sha.slice(0, 7)}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

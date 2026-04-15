@@ -1,0 +1,132 @@
+{
+  "templates": [
+    {
+      "id": "latex-blank",
+      "name": "Blank",
+      "engine": "latex",
+      "category": "minimal",
+      "tags": ["blank", "starter"],
+      "description": "A minimal LaTeX starter document.",
+      "entrypoint": "main.tex",
+      "isBlank": true,
+      "files": [
+        {
+          "path": "main.tex",
+          "source": "latex/blank/main.tex"
+        }
+      ]
+    },
+    {
+      "id": "latex-ieee-conference",
+      "name": "IEEE Conference Paper",
+      "engine": "latex",
+      "category": "academic",
+      "tags": ["paper", "two-column", "ieee"],
+      "description": "Double-column paper format for IEEE conference submissions.",
+      "entrypoint": "main.tex",
+      "files": [
+        {
+          "path": "main.tex",
+          "source": "latex/ieee-conference/main.tex"
+        },
+        {
+          "path": "refs.bib",
+          "source": "latex/ieee-conference/refs.bib"
+        }
+      ]
+    },
+    {
+      "id": "latex-professional-report",
+      "name": "Professional Report",
+      "engine": "latex",
+      "category": "professional",
+      "tags": ["report", "business"],
+      "description": "Single-column report with sections and bibliography stub.",
+      "entrypoint": "main.tex",
+      "files": [
+        {
+          "path": "main.tex",
+          "source": "latex/report/main.tex"
+        }
+      ]
+    },
+    {
+      "id": "typst-blank",
+      "name": "Blank",
+      "engine": "typst",
+      "category": "minimal",
+      "tags": ["blank", "starter"],
+      "description": "A minimal Typst starter document.",
+      "entrypoint": "main.typ",
+      "isBlank": true,
+      "files": [
+        {
+          "path": "main.typ",
+          "source": "typst/blank/main.typ"
+        }
+      ]
+    },
+    {
+      "id": "typst-apa-paper",
+      "name": "APA-style Paper",
+      "engine": "typst",
+      "category": "academic",
+      "tags": ["paper", "apa"],
+      "description": "Academic paper layout with title, abstract, and references section.",
+      "entrypoint": "main.typ",
+      "files": [
+        {
+          "path": "main.typ",
+          "source": "typst/apa-paper/main.typ"
+        }
+      ]
+    },
+    {
+      "id": "typst-slides",
+      "name": "Slides",
+      "engine": "typst",
+      "category": "presentation",
+      "tags": ["slides", "deck"],
+      "description": "A concise Typst slides starter deck.",
+      "entrypoint": "main.typ",
+      "files": [
+        {
+          "path": "main.typ",
+          "source": "typst/slides/main.typ"
+        }
+      ]
+    },
+    {
+      "id": "markdown-blank",
+      "name": "Blank",
+      "engine": "markdown",
+      "category": "minimal",
+      "tags": ["blank", "starter"],
+      "description": "A minimal Markdown document with live preview.",
+      "entrypoint": "main.md",
+      "isBlank": true,
+      "files": [
+        {
+          "path": "main.md",
+          "source": "markdown/blank/main.md"
+        }
+      ]
+    },
+    {
+      "id": "asciidoc-blank",
+      "name": "Blank",
+      "engine": "asciidoc",
+      "category": "minimal",
+      "tags": ["blank", "starter"],
+      "description": "A minimal AsciiDoc document with live preview.",
+      "entrypoint": "main.adoc",
+      "isBlank": true,
+      "files": [
+        {
+          "path": "main.adoc",
+          "source": "asciidoc/blank/main.adoc"
+        }
+      ]
+    }
+  ]
+}

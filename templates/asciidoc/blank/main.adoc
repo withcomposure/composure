@@ -1,0 +1,50 @@
+= My Document
+Author Name <author@example.com>
+:toc:
+:icons: font
+
+== Introduction
+
+This is a collaborative AsciiDoc document.
+You can write *bold*, _italic_, and `monospace` text.
+
+== Getting Started
+
+AsciiDoc is a lightweight markup language for authoring documents.
+It supports many features out of the box:
+
+* Ordered and unordered lists
+* Tables and figures
+* Code blocks with syntax highlighting
+* Cross-references and footnotes
+
+=== Code Example
+
+[source,python]
+----
+def greet(name):
+    return f"Hello, {name}!"
+
+print(greet("World"))
+----
+
+=== A Simple Table
+
+[cols="1,2,3"]
+|===
+| Column 1 | Column 2 | Column 3
+
+| Cell A1
+| Cell A2
+| Cell A3
+
+| Cell B1
+| Cell B2
+| Cell B3
+|===
+
+== Conclusion
+
+Start editing to see a live preview of your document.
+
+TIP: AsciiDoc supports admonitions like this tip block.

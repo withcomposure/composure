@@ -1,0 +1,31 @@
+{
+  "name": "pressmark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An open-source, self-hostable collaborative document editor for researchers and technical writers.",
+  "scripts": {
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:reset": "bash scripts/psql.sh \"DROP DATABASE IF EXISTS pressmark WITH (FORCE);\" && bash scripts/psql.sh \"CREATE DATABASE pressmark;\"",
+    "db:reset:test": "bash scripts/psql.sh \"DROP DATABASE IF EXISTS pressmark_test WITH (FORCE);\" && bash scripts/psql.sh \"CREATE DATABASE pressmark_test;\"",
+    "db:nuke": "npm run db:down && docker volume rm pressmark_pgdata",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": ". ./scripts/dev-env.sh && npm run dev --workspace=backend",
+    "dev:compiler:1": ". ./scripts/dev-env.sh && PORT=4000 COMPILE_DIR=$DATA_DIR/compiles/compiler-1 npm run dev --workspace=compiler",
+    "dev:compiler:2": ". ./scripts/dev-env.sh && PORT=4001 COMPILE_DIR=$DATA_DIR/compiles/compiler-2 npm run dev --workspace=compiler",
+    "dev": "npm run db:up && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:compiler:1\" \"npm run dev:compiler:2\"",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "lint": "npm run lint --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "workspaces": [
+    "frontend",
+    "backend",
+    "compiler"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,6 @@
+# LaTeX build files
+*.aux
+*.bbl
+*.blg
+*.pdf
+*.synctex.gz
