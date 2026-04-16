@@ -5,7 +5,7 @@ import * as Y from 'yjs'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 // Set DATA_DIR to a temp directory before importing history module
-const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pressmark-history-test-'))
+const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'composure-history-test-'))
 process.env.DATA_DIR = tmpBase
 
 // Must import after setting DATA_DIR so module-level const picks it up
@@ -71,11 +71,11 @@ describe('history', () => {
   }
 
   // ---------------------------------------------------------------------------
-  // Issue 1: .pressmark/types.json must not appear in history
+  // Issue 1: .composure/types.json must not appear in history
   // ---------------------------------------------------------------------------
 
-  describe('.pressmark filtering', () => {
-    it('should not include .pressmark/ files in changed files list', async () => {
+  describe('.composure filtering', () => {
+    it('should not include .composure/ files in changed files list', async () => {
       const state = await createAndStoreDoc({ 'main.tex': '\\documentclass{article}' })
       await history.commitSnapshot(projectId, state)
 
@@ -85,10 +85,10 @@ describe('history', () => {
       const changed = await history.getChangedFilesForCommit(projectId, log[0].sha)
       const paths = changed.map((f) => f.path)
       expect(paths).toContain('main.tex')
-      expect(paths.every((p) => !p.startsWith('.pressmark/'))).toBe(true)
+      expect(paths.every((p) => !p.startsWith('.composure/'))).toBe(true)
     })
 
-    it('should not show .pressmark/ changes between commits', async () => {
+    it('should not show .composure/ changes between commits', async () => {
       const state1 = await createAndStoreDoc({ 'main.tex': 'v1' })
       await history.commitSnapshot(projectId, state1)
 
@@ -98,10 +98,10 @@ describe('history', () => {
       const log = await history.getLog(projectId)
       expect(log.length).toBe(2)
 
-      // Second commit should only show main.tex changed, not .pressmark/types.json
+      // Second commit should only show main.tex changed, not .composure/types.json
       const changed = await history.getChangedFilesForCommit(projectId, log[0].sha)
       for (const file of changed) {
-        expect(file.path).not.toMatch(/^\.pressmark\//)
+        expect(file.path).not.toMatch(/^\.composure\//)
       }
     })
   })

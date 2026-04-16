@@ -13,7 +13,7 @@ const chalky = '#e5c07b',
   whiskey = '#d19a66',
   violet = '#c678dd'
 
-/** Dark theme for CodeMirror matching Pressmark's design tokens */
+/** Dark theme for CodeMirror matching Composure's design tokens */
 const oneDarkTheme = EditorView.theme(
   {
     '&': {

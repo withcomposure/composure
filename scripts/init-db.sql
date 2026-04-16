@@ -1,1 +1,1 @@
-CREATE DATABASE pressmark_test;
+CREATE DATABASE composure_test;

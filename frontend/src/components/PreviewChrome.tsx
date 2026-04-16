@@ -25,14 +25,14 @@ export function PreviewToolbar({
   extra,
 }: PreviewToolbarProps) {
   const btnClass =
-    'rounded px-1.5 py-0.5 text-xs text-pm-text-muted hover:bg-pm-surface-hover transition-colors'
+    'rounded px-1.5 py-0.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover transition-colors'
   const fitBtnClass = isFit
-    ? 'rounded px-1.5 py-0.5 text-xs text-pm-accent bg-pm-accent-muted transition-colors'
+    ? 'rounded px-1.5 py-0.5 text-xs text-cz-accent bg-cz-accent-muted transition-colors'
     : btnClass
 
   return (
-    <div className="flex items-center justify-between border-b border-pm-border px-3 py-1.5 bg-pm-surface">
-      <span className="text-[11px] text-pm-text-muted">{statusLabel}</span>
+    <div className="flex items-center justify-between border-b border-cz-border px-3 py-1.5 bg-cz-surface">
+      <span className="text-[11px] text-cz-text-muted">{statusLabel}</span>
 
       <div className="flex items-center gap-0.5">
         {extra}
@@ -41,14 +41,14 @@ export function PreviewToolbar({
           <button onClick={onFit} className={fitBtnClass} title="Fit to width">Fit</button>
         )}
         <button onClick={onZoomOut} className={btnClass} title="Zoom out">-</button>
-        <span className="text-[11px] text-pm-text-muted w-11 text-center tabular-nums">
+        <span className="text-[11px] text-cz-text-muted w-11 text-center tabular-nums">
           {Math.round(scale * 100)}%
         </span>
         <button onClick={onZoomIn} className={btnClass} title="Zoom in">+</button>
 
         {url && (
           <>
-            <div className="mx-1 h-3 w-px bg-pm-border" />
+            <div className="mx-1 h-3 w-px bg-cz-border" />
             <a
               href={url}
               target="_blank"
@@ -68,11 +68,11 @@ export function PreviewToolbar({
 export function PreviewDarkModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
     <>
-      <div className="mx-1 h-3 w-px bg-pm-border" />
+      <div className="mx-1 h-3 w-px bg-cz-border" />
       <button
         onClick={onToggle}
         className={`rounded px-1.5 py-0.5 text-xs transition-colors inline-flex items-center ${
-          enabled ? 'text-pm-accent bg-pm-accent-muted' : 'text-pm-text-muted hover:bg-pm-surface-hover'
+          enabled ? 'text-cz-accent bg-cz-accent-muted' : 'text-cz-text-muted hover:bg-cz-surface-hover'
         }`}
         title={enabled ? 'Switch to light background' : 'Switch to dark background'}
       >
@@ -84,12 +84,12 @@ export function PreviewDarkModeToggle({ enabled, onToggle }: { enabled: boolean;
 
 export function PreviewErrorBanner({ label, message }: { label: string; message: string }) {
   return (
-    <div className="mx-3 mt-3 rounded-lg border border-pm-danger/30 bg-pm-danger/10 px-4 py-3">
+    <div className="mx-3 mt-3 rounded-lg border border-cz-danger/30 bg-cz-danger/10 px-4 py-3">
       <div className="flex items-start gap-2">
-        <AlertTriangle className="mt-0.5 text-pm-danger" size={14} aria-hidden="true" />
+        <AlertTriangle className="mt-0.5 text-cz-danger" size={14} aria-hidden="true" />
         <div>
-          <p className="text-xs font-medium text-pm-danger mb-1">{label}</p>
-          <pre className="text-[11px] text-pm-text-muted whitespace-pre-wrap font-mono leading-relaxed max-h-40 overflow-y-auto">
+          <p className="text-xs font-medium text-cz-danger mb-1">{label}</p>
+          <pre className="text-[11px] text-cz-text-muted whitespace-pre-wrap font-mono leading-relaxed max-h-40 overflow-y-auto">
             {message}
           </pre>
         </div>

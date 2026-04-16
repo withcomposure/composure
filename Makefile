@@ -18,7 +18,7 @@ down:
 	docker compose down
 
 logs:
-	docker compose logs -f pressmark
+	docker compose logs -f composure
 
 db-reset:
 	npm run db:reset

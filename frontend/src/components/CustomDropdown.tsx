@@ -85,13 +85,13 @@ export function CustomDropdown<T extends string>({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-2 whitespace-nowrap rounded-md border border-pm-border bg-pm-surface px-2 py-2 text-xs text-pm-text outline-none hover:bg-pm-surface-hover"
+        className="flex items-center gap-2 whitespace-nowrap rounded-md border border-cz-border bg-cz-surface px-2 py-2 text-xs text-cz-text outline-none hover:bg-cz-surface-hover"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <SelectedIcon size={14} className="text-pm-text-muted" />
+        <SelectedIcon size={14} className="text-cz-text-muted" />
         <span>{selected.label}</span>
-        <ChevronDown size={14} className="text-pm-text-muted" />
+        <ChevronDown size={14} className="text-cz-text-muted" />
       </button>
 
       {open &&
@@ -99,7 +99,7 @@ export function CustomDropdown<T extends string>({
           <div
             ref={menuRef}
             role="listbox"
-            className={`fixed z-[100] min-w-44 overflow-hidden rounded-lg border border-pm-border bg-pm-surface p-1 shadow-xl ${menuClassName}`.trim()}
+            className={`fixed z-[100] min-w-44 overflow-hidden rounded-lg border border-cz-border bg-cz-surface p-1 shadow-xl ${menuClassName}`.trim()}
             style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
           >
             {options.map((option) => {
@@ -116,12 +116,12 @@ export function CustomDropdown<T extends string>({
                     setOpen(false)
                   }}
                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
-                    active ? 'bg-pm-accent-muted text-pm-text' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+                    active ? 'bg-cz-accent-muted text-cz-text' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
                   }`}
                 >
                   <OptionIcon size={14} />
                   <span className="flex-1">{option.label}</span>
-                  {active && <Check size={13} className="text-pm-accent" />}
+                  {active && <Check size={13} className="text-cz-accent" />}
                 </button>
               )
             })}

@@ -3,7 +3,7 @@ import fs from 'fs'
 import { spawn } from 'child_process'
 import type { Renderer, CompileContext, CompileOutput } from './types.js'
 
-const TECTONIC_CACHE = process.env.TECTONIC_CACHE ?? '/var/pressmark/caches/tectonic'
+const TECTONIC_CACHE = process.env.TECTONIC_CACHE ?? '/var/composure/caches/tectonic'
 
 export const tectonicRenderer: Renderer = {
   id: 'tectonic',

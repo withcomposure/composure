@@ -15,7 +15,7 @@ export function ToggleSwitch({ checked, disabled = false, onChange, ariaLabel }:
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative h-5 w-9 flex-shrink-0 rounded-full border transition-colors duration-200 ${
-        checked ? 'border-transparent bg-pm-accent' : 'border-pm-accent bg-pm-bg'
+        checked ? 'border-transparent bg-cz-accent' : 'border-cz-accent bg-cz-bg'
       } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       <span

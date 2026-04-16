@@ -59,8 +59,8 @@ export function ResizeHandle({
         aria-hidden="true"
         className={`pointer-events-none absolute rounded-sm transition-all duration-100 ${
           isVertical
-            ? `inset-y-0 left-1/2 -translate-x-1/2 ${isActive ? 'w-[2px] bg-pm-accent/70' : 'w-px bg-pm-border'}`
-            : `inset-x-0 top-1/2 -translate-y-1/2 ${isActive ? 'h-[2px] bg-pm-accent/70' : 'h-px bg-pm-border'}`
+            ? `inset-y-0 left-1/2 -translate-x-1/2 ${isActive ? 'w-[2px] bg-cz-accent/70' : 'w-px bg-cz-border'}`
+            : `inset-x-0 top-1/2 -translate-y-1/2 ${isActive ? 'h-[2px] bg-cz-accent/70' : 'h-px bg-cz-border'}`
         }`}
       />
     </div>

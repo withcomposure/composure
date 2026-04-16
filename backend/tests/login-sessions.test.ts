@@ -45,7 +45,7 @@ describe('login', () => {
 
     const setCookieHeader = res.headers['set-cookie']
     const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader]
-    const sessionCookieVal = cookies.find((c) => c?.includes('pressmark_session='))
+    const sessionCookieVal = cookies.find((c) => c?.includes('composure_session='))
     expect(sessionCookieVal).toBeDefined()
     const maxAgeMatch = sessionCookieVal!.match(/Max-Age=(\d+)/)
     expect(maxAgeMatch).not.toBeNull()

@@ -6,24 +6,45 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
-} from 'react'
-import * as Y from 'yjs'
-import { HocuspocusProvider } from '@hocuspocus/provider'
-import { ChevronLeft, FileQuestion, FilePlus2, MousePointerClick } from 'lucide-react'
-import MarkdownIt from 'markdown-it'
-import Asciidoctor from '@asciidoctor/core'
-import { CommentsPanel, type CommentLineNumbers, type ProjectComment } from '../components/CommentsPanel'
-import { DiffView } from '../components/DiffView'
-import { Editor } from '../components/Editor'
-import { FileTree } from '../components/FileTree'
-import { FileTabs, type FileTabsDropPayload, type WorkspaceTab } from '../components/FileTabs'
+} from "react";
+import * as Y from "yjs";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import {
+  ChevronLeft,
+  FileQuestion,
+  FilePlus2,
+  MousePointerClick,
+} from "lucide-react";
+import MarkdownIt from "markdown-it";
+import Asciidoctor from "@asciidoctor/core";
+import {
+  CommentsPanel,
+  type CommentLineNumbers,
+  type ProjectComment,
+} from "../components/CommentsPanel";
+import { DiffView } from "../components/DiffView";
+import { Editor } from "../components/Editor";
+import { FileTree } from "../components/FileTree";
+import {
+  FileTabs,
+  type FileTabsDropPayload,
+  type WorkspaceTab,
+} from "../components/FileTabs";
 
-import { HistoryPanel } from '../components/HistoryPanel'
-import { HtmlPreview } from '../components/HtmlPreview'
-import { CompilePreview, PdfViewer, ImageViewer } from '../components/MediaViewer'
-import { ResizeHandle } from '../components/ResizeHandle'
-import { ShareModal, type AccessPerson, type ShareRole } from '../components/ShareModal'
-import { Toolbar } from '../components/Toolbar'
+import { HistoryPanel } from "../components/HistoryPanel";
+import { HtmlPreview } from "../components/HtmlPreview";
+import {
+  CompilePreview,
+  PdfViewer,
+  ImageViewer,
+} from "../components/MediaViewer";
+import { ResizeHandle } from "../components/ResizeHandle";
+import {
+  ShareModal,
+  type AccessPerson,
+  type ShareRole,
+} from "../components/ShareModal";
+import { Toolbar } from "../components/Toolbar";
 import type {
   ActiveCollaborator,
   ConnectionState,
@@ -31,13 +52,16 @@ import type {
   HistoryState,
   ProjectAccessResponse,
   SessionUser,
-} from './types'
+} from "./types";
 import {
   parseFileMetadata,
   withFileId,
   type FileMetadata,
-} from '../shared/file-metadata'
-import { detectProjectFormatFromFilename, type ProjectFormat } from '../shared/project-format'
+} from "../shared/file-metadata";
+import {
+  detectProjectFormatFromFilename,
+  type ProjectFormat,
+} from "../shared/project-format";
 import {
   ROOT_PANE_ID,
   buildPersistedWorkspaceState,
@@ -51,7 +75,7 @@ import {
   type EditorLayoutNode,
   type EditorPaneState,
   type SplitOrientation,
-} from './workspace-state'
+} from "./workspace-state";
 import {
   getErrorMessage,
   hasAwarenessCursor,
@@ -60,124 +84,133 @@ import {
   navigateToSettings,
   restoreVersion,
   uint8ArrayToBase64,
-} from './utils'
+} from "./utils";
 import {
   applyDroppedPathsToPaneState,
   removeDroppedTabPathsFromSource,
-} from './tab-drop-state'
-import { evaluateUtf8Limit, formatBinarySize } from '../shared/text-size'
+} from "./tab-drop-state";
+import { evaluateUtf8Limit, formatBinarySize } from "../shared/text-size";
 import {
-  readPressmarkDragData,
+  readComposureDragData,
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
-} from '../shared/drag-data'
+} from "../shared/drag-data";
 
 interface ProjectWorkspaceProps {
-  projectId: string
+  projectId: string;
   session: {
-    accountLabel: string
-    accountEmail: string | null
-    accountImageUrl: string | null
-    accountIsGuest: boolean
-    user: SessionUser | null
+    accountLabel: string;
+    accountEmail: string | null;
+    accountImageUrl: string | null;
+    accountIsGuest: boolean;
+    user: SessionUser | null;
     principal: {
-      userId: string | null
-      guestId: string | null
-    }
-  }
-  shareToken?: string
-  autoCompileDefault: boolean
-  autoCompileTimeoutSeconds: number
-  autoSaveOnCompile: boolean
-  autoSaveOnExport: boolean
-  editorBraceMatching: boolean
-  editorHighlightSelectionMatches: boolean
-  editorInEditorFind: boolean
-  editorAutocomplete: boolean
-  editorAutoCloseLatexBeginEnd: boolean
-  onLogin: () => void
-  onLogout: () => void
-  onPopupAlert: (message: string, title?: string) => void
+      userId: string | null;
+      guestId: string | null;
+    };
+  };
+  shareToken?: string;
+  autoCompileDefault: boolean;
+  autoCompileTimeoutSeconds: number;
+  autoSaveOnCompile: boolean;
+  autoSaveOnExport: boolean;
+  editorBraceMatching: boolean;
+  editorHighlightSelectionMatches: boolean;
+  editorInEditorFind: boolean;
+  editorAutocomplete: boolean;
+  editorAutoCloseLatexBeginEnd: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
+  onPopupAlert: (message: string, title?: string) => void;
 }
 
-type SplitDropZone = 'center' | 'right' | 'bottom'
+type SplitDropZone = "center" | "right" | "bottom";
 
 interface DraggedFilePayload {
-  paths: string[]
-  fromTabBar: boolean
-  sourcePaneId: string | null
+  paths: string[];
+  fromTabBar: boolean;
+  sourcePaneId: string | null;
 }
 
 interface LayoutRect {
-  left: number
-  top: number
-  width: number
-  height: number
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 interface SplitHandleGeometry {
-  splitId: string
-  orientation: SplitOrientation
-  rect: LayoutRect
+  splitId: string;
+  orientation: SplitOrientation;
+  rect: LayoutRect;
   line: {
-    x1: number
-    y1: number
-    x2: number
-    y2: number
-  }
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  };
 }
 
 interface SplitCornerTarget {
-  key: string
-  x: number
-  y: number
-  xSplitId: string
-  ySplitId: string
+  key: string;
+  x: number;
+  y: number;
+  xSplitId: string;
+  ySplitId: string;
 }
 
-const SPLIT_RATIO_MIN = 0.15
-const SPLIT_RATIO_MAX = 0.85
-const INTERSECTION_TOLERANCE_PX = 1.5
-const CORNER_HIT_SIZE_PX = 14
+const SPLIT_RATIO_MIN = 0.15;
+const SPLIT_RATIO_MAX = 0.85;
+const INTERSECTION_TOLERANCE_PX = 1.5;
+const CORNER_HIT_SIZE_PX = 14;
 
 function dedupePaths(paths: string[]): string[] {
-  return Array.from(new Set(paths.filter((path) => path.trim().length > 0)))
+  return Array.from(new Set(paths.filter((path) => path.trim().length > 0)));
 }
 
 function collectPaneIds(node: EditorLayoutNode): string[] {
-  if (node.kind === 'pane') {
-    return [node.paneId]
+  if (node.kind === "pane") {
+    return [node.paneId];
   }
-  return [...collectPaneIds(node.first), ...collectPaneIds(node.second)]
+  return [...collectPaneIds(node.first), ...collectPaneIds(node.second)];
 }
 
-function updateSplitRatio(node: EditorLayoutNode, splitId: string, ratio: number): EditorLayoutNode {
-  if (node.kind === 'pane') {
-    return node
+function updateSplitRatio(
+  node: EditorLayoutNode,
+  splitId: string,
+  ratio: number,
+): EditorLayoutNode {
+  if (node.kind === "pane") {
+    return node;
   }
   if (node.splitId === splitId) {
     return {
       ...node,
       ratio,
-    }
+    };
   }
   return {
     ...node,
     first: updateSplitRatio(node.first, splitId, ratio),
     second: updateSplitRatio(node.second, splitId, ratio),
-  }
+  };
 }
 
-function findSplitRatio(node: EditorLayoutNode, splitId: string): number | null {
-  if (node.kind === 'pane') {
-    return null
+function findSplitRatio(
+  node: EditorLayoutNode,
+  splitId: string,
+): number | null {
+  if (node.kind === "pane") {
+    return null;
   }
   if (node.splitId === splitId) {
-    return node.ratio
+    return node.ratio;
   }
-  return findSplitRatio(node.first, splitId) ?? findSplitRatio(node.second, splitId)
+  return (
+    findSplitRatio(node.first, splitId) ?? findSplitRatio(node.second, splitId)
+  );
 }
 
 function insertSplitAtPane(
@@ -187,79 +220,101 @@ function insertSplitAtPane(
   splitId: string,
   orientation: SplitOrientation,
 ): EditorLayoutNode {
-  if (node.kind === 'pane') {
+  if (node.kind === "pane") {
     if (node.paneId !== targetPaneId) {
-      return node
+      return node;
     }
     return {
-      kind: 'split',
+      kind: "split",
       splitId,
       orientation,
       ratio: 0.5,
       first: node,
-      second: { kind: 'pane', paneId: newPaneId },
-    }
+      second: { kind: "pane", paneId: newPaneId },
+    };
   }
 
   return {
     ...node,
-    first: insertSplitAtPane(node.first, targetPaneId, newPaneId, splitId, orientation),
-    second: insertSplitAtPane(node.second, targetPaneId, newPaneId, splitId, orientation),
-  }
+    first: insertSplitAtPane(
+      node.first,
+      targetPaneId,
+      newPaneId,
+      splitId,
+      orientation,
+    ),
+    second: insertSplitAtPane(
+      node.second,
+      targetPaneId,
+      newPaneId,
+      splitId,
+      orientation,
+    ),
+  };
 }
 
-function removePaneFromLayout(node: EditorLayoutNode, paneId: string): EditorLayoutNode | null {
-  if (node.kind === 'pane') {
-    return node.paneId === paneId ? null : node
+function removePaneFromLayout(
+  node: EditorLayoutNode,
+  paneId: string,
+): EditorLayoutNode | null {
+  if (node.kind === "pane") {
+    return node.paneId === paneId ? null : node;
   }
 
-  const nextFirst = removePaneFromLayout(node.first, paneId)
-  const nextSecond = removePaneFromLayout(node.second, paneId)
+  const nextFirst = removePaneFromLayout(node.first, paneId);
+  const nextSecond = removePaneFromLayout(node.second, paneId);
 
   if (!nextFirst && !nextSecond) {
-    return null
+    return null;
   }
   if (!nextFirst) {
-    return nextSecond
+    return nextSecond;
   }
   if (!nextSecond) {
-    return nextFirst
+    return nextFirst;
   }
 
   return {
     ...node,
     first: nextFirst,
     second: nextSecond,
-  }
+  };
 }
 
-function readDraggedFilePayload(dataTransfer: DataTransfer, allFilePaths: Set<string>): DraggedFilePayload | null {
-  const tabPath = readPressmarkDragData(dataTransfer, TAB_SINGLE_PATH_MIME)
+function readDraggedFilePayload(
+  dataTransfer: DataTransfer,
+  allFilePaths: Set<string>,
+): DraggedFilePayload | null {
+  const tabPath = readComposureDragData(dataTransfer, TAB_SINGLE_PATH_MIME);
   if (tabPath) {
-    const nextPaths = dedupePaths([tabPath]).filter((path) => allFilePaths.has(path))
+    const nextPaths = dedupePaths([tabPath]).filter((path) =>
+      allFilePaths.has(path),
+    );
     if (nextPaths.length > 0) {
       return {
         paths: nextPaths,
         fromTabBar: true,
-        sourcePaneId: readPressmarkDragData(dataTransfer, TAB_SOURCE_PANE_MIME) || null,
-      }
+        sourcePaneId:
+          readComposureDragData(dataTransfer, TAB_SOURCE_PANE_MIME) || null,
+      };
     }
-    return null
+    return null;
   }
 
-  const multiRaw = readPressmarkDragData(dataTransfer, TREE_MULTI_PATHS_MIME)
+  const multiRaw = readComposureDragData(dataTransfer, TREE_MULTI_PATHS_MIME);
   if (multiRaw) {
     try {
-      const parsed = JSON.parse(multiRaw) as unknown
+      const parsed = JSON.parse(multiRaw) as unknown;
       if (Array.isArray(parsed)) {
-        const nextPaths = dedupePaths(parsed.filter((value): value is string => typeof value === 'string'))
-          .filter((path) => allFilePaths.has(path))
+        const nextPaths = dedupePaths(
+          parsed.filter((value): value is string => typeof value === "string"),
+        ).filter((path) => allFilePaths.has(path));
         if (nextPaths.length > 0) {
           return {
             paths: nextPaths,
             fromTabBar: false,
             sourcePaneId: null,
-          }
+          };
         }
       }
     } catch {
@@ -267,46 +322,54 @@ function readDraggedFilePayload(dataTransfer: DataTransfer, allFilePaths: Set<st
     }
   }
 
-  const singlePath = readPressmarkDragData(dataTransfer, TREE_SINGLE_PATH_MIME)
+  const singlePath = readComposureDragData(dataTransfer, TREE_SINGLE_PATH_MIME);
   if (singlePath && allFilePaths.has(singlePath)) {
     return {
       paths: [singlePath],
       fromTabBar: false,
       sourcePaneId: null,
-    }
+    };
   }
 
-  return null
+  return null;
 }
 
-function computeDropZone(rect: DOMRect, clientX: number, clientY: number): SplitDropZone {
-  const rightThreshold = rect.left + rect.width * 0.75
-  const bottomThreshold = rect.top + rect.height * 0.75
-  const inRight = clientX >= rightThreshold
-  const inBottom = clientY >= bottomThreshold
+function computeDropZone(
+  rect: DOMRect,
+  clientX: number,
+  clientY: number,
+): SplitDropZone {
+  const rightThreshold = rect.left + rect.width * 0.75;
+  const bottomThreshold = rect.top + rect.height * 0.75;
+  const inRight = clientX >= rightThreshold;
+  const inBottom = clientY >= bottomThreshold;
 
   if (inRight && inBottom) {
-    const rightDistance = (rect.right - clientX) / Math.max(1, rect.width)
-    const bottomDistance = (rect.bottom - clientY) / Math.max(1, rect.height)
-    return rightDistance <= bottomDistance ? 'right' : 'bottom'
+    const rightDistance = (rect.right - clientX) / Math.max(1, rect.width);
+    const bottomDistance = (rect.bottom - clientY) / Math.max(1, rect.height);
+    return rightDistance <= bottomDistance ? "right" : "bottom";
   }
-  if (inRight) return 'right'
-  if (inBottom) return 'bottom'
-  return 'center'
+  if (inRight) return "right";
+  if (inBottom) return "bottom";
+  return "center";
 }
 
 function clampSplitRatio(ratio: number): number {
-  return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, ratio))
+  return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, ratio));
 }
 
-function collectSplitHandleGeometry(node: EditorLayoutNode, rect: LayoutRect, out: SplitHandleGeometry[]): void {
-  if (node.kind === 'pane') {
-    return
+function collectSplitHandleGeometry(
+  node: EditorLayoutNode,
+  rect: LayoutRect,
+  out: SplitHandleGeometry[],
+): void {
+  if (node.kind === "pane") {
+    return;
   }
 
-  if (node.orientation === 'horizontal') {
-    const firstWidth = rect.width * node.ratio
-    const dividerX = rect.left + firstWidth
+  if (node.orientation === "horizontal") {
+    const firstWidth = rect.width * node.ratio;
+    const dividerX = rect.left + firstWidth;
     out.push({
       splitId: node.splitId,
       orientation: node.orientation,
@@ -317,25 +380,33 @@ function collectSplitHandleGeometry(node: EditorLayoutNode, rect: LayoutRect, ou
         x2: dividerX,
         y2: rect.top + rect.height,
       },
-    })
+    });
 
-    collectSplitHandleGeometry(node.first, {
-      left: rect.left,
-      top: rect.top,
-      width: firstWidth,
-      height: rect.height,
-    }, out)
-    collectSplitHandleGeometry(node.second, {
-      left: dividerX,
-      top: rect.top,
-      width: rect.width - firstWidth,
-      height: rect.height,
-    }, out)
-    return
+    collectSplitHandleGeometry(
+      node.first,
+      {
+        left: rect.left,
+        top: rect.top,
+        width: firstWidth,
+        height: rect.height,
+      },
+      out,
+    );
+    collectSplitHandleGeometry(
+      node.second,
+      {
+        left: dividerX,
+        top: rect.top,
+        width: rect.width - firstWidth,
+        height: rect.height,
+      },
+      out,
+    );
+    return;
   }
 
-  const firstHeight = rect.height * node.ratio
-  const dividerY = rect.top + firstHeight
+  const firstHeight = rect.height * node.ratio;
+  const dividerY = rect.top + firstHeight;
   out.push({
     splitId: node.splitId,
     orientation: node.orientation,
@@ -346,59 +417,78 @@ function collectSplitHandleGeometry(node: EditorLayoutNode, rect: LayoutRect, ou
       x2: rect.left + rect.width,
       y2: dividerY,
     },
-  })
+  });
 
-  collectSplitHandleGeometry(node.first, {
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: firstHeight,
-  }, out)
-  collectSplitHandleGeometry(node.second, {
-    left: rect.left,
-    top: dividerY,
-    width: rect.width,
-    height: rect.height - firstHeight,
-  }, out)
+  collectSplitHandleGeometry(
+    node.first,
+    {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: firstHeight,
+    },
+    out,
+  );
+  collectSplitHandleGeometry(
+    node.second,
+    {
+      left: rect.left,
+      top: dividerY,
+      width: rect.width,
+      height: rect.height - firstHeight,
+    },
+    out,
+  );
 }
 
 function isWithinRange(value: number, a: number, b: number): boolean {
-  const min = Math.min(a, b) - INTERSECTION_TOLERANCE_PX
-  const max = Math.max(a, b) + INTERSECTION_TOLERANCE_PX
-  return value >= min && value <= max
+  const min = Math.min(a, b) - INTERSECTION_TOLERANCE_PX;
+  const max = Math.max(a, b) + INTERSECTION_TOLERANCE_PX;
+  return value >= min && value <= max;
 }
 
 function isNear(value: number, target: number): boolean {
-  return Math.abs(value - target) <= INTERSECTION_TOLERANCE_PX
+  return Math.abs(value - target) <= INTERSECTION_TOLERANCE_PX;
 }
 
-function collectSplitCorners(handles: SplitHandleGeometry[]): SplitCornerTarget[] {
-  const xSplitHandles = handles.filter((handle) => handle.orientation === 'horizontal')
-  const ySplitHandles = handles.filter((handle) => handle.orientation === 'vertical')
-  const corners: SplitCornerTarget[] = []
-  const seen = new Set<string>()
+function collectSplitCorners(
+  handles: SplitHandleGeometry[],
+): SplitCornerTarget[] {
+  const xSplitHandles = handles.filter(
+    (handle) => handle.orientation === "horizontal",
+  );
+  const ySplitHandles = handles.filter(
+    (handle) => handle.orientation === "vertical",
+  );
+  const corners: SplitCornerTarget[] = [];
+  const seen = new Set<string>();
 
   for (const xSplit of xSplitHandles) {
-    const x = xSplit.line.x1
+    const x = xSplit.line.x1;
     for (const ySplit of ySplitHandles) {
-      const y = ySplit.line.y1
-      if (!isWithinRange(x, ySplit.line.x1, ySplit.line.x2) || !isWithinRange(y, xSplit.line.y1, xSplit.line.y2)) {
-        continue
+      const y = ySplit.line.y1;
+      if (
+        !isWithinRange(x, ySplit.line.x1, ySplit.line.x2) ||
+        !isWithinRange(y, xSplit.line.y1, xSplit.line.y2)
+      ) {
+        continue;
       }
 
-      const xSplitEndsAtCorner = isNear(y, xSplit.line.y1) || isNear(y, xSplit.line.y2)
-      const ySplitEndsAtCorner = isNear(x, ySplit.line.x1) || isNear(x, ySplit.line.x2)
+      const xSplitEndsAtCorner =
+        isNear(y, xSplit.line.y1) || isNear(y, xSplit.line.y2);
+      const ySplitEndsAtCorner =
+        isNear(x, ySplit.line.x1) || isNear(x, ySplit.line.x2);
       if (!xSplitEndsAtCorner && !ySplitEndsAtCorner) {
-        continue
+        continue;
       }
 
-      const roundedX = Math.round(x * 100) / 100
-      const roundedY = Math.round(y * 100) / 100
-      const key = `${xSplit.splitId}:${ySplit.splitId}:${roundedX}:${roundedY}`
+      const roundedX = Math.round(x * 100) / 100;
+      const roundedY = Math.round(y * 100) / 100;
+      const key = `${xSplit.splitId}:${ySplit.splitId}:${roundedX}:${roundedY}`;
       if (seen.has(key)) {
-        continue
+        continue;
       }
-      seen.add(key)
+      seen.add(key);
 
       corners.push({
         key,
@@ -406,11 +496,11 @@ function collectSplitCorners(handles: SplitHandleGeometry[]): SplitCornerTarget[
         y,
         xSplitId: xSplit.splitId,
         ySplitId: ySplit.splitId,
-      })
+      });
     }
   }
 
-  return corners
+  return corners;
 }
 
 function buildSplitGeometry(
@@ -418,57 +508,68 @@ function buildSplitGeometry(
   width: number,
   height: number,
 ): { byId: Record<string, SplitHandleGeometry>; corners: SplitCornerTarget[] } {
-  if (layout.kind === 'pane' || width <= 0 || height <= 0) {
+  if (layout.kind === "pane" || width <= 0 || height <= 0) {
     return {
       byId: {},
       corners: [],
-    }
+    };
   }
 
-  const handles: SplitHandleGeometry[] = []
-  collectSplitHandleGeometry(layout, {
-    left: 0,
-    top: 0,
-    width,
-    height,
-  }, handles)
+  const handles: SplitHandleGeometry[] = [];
+  collectSplitHandleGeometry(
+    layout,
+    {
+      left: 0,
+      top: 0,
+      width,
+      height,
+    },
+    handles,
+  );
 
-  const byId: Record<string, SplitHandleGeometry> = {}
+  const byId: Record<string, SplitHandleGeometry> = {};
   for (const handle of handles) {
-    byId[handle.splitId] = handle
+    byId[handle.splitId] = handle;
   }
 
   return {
     byId,
     corners: collectSplitCorners(handles),
-  }
+  };
 }
 
-function getAssetPreviewKind(fileName: string, mimeType?: string): 'image' | 'pdf' | 'none' {
+function getAssetPreviewKind(
+  fileName: string,
+  mimeType?: string,
+): "image" | "pdf" | "none" {
   if (mimeType) {
-    if (mimeType.startsWith('image/')) return 'image'
-    if (mimeType === 'application/pdf') return 'pdf'
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType === "application/pdf") return "pdf";
   }
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
-  if (ext && imageExts.includes(ext)) return 'image'
-  if (ext === 'pdf') return 'pdf'
-  return 'none'
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  const imageExts = ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"];
+  if (ext && imageExts.includes(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  return "none";
 }
 
-function assetUrl(projectId: string, storageKey: string, shareToken?: string): string {
-  const base = `/assets/${encodeURIComponent(projectId)}/${encodeURIComponent(storageKey)}`
-  if (shareToken) return `${base}?share=${encodeURIComponent(shareToken)}`
-  return base
+function assetUrl(
+  projectId: string,
+  storageKey: string,
+  shareToken?: string,
+): string {
+  const base = `/assets/${encodeURIComponent(projectId)}/${encodeURIComponent(storageKey)}`;
+  if (shareToken) return `${base}?share=${encodeURIComponent(shareToken)}`;
+  return base;
 }
 
 function sidebarName(path: string): string {
-  const leaf = path.split('/').pop()?.trim()
-  return leaf && leaf.length > 0 ? leaf : 'Preview'
+  const leaf = path.split("/").pop()?.trim();
+  return leaf && leaf.length > 0 ? leaf : "Preview";
 }
 
 function pdfPreviewStorageKey(projectId: string): string {
-  return `pressmark:pdfUrl:${projectId}`
+  return `composure:pdfUrl:${projectId}`;
 }
 
 function AssetPreview({
@@ -478,48 +579,52 @@ function AssetPreview({
   mimeType,
   shareToken,
 }: {
-  projectId: string
-  fileName: string
-  storageKey?: string
-  mimeType?: string
-  shareToken?: string
+  projectId: string;
+  fileName: string;
+  storageKey?: string;
+  mimeType?: string;
+  shareToken?: string;
 }) {
-  const kind = getAssetPreviewKind(fileName, mimeType)
+  const kind = getAssetPreviewKind(fileName, mimeType);
 
   if (!storageKey) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+      <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
         <div className="flex flex-col items-center gap-2">
-          <FileQuestion size={32} className="text-pm-text-muted" />
+          <FileQuestion size={32} className="text-cz-text-muted" />
           <span>Asset data is unavailable.</span>
         </div>
       </div>
-    )
+    );
   }
 
-  const url = assetUrl(projectId, storageKey, shareToken)
+  const url = assetUrl(projectId, storageKey, shareToken);
 
-  if (kind === 'image') {
+  if (kind === "image") {
     return (
-      <ImageViewer url={url} error={null} documentName={sidebarName(fileName)} />
-    )
+      <ImageViewer
+        url={url}
+        error={null}
+        documentName={sidebarName(fileName)}
+      />
+    );
   }
 
-  if (kind === 'pdf') {
+  if (kind === "pdf") {
     return (
       <PdfViewer url={url} error={null} documentName={sidebarName(fileName)} />
-    )
+    );
   }
 
   return (
-    <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+    <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
       <div className="flex flex-col items-center gap-2">
-        <FileQuestion size={32} className="text-pm-text-muted" />
+        <FileQuestion size={32} className="text-cz-text-muted" />
         <span>This file cannot be previewed.</span>
         <span className="text-xs">{fileName}</span>
       </div>
     </div>
-  )
+  );
 }
 
 export function ProjectWorkspace({
@@ -546,193 +651,252 @@ export function ProjectWorkspace({
     accountIsGuest,
     user: sessionUser,
     principal,
-  } = session
+  } = session;
 
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [sidebarTab, setSidebarTab] = useState<'files' | 'review' | 'history'>('files')
-  const [historyState, setHistoryState] = useState<HistoryState | null>(null)
-  const [preHistoryFile, setPreHistoryFile] = useState('')
-  const [diffMode, setDiffMode] = useState<'side-by-side' | 'inline'>('side-by-side')
-  const [activeFile, setActiveFile] = useState('')
-  const [activePaneId, setActivePaneId] = useState(ROOT_PANE_ID)
-  const [focusedEditorPaneId, setFocusedEditorPaneId] = useState<string | null>(null)
-  const [paneStateById, setPaneStateById] = useState<Record<string, EditorPaneState>>({
-    [ROOT_PANE_ID]: { tabs: [], activePath: '', showSnippetToolbar: true },
-  })
-  const [editorLayout, setEditorLayout] = useState<EditorLayoutNode>({ kind: 'pane', paneId: ROOT_PANE_ID })
-  const [paneDropHint, setPaneDropHint] = useState<{ paneId: string; zone: SplitDropZone } | null>(null)
-  const [sidebarWidth, setSidebarWidth] = useState(260)
-  const [previewWidth, setPreviewWidth] = useState(520)
-  const [previewOpen, setPreviewOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<"files" | "review" | "history">(
+    "files",
+  );
+  const [historyState, setHistoryState] = useState<HistoryState | null>(null);
+  const [preHistoryFile, setPreHistoryFile] = useState("");
+  const [diffMode, setDiffMode] = useState<"side-by-side" | "inline">(
+    "side-by-side",
+  );
+  const [activeFile, setActiveFile] = useState("");
+  const [activePaneId, setActivePaneId] = useState(ROOT_PANE_ID);
+  const [focusedEditorPaneId, setFocusedEditorPaneId] = useState<string | null>(
+    null,
+  );
+  const [paneStateById, setPaneStateById] = useState<
+    Record<string, EditorPaneState>
+  >({
+    [ROOT_PANE_ID]: { tabs: [], activePath: "", showSnippetToolbar: true },
+  });
+  const [editorLayout, setEditorLayout] = useState<EditorLayoutNode>({
+    kind: "pane",
+    paneId: ROOT_PANE_ID,
+  });
+  const [paneDropHint, setPaneDropHint] = useState<{
+    paneId: string;
+    zone: SplitDropZone;
+  } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [previewWidth, setPreviewWidth] = useState(520);
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(() => {
     try {
-      return sessionStorage.getItem(pdfPreviewStorageKey(projectId))
+      return sessionStorage.getItem(pdfPreviewStorageKey(projectId));
     } catch {
-      return null
+      return null;
     }
-  })
-  const [compileError, setCompileError] = useState<string | null>(null)
-  const [compiling, setCompiling] = useState(false)
-  const [clearingCompileOutput, setClearingCompileOutput] = useState(false)
-  const [autoCompileEnabled, setAutoCompileEnabled] = useState(autoCompileDefault)
-  const [autoCompileRevision, setAutoCompileRevision] = useState(0)
-  const [markdownHtml, setMarkdownHtml] = useState('')
-  const [exporting, setExporting] = useState(false)
-  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
-  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
-  const [saving, setSaving] = useState(false)
-  const [initialSyncDone, setInitialSyncDone] = useState(false)
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [comments, setComments] = useState<ProjectComment[]>([])
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<ShareRole>('view')
-  const [inviting, setInviting] = useState(false)
-  const [peopleWithAccess, setPeopleWithAccess] = useState<AccessPerson[]>([])
-  const [linkEnabled, setLinkEnabled] = useState(false)
-  const [linkRole, setLinkRole] = useState<ShareRole>('view')
-  const [linkToken, setLinkToken] = useState<string | null>(null)
-  const [maxTextFileSizeBytes, setMaxTextFileSizeBytes] = useState<number | 'unlimited'>(5 * 1024 * 1024)
-  const [largeFileThresholdChars, setLargeFileThresholdChars] = useState(500_000)
-  const [accessRole, setAccessRole] = useState<ShareRole | 'owner' | null>(null)
-  const [editorMode, setEditorMode] = useState<EditorMode>('view')
-  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null)
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
-  const [commentLineNumbersById, setCommentLineNumbersById] = useState<Record<string, CommentLineNumbers>>({})
-  const [activeCommentRevision, setActiveCommentRevision] = useState(0)
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
-  const [isResizingPreview, setIsResizingPreview] = useState(false)
-  const [activeEditors, setActiveEditors] = useState<ActiveCollaborator[]>([])
-  const [focusCollaboratorRequest, setFocusCollaboratorRequest] = useState<{ clientId: number; revision: number } | null>(null)
-  const [editorLayoutSurfaceSize, setEditorLayoutSurfaceSize] = useState({ width: 0, height: 0 })
-  const [hoveredCornerKey, setHoveredCornerKey] = useState<string | null>(null)
-  const [draggingCornerSplitIds, setDraggingCornerSplitIds] = useState<[string, string] | null>(null)
-  const [textByteSizeByPath, setTextByteSizeByPath] = useState<Record<string, number>>({})
-  const inFlightSaveCountRef = useRef(0)
-  const lastTextLimitPopupAtRef = useRef(0)
-  const lastAutoCompiledRevisionRef = useRef(0)
-  const autoCompileRevisionRef = useRef(0)
-  const paneIdCounterRef = useRef(2)
-  const splitIdCounterRef = useRef(1)
-  const previousProjectIdRef = useRef(projectId)
-  const ydocProjectIdRef = useRef(projectId)
-  const layoutRef = useRef<HTMLDivElement | null>(null)
-  const editorLayoutSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const sidebarWidthRef = useRef(sidebarWidth)
-  const [workspaceStateLoaded, setWorkspaceStateLoaded] = useState(false)
-  const lastPersistedWorkspaceStateRef = useRef<string | null>(null)
-  const [ydoc, setYdoc] = useState(() => new Y.Doc())
-  const activeCommentId = hoveredCommentId ?? selectedCommentId
+  });
+  const [compileError, setCompileError] = useState<string | null>(null);
+  const [compiling, setCompiling] = useState(false);
+  const [clearingCompileOutput, setClearingCompileOutput] = useState(false);
+  const [autoCompileEnabled, setAutoCompileEnabled] =
+    useState(autoCompileDefault);
+  const [autoCompileRevision, setAutoCompileRevision] = useState(0);
+  const [markdownHtml, setMarkdownHtml] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("connecting");
+  const [saving, setSaving] = useState(false);
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [comments, setComments] = useState<ProjectComment[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<ShareRole>("view");
+  const [inviting, setInviting] = useState(false);
+  const [peopleWithAccess, setPeopleWithAccess] = useState<AccessPerson[]>([]);
+  const [linkEnabled, setLinkEnabled] = useState(false);
+  const [linkRole, setLinkRole] = useState<ShareRole>("view");
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [maxTextFileSizeBytes, setMaxTextFileSizeBytes] = useState<
+    number | "unlimited"
+  >(5 * 1024 * 1024);
+  const [largeFileThresholdChars, setLargeFileThresholdChars] =
+    useState(500_000);
+  const [accessRole, setAccessRole] = useState<ShareRole | "owner" | null>(
+    null,
+  );
+  const [editorMode, setEditorMode] = useState<EditorMode>("view");
+  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(
+    null,
+  );
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
+  const [commentLineNumbersById, setCommentLineNumbersById] = useState<
+    Record<string, CommentLineNumbers>
+  >({});
+  const [activeCommentRevision, setActiveCommentRevision] = useState(0);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [isResizingPreview, setIsResizingPreview] = useState(false);
+  const [activeEditors, setActiveEditors] = useState<ActiveCollaborator[]>([]);
+  const [focusCollaboratorRequest, setFocusCollaboratorRequest] = useState<{
+    clientId: number;
+    revision: number;
+  } | null>(null);
+  const [editorLayoutSurfaceSize, setEditorLayoutSurfaceSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [hoveredCornerKey, setHoveredCornerKey] = useState<string | null>(null);
+  const [draggingCornerSplitIds, setDraggingCornerSplitIds] = useState<
+    [string, string] | null
+  >(null);
+  const [textByteSizeByPath, setTextByteSizeByPath] = useState<
+    Record<string, number>
+  >({});
+  const inFlightSaveCountRef = useRef(0);
+  const lastTextLimitPopupAtRef = useRef(0);
+  const lastAutoCompiledRevisionRef = useRef(0);
+  const autoCompileRevisionRef = useRef(0);
+  const paneIdCounterRef = useRef(2);
+  const splitIdCounterRef = useRef(1);
+  const previousProjectIdRef = useRef(projectId);
+  const ydocProjectIdRef = useRef(projectId);
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const editorLayoutSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const [workspaceStateLoaded, setWorkspaceStateLoaded] = useState(false);
+  const lastPersistedWorkspaceStateRef = useRef<string | null>(null);
+  const [ydoc, setYdoc] = useState(() => new Y.Doc());
+  const activeCommentId = hoveredCommentId ?? selectedCommentId;
   const openTabs = useMemo(
     () => paneStateById[activePaneId]?.tabs ?? [],
     [paneStateById, activePaneId],
-  )
+  );
 
-  const setOpenTabs = useCallback((updater: WorkspaceTab[] | ((prev: WorkspaceTab[]) => WorkspaceTab[])) => {
-    setPaneStateById((prev) => {
-      const pane = prev[activePaneId] ?? { tabs: [], activePath: '', showSnippetToolbar: true }
-      const nextTabs = typeof updater === 'function'
-        ? updater(pane.tabs)
-        : updater
-      if (nextTabs === pane.tabs) {
-        return prev
-      }
-      return {
-        ...prev,
-        [activePaneId]: {
-          ...pane,
-          tabs: nextTabs,
-        },
-      }
-    })
-  }, [activePaneId])
+  const setOpenTabs = useCallback(
+    (updater: WorkspaceTab[] | ((prev: WorkspaceTab[]) => WorkspaceTab[])) => {
+      setPaneStateById((prev) => {
+        const pane = prev[activePaneId] ?? {
+          tabs: [],
+          activePath: "",
+          showSnippetToolbar: true,
+        };
+        const nextTabs =
+          typeof updater === "function" ? updater(pane.tabs) : updater;
+        if (nextTabs === pane.tabs) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [activePaneId]: {
+            ...pane,
+            tabs: nextTabs,
+          },
+        };
+      });
+    },
+    [activePaneId],
+  );
 
   useEffect(() => {
-    const element = editorLayoutSurfaceRef.current
+    const element = editorLayoutSurfaceRef.current;
     if (!element) {
-      return
+      return;
     }
 
     const updateSize = () => {
-      const nextWidth = element.clientWidth
-      const nextHeight = element.clientHeight
+      const nextWidth = element.clientWidth;
+      const nextHeight = element.clientHeight;
       setEditorLayoutSurfaceSize((prev) => {
         if (prev.width === nextWidth && prev.height === nextHeight) {
-          return prev
+          return prev;
         }
-        return { width: nextWidth, height: nextHeight }
-      })
-    }
+        return { width: nextWidth, height: nextHeight };
+      });
+    };
 
-    updateSize()
-    const observer = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(updateSize)
-      : null
-    observer?.observe(element)
-    window.addEventListener('resize', updateSize)
+    updateSize();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateSize)
+        : null;
+    observer?.observe(element);
+    window.addEventListener("resize", updateSize);
 
     return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', updateSize)
-    }
-  }, [])
+      observer?.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
 
   const splitGeometry = useMemo(() => {
-    return buildSplitGeometry(editorLayout, editorLayoutSurfaceSize.width, editorLayoutSurfaceSize.height)
-  }, [editorLayout, editorLayoutSurfaceSize.height, editorLayoutSurfaceSize.width])
+    return buildSplitGeometry(
+      editorLayout,
+      editorLayoutSurfaceSize.width,
+      editorLayoutSurfaceSize.height,
+    );
+  }, [
+    editorLayout,
+    editorLayoutSurfaceSize.height,
+    editorLayoutSurfaceSize.width,
+  ]);
 
   const forcedActiveSplitIds = useMemo(() => {
-    const next = new Set<string>()
+    const next = new Set<string>();
 
     if (draggingCornerSplitIds) {
-      next.add(draggingCornerSplitIds[0])
-      next.add(draggingCornerSplitIds[1])
+      next.add(draggingCornerSplitIds[0]);
+      next.add(draggingCornerSplitIds[1]);
     }
 
     if (hoveredCornerKey) {
-      const hoveredCorner = splitGeometry.corners.find((corner) => corner.key === hoveredCornerKey)
+      const hoveredCorner = splitGeometry.corners.find(
+        (corner) => corner.key === hoveredCornerKey,
+      );
       if (hoveredCorner) {
-        next.add(hoveredCorner.xSplitId)
-        next.add(hoveredCorner.ySplitId)
+        next.add(hoveredCorner.xSplitId);
+        next.add(hoveredCorner.ySplitId);
       }
     }
 
-    return next
-  }, [draggingCornerSplitIds, hoveredCornerKey, splitGeometry.corners])
+    return next;
+  }, [draggingCornerSplitIds, hoveredCornerKey, splitGeometry.corners]);
 
   useEffect(() => {
     if (!hoveredCornerKey) {
-      return
+      return;
     }
 
-    const hasHoveredCorner = splitGeometry.corners.some((corner) => corner.key === hoveredCornerKey)
+    const hasHoveredCorner = splitGeometry.corners.some(
+      (corner) => corner.key === hoveredCornerKey,
+    );
     if (!hasHoveredCorner) {
-      setHoveredCornerKey(null)
+      setHoveredCornerKey(null);
     }
-  }, [hoveredCornerKey, splitGeometry.corners])
+  }, [hoveredCornerKey, splitGeometry.corners]);
 
-  const md = useMemo(() => MarkdownIt({ html: false, linkify: true, typographer: true }), [])
-  const adoc = useMemo(() => Asciidoctor(), [])
+  const md = useMemo(
+    () => MarkdownIt({ html: false, linkify: true, typographer: true }),
+    [],
+  );
+  const adoc = useMemo(() => Asciidoctor(), []);
 
   const projectFormat = useMemo<ProjectFormat>(() => {
-    return detectProjectFormatFromFilename(activeFile) ?? 'latex'
-  }, [activeFile])
+    return detectProjectFormatFromFilename(activeFile) ?? "latex";
+  }, [activeFile]);
 
   useEffect(() => {
     // Fast Refresh can re-run this component while staying on the same route.
     // Keep the current Y.Doc unless the project ID actually changes.
-    if (!shouldResetWorkspaceForProjectChange(ydocProjectIdRef.current, projectId)) {
-      return
+    if (
+      !shouldResetWorkspaceForProjectChange(ydocProjectIdRef.current, projectId)
+    ) {
+      return;
     }
 
-    ydocProjectIdRef.current = projectId
-    setYdoc(() => new Y.Doc())
-  }, [projectId])
+    ydocProjectIdRef.current = projectId;
+    setYdoc(() => new Y.Doc());
+  }, [projectId]);
 
   useEffect(() => {
     setPaneStateById((prev) => {
-      const pane = prev[activePaneId]
+      const pane = prev[activePaneId];
       if (!pane || pane.activePath === activeFile) {
-        return prev
+        return prev;
       }
       return {
         ...prev,
@@ -740,536 +904,607 @@ export function ProjectWorkspace({
           ...pane,
           activePath: activeFile,
         },
-      }
-    })
-  }, [activePaneId, activeFile])
+      };
+    });
+  }, [activePaneId, activeFile]);
 
   useEffect(() => {
     // Ignore same-project reruns (including Fast Refresh). Resetting here for
     // an unchanged project would collapse panes/tabs and then persist that layout.
-    if (!shouldResetWorkspaceForProjectChange(previousProjectIdRef.current, projectId)) {
-      return
+    if (
+      !shouldResetWorkspaceForProjectChange(
+        previousProjectIdRef.current,
+        projectId,
+      )
+    ) {
+      return;
     }
 
-    previousProjectIdRef.current = projectId
-    const defaults = defaultPersistedWorkspaceState()
-    setInitialSyncDone(false)
-    setWorkspaceStateLoaded(false)
-    lastPersistedWorkspaceStateRef.current = null
-    setActiveFile(defaults.activeFile)
-    setActivePaneId(defaults.activePaneId)
-    setPaneStateById(defaults.paneStateById)
-    setEditorLayout(defaults.editorLayout)
-    setSidebarOpen(defaults.sidebarOpen)
-    setSidebarTab(defaults.sidebarTab)
-    setSidebarWidth(defaults.sidebarWidth)
-    sidebarWidthRef.current = defaults.sidebarWidth
-    setPreviewOpen(defaults.previewOpen)
-    setPreviewWidth(defaults.previewWidth)
-    setPaneDropHint(null)
-    paneIdCounterRef.current = 2
-    splitIdCounterRef.current = 1
-  }, [projectId])
+    previousProjectIdRef.current = projectId;
+    const defaults = defaultPersistedWorkspaceState();
+    setInitialSyncDone(false);
+    setWorkspaceStateLoaded(false);
+    lastPersistedWorkspaceStateRef.current = null;
+    setActiveFile(defaults.activeFile);
+    setActivePaneId(defaults.activePaneId);
+    setPaneStateById(defaults.paneStateById);
+    setEditorLayout(defaults.editorLayout);
+    setSidebarOpen(defaults.sidebarOpen);
+    setSidebarTab(defaults.sidebarTab);
+    setSidebarWidth(defaults.sidebarWidth);
+    sidebarWidthRef.current = defaults.sidebarWidth;
+    setPreviewOpen(defaults.previewOpen);
+    setPreviewWidth(defaults.previewWidth);
+    setPaneDropHint(null);
+    paneIdCounterRef.current = 2;
+    splitIdCounterRef.current = 1;
+  }, [projectId]);
 
-  const fileMap = useMemo(() => ydoc.getMap<string>('files'), [ydoc])
-  const [textFilePaths, setTextFilePaths] = useState<Set<string>>(new Set())
-  const [allFilePaths, setAllFilePaths] = useState<Set<string>>(new Set())
-  const [assetInfoByPath, setAssetInfoByPath] = useState<Record<string, { storageKey?: string; mimeType?: string }>>({})
-  const openTabsRef = useRef<WorkspaceTab[]>([])
-  const availableFilePathList = useMemo(() => Array.from(allFilePaths).sort((left, right) => left.localeCompare(right)), [allFilePaths])
+  const fileMap = useMemo(() => ydoc.getMap<string>("files"), [ydoc]);
+  const [textFilePaths, setTextFilePaths] = useState<Set<string>>(new Set());
+  const [allFilePaths, setAllFilePaths] = useState<Set<string>>(new Set());
+  const [assetInfoByPath, setAssetInfoByPath] = useState<
+    Record<string, { storageKey?: string; mimeType?: string }>
+  >({});
+  const openTabsRef = useRef<WorkspaceTab[]>([]);
+  const availableFilePathList = useMemo(
+    () =>
+      Array.from(allFilePaths).sort((left, right) => left.localeCompare(right)),
+    [allFilePaths],
+  );
   const visibleTextFilePaths = useMemo(() => {
-    const paths = new Set<string>()
+    const paths = new Set<string>();
     for (const pane of Object.values(paneStateById)) {
       if (pane.activePath && textFilePaths.has(pane.activePath)) {
-        paths.add(pane.activePath)
+        paths.add(pane.activePath);
       }
     }
-    return Array.from(paths)
-  }, [paneStateById, textFilePaths])
+    return Array.from(paths);
+  }, [paneStateById, textFilePaths]);
 
   useEffect(() => {
-    openTabsRef.current = openTabs
-  }, [openTabs])
+    openTabsRef.current = openTabs;
+  }, [openTabs]);
 
   useEffect(() => {
-    if (maxTextFileSizeBytes === 'unlimited') {
-      setTextByteSizeByPath({})
-      return
+    if (maxTextFileSizeBytes === "unlimited") {
+      setTextByteSizeByPath({});
+      return;
     }
 
-    const trackedPaths = new Set(visibleTextFilePaths)
+    const trackedPaths = new Set(visibleTextFilePaths);
     setTextByteSizeByPath((prev) => {
-      let changed = false
-      const next: Record<string, number> = {}
+      let changed = false;
+      const next: Record<string, number> = {};
       for (const [path, size] of Object.entries(prev)) {
         if (trackedPaths.has(path)) {
-          next[path] = size
+          next[path] = size;
         } else {
-          changed = true
+          changed = true;
         }
       }
-      return changed ? next : prev
-    })
+      return changed ? next : prev;
+    });
 
-    const observers: Array<{ text: Y.Text; observer: () => void }> = []
+    const observers: Array<{ text: Y.Text; observer: () => void }> = [];
 
     const refreshPathSize = (filePath: string) => {
-      const text = ydoc.getText(`file:${filePath}`)
+      const text = ydoc.getText(`file:${filePath}`);
       const { sizeBytes } = evaluateUtf8Limit(
         text.length,
         maxTextFileSizeBytes,
         () => text.toString(),
-      )
+      );
 
       setTextByteSizeByPath((prev) => {
         if (prev[filePath] === sizeBytes) {
-          return prev
+          return prev;
         }
         return {
           ...prev,
           [filePath]: sizeBytes,
-        }
-      })
-    }
+        };
+      });
+    };
 
     for (const filePath of visibleTextFilePaths) {
-      const text = ydoc.getText(`file:${filePath}`)
+      const text = ydoc.getText(`file:${filePath}`);
       const observer = () => {
-        refreshPathSize(filePath)
-      }
-      text.observe(observer)
-      observers.push({ text, observer })
-      refreshPathSize(filePath)
+        refreshPathSize(filePath);
+      };
+      text.observe(observer);
+      observers.push({ text, observer });
+      refreshPathSize(filePath);
     }
 
     return () => {
       for (const { text, observer } of observers) {
-        text.unobserve(observer)
+        text.unobserve(observer);
       }
-    }
-  }, [ydoc, visibleTextFilePaths, maxTextFileSizeBytes])
+    };
+  }, [ydoc, visibleTextFilePaths, maxTextFileSizeBytes]);
 
   useEffect(() => {
-    if (!shouldReconcileWorkspaceFromFileMap(initialSyncDone, connectionState)) {
-      return
+    if (
+      !shouldReconcileWorkspaceFromFileMap(initialSyncDone, connectionState)
+    ) {
+      return;
     }
 
-    let nextActivePathForActivePane: string | null = null
+    let nextActivePathForActivePane: string | null = null;
 
     setPaneStateById((prev) => {
-      let changed = false
-      const next: Record<string, EditorPaneState> = {}
+      let changed = false;
+      const next: Record<string, EditorPaneState> = {};
 
       for (const [paneId, paneState] of Object.entries(prev)) {
-        const filteredTabs = paneState.tabs.filter((tab) => allFilePaths.has(tab.path))
-        const activePath = paneState.activePath && allFilePaths.has(paneState.activePath)
-          ? paneState.activePath
-          : (filteredTabs[0]?.path ?? '')
+        const filteredTabs = paneState.tabs.filter((tab) =>
+          allFilePaths.has(tab.path),
+        );
+        const activePath =
+          paneState.activePath && allFilePaths.has(paneState.activePath)
+            ? paneState.activePath
+            : (filteredTabs[0]?.path ?? "");
 
-        if (filteredTabs.length !== paneState.tabs.length || activePath !== paneState.activePath) {
-          changed = true
+        if (
+          filteredTabs.length !== paneState.tabs.length ||
+          activePath !== paneState.activePath
+        ) {
+          changed = true;
           if (paneId === activePaneId && activePath !== activeFile) {
-            nextActivePathForActivePane = activePath
+            nextActivePathForActivePane = activePath;
           }
           next[paneId] = {
             tabs: filteredTabs,
             activePath,
             showSnippetToolbar: paneState.showSnippetToolbar,
-          }
-          continue
+          };
+          continue;
         }
 
-        next[paneId] = paneState
+        next[paneId] = paneState;
       }
 
-      return changed ? next : prev
-    })
+      return changed ? next : prev;
+    });
 
     if (nextActivePathForActivePane !== null) {
-      setActiveFile(nextActivePathForActivePane)
+      setActiveFile(nextActivePathForActivePane);
     }
-  }, [allFilePaths, activePaneId, activeFile, connectionState, initialSyncDone])
+  }, [
+    allFilePaths,
+    activePaneId,
+    activeFile,
+    connectionState,
+    initialSyncDone,
+  ]);
 
   useEffect(() => {
     if (paneStateById[activePaneId]) {
-      return
+      return;
     }
-    const nextActivePaneId = collectPaneIds(editorLayout)[0] ?? ROOT_PANE_ID
+    const nextActivePaneId = collectPaneIds(editorLayout)[0] ?? ROOT_PANE_ID;
     if (nextActivePaneId !== activePaneId) {
-      setActivePaneId(nextActivePaneId)
-      setActiveFile(paneStateById[nextActivePaneId]?.activePath ?? '')
+      setActivePaneId(nextActivePaneId);
+      setActiveFile(paneStateById[nextActivePaneId]?.activePath ?? "");
     }
-  }, [activePaneId, paneStateById, editorLayout])
+  }, [activePaneId, paneStateById, editorLayout]);
 
   useEffect(() => {
-    let nextLayout = editorLayout
-    let nextPaneStateById = paneStateById
-    let paneIds = collectPaneIds(nextLayout)
-    let changed = false
+    let nextLayout = editorLayout;
+    let nextPaneStateById = paneStateById;
+    let paneIds = collectPaneIds(nextLayout);
+    let changed = false;
 
     while (paneIds.length > 1) {
-      const emptyPaneId = paneIds.find((paneId) => (nextPaneStateById[paneId]?.tabs.length ?? 0) === 0)
+      const emptyPaneId = paneIds.find(
+        (paneId) => (nextPaneStateById[paneId]?.tabs.length ?? 0) === 0,
+      );
       if (!emptyPaneId) {
-        break
+        break;
       }
 
-      const collapsed = removePaneFromLayout(nextLayout, emptyPaneId)
+      const collapsed = removePaneFromLayout(nextLayout, emptyPaneId);
       if (!collapsed) {
-        break
+        break;
       }
 
-      const remainingPanes = { ...nextPaneStateById }
-      delete remainingPanes[emptyPaneId]
-      nextPaneStateById = remainingPanes
-      nextLayout = collapsed
-      paneIds = collectPaneIds(nextLayout)
-      changed = true
+      const remainingPanes = { ...nextPaneStateById };
+      delete remainingPanes[emptyPaneId];
+      nextPaneStateById = remainingPanes;
+      nextLayout = collapsed;
+      paneIds = collectPaneIds(nextLayout);
+      changed = true;
     }
 
     if (!changed) {
-      return
+      return;
     }
 
-    setEditorLayout(nextLayout)
-    setPaneStateById(nextPaneStateById)
+    setEditorLayout(nextLayout);
+    setPaneStateById(nextPaneStateById);
 
     if (!nextPaneStateById[activePaneId]) {
-      const fallbackPaneId = collectPaneIds(nextLayout)[0] ?? ROOT_PANE_ID
-      setActivePaneId(fallbackPaneId)
-      setActiveFile(nextPaneStateById[fallbackPaneId]?.activePath ?? '')
+      const fallbackPaneId = collectPaneIds(nextLayout)[0] ?? ROOT_PANE_ID;
+      setActivePaneId(fallbackPaneId);
+      setActiveFile(nextPaneStateById[fallbackPaneId]?.activePath ?? "");
     }
-  }, [paneStateById, editorLayout, activePaneId])
+  }, [paneStateById, editorLayout, activePaneId]);
 
   useEffect(() => {
-    if (!activeFile) return
+    if (!activeFile) return;
     setOpenTabs((prev) => {
       if (prev.some((tab) => tab.path === activeFile)) {
-        return prev
+        return prev;
       }
 
-      const previewIndex = prev.findIndex((tab) => tab.isEphemeral)
+      const previewIndex = prev.findIndex((tab) => tab.isEphemeral);
       if (previewIndex !== -1) {
-        const next = [...prev]
-        next[previewIndex] = { path: activeFile, isEphemeral: true }
-        return next
+        const next = [...prev];
+        next[previewIndex] = { path: activeFile, isEphemeral: true };
+        return next;
       }
 
-      return [...prev, { path: activeFile, isEphemeral: true }]
-    })
-  }, [activeFile, setOpenTabs])
+      return [...prev, { path: activeFile, isEphemeral: true }];
+    });
+  }, [activeFile, setOpenTabs]);
 
   useEffect(() => {
     const update = () => {
-      const nextTextPaths = new Set<string>()
-      const nextAllPaths = new Set<string>()
-      const nextAssetInfo: Record<string, { storageKey?: string; mimeType?: string }> = {}
+      const nextTextPaths = new Set<string>();
+      const nextAllPaths = new Set<string>();
+      const nextAssetInfo: Record<
+        string,
+        { storageKey?: string; mimeType?: string }
+      > = {};
       fileMap.forEach((raw: string, filePath: string) => {
-        const meta = parseFileMetadata(raw)
-        if (meta.type !== 'folder') {
-          nextAllPaths.add(filePath)
+        const meta = parseFileMetadata(raw);
+        if (meta.type !== "folder") {
+          nextAllPaths.add(filePath);
         }
-        if (meta.type === 'text') {
-          nextTextPaths.add(filePath)
+        if (meta.type === "text") {
+          nextTextPaths.add(filePath);
         }
-        if (meta.type === 'asset') {
-          nextAssetInfo[filePath] = { storageKey: meta.storageKey, mimeType: meta.mimeType }
+        if (meta.type === "asset") {
+          nextAssetInfo[filePath] = {
+            storageKey: meta.storageKey,
+            mimeType: meta.mimeType,
+          };
         }
-      })
-      setTextFilePaths(nextTextPaths)
-      setAllFilePaths(nextAllPaths)
-      setAssetInfoByPath(nextAssetInfo)
-    }
+      });
+      setTextFilePaths(nextTextPaths);
+      setAllFilePaths(nextAllPaths);
+      setAssetInfoByPath(nextAssetInfo);
+    };
 
-    update()
-    fileMap.observe(update)
-    return () => fileMap.unobserve(update)
-  }, [fileMap])
+    update();
+    fileMap.observe(update);
+    return () => fileMap.unobserve(update);
+  }, [fileMap]);
 
   useEffect(() => {
-    if (!initialSyncDone) return
+    if (!initialSyncDone) return;
 
-    const updates: Array<{ filePath: string; value: string }> = []
+    const updates: Array<{ filePath: string; value: string }> = [];
     fileMap.forEach((raw: string, filePath: string) => {
-      const normalized = JSON.stringify(withFileId(parseFileMetadata(raw)) as FileMetadata)
+      const normalized = JSON.stringify(
+        withFileId(parseFileMetadata(raw)) as FileMetadata,
+      );
       if (raw !== normalized) {
-        updates.push({ filePath, value: normalized })
+        updates.push({ filePath, value: normalized });
       }
-    })
+    });
 
-    if (updates.length === 0) return
+    if (updates.length === 0) return;
 
     ydoc.transact(() => {
       for (const update of updates) {
-        fileMap.set(update.filePath, update.value)
+        fileMap.set(update.filePath, update.value);
       }
-    }, 'pressmark:normalize-file-metadata')
-  }, [fileMap, ydoc, initialSyncDone])
+    }, "composure:normalize-file-metadata");
+  }, [fileMap, ydoc, initialSyncDone]);
 
   useEffect(() => {
-    if (!initialSyncDone) return
+    if (!initialSyncDone) return;
 
     if (activeFile && allFilePaths.has(activeFile)) {
-      return
+      return;
     }
 
     if (activeFile) {
-      const fallback = openTabs.find((tab) => allFilePaths.has(tab.path))?.path ?? ''
-      setActiveFile(fallback)
+      const fallback =
+        openTabs.find((tab) => allFilePaths.has(tab.path))?.path ?? "";
+      setActiveFile(fallback);
     }
-  }, [initialSyncDone, activeFile, allFilePaths, openTabs])
+  }, [initialSyncDone, activeFile, allFilePaths, openTabs]);
 
   useEffect(() => {
-    setAutoCompileEnabled(autoCompileDefault)
-  }, [projectId, autoCompileDefault])
+    setAutoCompileEnabled(autoCompileDefault);
+  }, [projectId, autoCompileDefault]);
 
   const focusCollaborator = useCallback((clientId: number) => {
     setFocusCollaboratorRequest((prev) => ({
       clientId,
       revision: prev ? prev.revision + 1 : 1,
-    }))
-  }, [])
+    }));
+  }, []);
 
   useEffect(() => {
-    sidebarWidthRef.current = sidebarWidth
-  }, [sidebarWidth])
+    sidebarWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
 
   const shareHeaders = useMemo<Record<string, string>>(
-    () => (shareToken ? { 'X-Share-Token': shareToken } : ({} as Record<string, string>)),
+    () =>
+      shareToken
+        ? { "X-Share-Token": shareToken }
+        : ({} as Record<string, string>),
     [shareToken],
-  )
+  );
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     const loadWorkspaceState = async () => {
-      let loadSucceeded = false
+      let loadSucceeded = false;
 
       try {
         const res = await fetch(`/api/projects/${projectId}/workspace-state`, {
-          credentials: 'same-origin',
+          credentials: "same-origin",
           headers: shareHeaders,
-        })
+        });
 
         if (!res.ok) {
-          throw new Error(`status=${res.status}`)
+          throw new Error(`status=${res.status}`);
         }
 
-        const body = await res.json() as { state?: unknown }
-        loadSucceeded = true
-        const parsed = parsePersistedWorkspaceState(body.state)
+        const body = (await res.json()) as { state?: unknown };
+        loadSucceeded = true;
+        const parsed = parsePersistedWorkspaceState(body.state);
         if (cancelled) {
-          return
+          return;
         }
 
         if (!parsed) {
-          lastPersistedWorkspaceStateRef.current = null
-          return
+          lastPersistedWorkspaceStateRef.current = null;
+          return;
         }
 
-        setSidebarOpen(parsed.sidebarOpen)
-        setSidebarTab(parsed.sidebarTab)
-        setSidebarWidth(parsed.sidebarWidth)
-        sidebarWidthRef.current = parsed.sidebarWidth
-        setPreviewOpen(parsed.previewOpen)
-        setPreviewWidth(parsed.previewWidth)
-        setPaneStateById(parsed.paneStateById)
-        setEditorLayout(parsed.editorLayout)
+        setSidebarOpen(parsed.sidebarOpen);
+        setSidebarTab(parsed.sidebarTab);
+        setSidebarWidth(parsed.sidebarWidth);
+        sidebarWidthRef.current = parsed.sidebarWidth;
+        setPreviewOpen(parsed.previewOpen);
+        setPreviewWidth(parsed.previewWidth);
+        setPaneStateById(parsed.paneStateById);
+        setEditorLayout(parsed.editorLayout);
 
-        const paneIds = collectPaneIds(parsed.editorLayout)
+        const paneIds = collectPaneIds(parsed.editorLayout);
         const nextActivePaneId = paneIds.includes(parsed.activePaneId)
           ? parsed.activePaneId
-          : (paneIds[0] ?? ROOT_PANE_ID)
-        const nextActiveFile = parsed.activeFile || parsed.paneStateById[nextActivePaneId]?.activePath || ''
+          : (paneIds[0] ?? ROOT_PANE_ID);
+        const nextActiveFile =
+          parsed.activeFile ||
+          parsed.paneStateById[nextActivePaneId]?.activePath ||
+          "";
 
-        setActivePaneId(nextActivePaneId)
-        setActiveFile(nextActiveFile)
-        paneIdCounterRef.current = getNextPaneIdCounter(parsed.editorLayout, parsed.paneStateById)
-        splitIdCounterRef.current = getNextSplitIdCounter(parsed.editorLayout)
-        lastPersistedWorkspaceStateRef.current = JSON.stringify(parsed)
+        setActivePaneId(nextActivePaneId);
+        setActiveFile(nextActiveFile);
+        paneIdCounterRef.current = getNextPaneIdCounter(
+          parsed.editorLayout,
+          parsed.paneStateById,
+        );
+        splitIdCounterRef.current = getNextSplitIdCounter(parsed.editorLayout);
+        lastPersistedWorkspaceStateRef.current = JSON.stringify(parsed);
       } catch (err) {
-        console.warn(`[app] load-workspace-state-failed ${String(err)}`)
+        console.warn(`[app] load-workspace-state-failed ${String(err)}`);
       } finally {
         if (shouldEnableWorkspaceStatePersistence(loadSucceeded, cancelled)) {
-          setWorkspaceStateLoaded(true)
+          setWorkspaceStateLoaded(true);
         }
       }
-    }
+    };
 
-    void loadWorkspaceState()
+    void loadWorkspaceState();
 
     return () => {
-      cancelled = true
-    }
-  }, [projectId, shareHeaders])
+      cancelled = true;
+    };
+  }, [projectId, shareHeaders]);
 
-  const canComment = accessRole === 'owner' || accessRole === 'edit' || accessRole === 'comment'
-  const canEdit = accessRole === 'owner' || accessRole === 'edit'
-  const canCommentLive = canComment && connectionState === 'connected'
-  const canEditLive = canEdit && connectionState === 'connected'
-  const canManageAccess = accessRole === 'owner' && Boolean(sessionUser?.id)
-  const effectiveMode: EditorMode = editorMode === 'edit' && !canEditLive
-    ? (canCommentLive ? 'comment' : 'view')
-    : editorMode === 'comment' && !canCommentLive
-      ? 'view'
-      : editorMode
-  const canInteractWithComments = canCommentLive && effectiveMode !== 'view'
+  const canComment =
+    accessRole === "owner" || accessRole === "edit" || accessRole === "comment";
+  const canEdit = accessRole === "owner" || accessRole === "edit";
+  const canCommentLive = canComment && connectionState === "connected";
+  const canEditLive = canEdit && connectionState === "connected";
+  const canManageAccess = accessRole === "owner" && Boolean(sessionUser?.id);
+  const effectiveMode: EditorMode =
+    editorMode === "edit" && !canEditLive
+      ? canCommentLive
+        ? "comment"
+        : "view"
+      : editorMode === "comment" && !canCommentLive
+        ? "view"
+        : editorMode;
+  const canInteractWithComments = canCommentLive && effectiveMode !== "view";
 
-  const persistedWorkspaceState = useMemo(() => buildPersistedWorkspaceState({
-    sidebarOpen,
-    sidebarTab,
-    sidebarWidth,
-    previewOpen,
-    previewWidth,
-    activePaneId,
-    activeFile,
-    paneStateById,
-    editorLayout,
-  }), [
-    sidebarOpen,
-    sidebarTab,
-    sidebarWidth,
-    previewOpen,
-    previewWidth,
-    activePaneId,
-    activeFile,
-    paneStateById,
-    editorLayout,
-  ])
+  const persistedWorkspaceState = useMemo(
+    () =>
+      buildPersistedWorkspaceState({
+        sidebarOpen,
+        sidebarTab,
+        sidebarWidth,
+        previewOpen,
+        previewWidth,
+        activePaneId,
+        activeFile,
+        paneStateById,
+        editorLayout,
+      }),
+    [
+      sidebarOpen,
+      sidebarTab,
+      sidebarWidth,
+      previewOpen,
+      previewWidth,
+      activePaneId,
+      activeFile,
+      paneStateById,
+      editorLayout,
+    ],
+  );
 
   useEffect(() => {
     if (!workspaceStateLoaded) {
-      return
+      return;
     }
 
-    const serialized = JSON.stringify(persistedWorkspaceState)
+    const serialized = JSON.stringify(persistedWorkspaceState);
     if (serialized === lastPersistedWorkspaceStateRef.current) {
-      return
+      return;
     }
 
     const timeout = window.setTimeout(() => {
       void (async () => {
         try {
-          const res = await fetch(`/api/projects/${projectId}/workspace-state`, {
-            method: 'PATCH',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/json',
-              ...shareHeaders,
+          const res = await fetch(
+            `/api/projects/${projectId}/workspace-state`,
+            {
+              method: "PATCH",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json",
+                ...shareHeaders,
+              },
+              body: JSON.stringify({ state: persistedWorkspaceState }),
             },
-            body: JSON.stringify({ state: persistedWorkspaceState }),
-          })
+          );
 
           if (!res.ok) {
-            throw new Error(`status=${res.status}`)
+            throw new Error(`status=${res.status}`);
           }
 
-          lastPersistedWorkspaceStateRef.current = serialized
+          lastPersistedWorkspaceStateRef.current = serialized;
         } catch (err) {
-          console.warn(`[app] save-workspace-state-failed ${String(err)}`)
+          console.warn(`[app] save-workspace-state-failed ${String(err)}`);
         }
-      })()
-    }, 450)
+      })();
+    }, 450);
 
     return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [workspaceStateLoaded, persistedWorkspaceState, projectId, shareHeaders])
+      window.clearTimeout(timeout);
+    };
+  }, [workspaceStateLoaded, persistedWorkspaceState, projectId, shareHeaders]);
 
-  const enterHistoryMode = useCallback((sha: string, filePath: string) => {
-    if (!historyState) {
-      setPreHistoryFile(activeFile)
-    }
-    setHistoryState({ commitSha: sha, filePath, diffMode })
-  }, [historyState, activeFile, diffMode])
+  const enterHistoryMode = useCallback(
+    (sha: string, filePath: string) => {
+      if (!historyState) {
+        setPreHistoryFile(activeFile);
+      }
+      setHistoryState({ commitSha: sha, filePath, diffMode });
+    },
+    [historyState, activeFile, diffMode],
+  );
 
   const exitHistoryMode = useCallback(() => {
-    setHistoryState(null)
+    setHistoryState(null);
     if (preHistoryFile) {
-      setActiveFile(preHistoryFile)
+      setActiveFile(preHistoryFile);
     }
-  }, [preHistoryFile])
+  }, [preHistoryFile]);
 
-  const handleRestoreVersion = useCallback(async (sha: string) => {
-    try {
-      await restoreVersion(projectId, sha)
-      exitHistoryMode()
-      setHistoryRefreshKey((k) => k + 1)
-    } catch (err) {
-      onPopupAlert(getErrorMessage(err), 'Restore failed')
-    }
-  }, [projectId, exitHistoryMode, onPopupAlert])
+  const handleRestoreVersion = useCallback(
+    async (sha: string) => {
+      try {
+        await restoreVersion(projectId, sha);
+        exitHistoryMode();
+        setHistoryRefreshKey((k) => k + 1);
+      } catch (err) {
+        onPopupAlert(getErrorMessage(err), "Restore failed");
+      }
+    },
+    [projectId, exitHistoryMode, onPopupAlert],
+  );
 
   useEffect(() => {
     setEditorMode((prev) => {
-      if (prev === 'edit' && !canEditLive) {
-        return canCommentLive ? 'comment' : 'view'
+      if (prev === "edit" && !canEditLive) {
+        return canCommentLive ? "comment" : "view";
       }
-      if (prev === 'comment' && !canCommentLive) {
-        return 'view'
+      if (prev === "comment" && !canCommentLive) {
+        return "view";
       }
-      if (prev === 'view' && canEditLive) {
-        return 'edit'
+      if (prev === "view" && canEditLive) {
+        return "edit";
       }
-      return prev
-    })
-  }, [canEditLive, canCommentLive])
+      return prev;
+    });
+  }, [canEditLive, canCommentLive]);
 
   useEffect(() => {
-    setSelectedCommentId(null)
-    setHoveredCommentId(null)
-    setActiveCommentRevision((prev) => prev + 1)
-  }, [activeFile])
+    setSelectedCommentId(null);
+    setHoveredCommentId(null);
+    setActiveCommentRevision((prev) => prev + 1);
+  }, [activeFile]);
 
   useEffect(() => {
-    setActiveCommentRevision((prev) => prev + 1)
-  }, [activeCommentId])
+    setActiveCommentRevision((prev) => prev + 1);
+  }, [activeCommentId]);
 
   useEffect(() => {
     setCommentLineNumbersById((prev) => {
-      const validIds = new Set(comments.map((comment) => comment.id))
-      let changed = false
-      const next: Record<string, CommentLineNumbers> = {}
+      const validIds = new Set(comments.map((comment) => comment.id));
+      let changed = false;
+      const next: Record<string, CommentLineNumbers> = {};
 
       for (const [commentId, lines] of Object.entries(prev)) {
         if (validIds.has(commentId)) {
-          next[commentId] = lines
+          next[commentId] = lines;
         } else {
-          changed = true
+          changed = true;
         }
       }
 
-      return changed ? next : prev
-    })
-  }, [comments])
+      return changed ? next : prev;
+    });
+  }, [comments]);
 
   const beginSaving = useCallback(() => {
-    inFlightSaveCountRef.current += 1
-    setSaving(true)
-  }, [])
+    inFlightSaveCountRef.current += 1;
+    setSaving(true);
+  }, []);
 
   const endSaving = useCallback(() => {
-    inFlightSaveCountRef.current = Math.max(0, inFlightSaveCountRef.current - 1)
+    inFlightSaveCountRef.current = Math.max(
+      0,
+      inFlightSaveCountRef.current - 1,
+    );
     if (inFlightSaveCountRef.current === 0) {
-      setSaving(false)
+      setSaving(false);
     }
-  }, [])
+  }, []);
 
-  const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
+  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
 
   useEffect(() => {
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const configuredWsUrl = import.meta.env.VITE_COLLAB_WS_URL as string | undefined
-    const defaultDevWsUrl = `${proto}://${window.location.host}/collaborate`
-    const wsBaseUrl = configuredWsUrl ?? (import.meta.env.DEV
-      ? defaultDevWsUrl
-      : `${proto}://${window.location.host}/collaborate`)
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const configuredWsUrl = import.meta.env.VITE_COLLAB_WS_URL as
+      | string
+      | undefined;
+    const defaultDevWsUrl = `${proto}://${window.location.host}/collaborate`;
+    const wsBaseUrl =
+      configuredWsUrl ??
+      (import.meta.env.DEV
+        ? defaultDevWsUrl
+        : `${proto}://${window.location.host}/collaborate`);
     const wsUrl = shareToken
-      ? `${wsBaseUrl}${wsBaseUrl.includes('?') ? '&' : '?'}share=${encodeURIComponent(shareToken)}`
-      : wsBaseUrl
+      ? `${wsBaseUrl}${wsBaseUrl.includes("?") ? "&" : "?"}share=${encodeURIComponent(shareToken)}`
+      : wsBaseUrl;
 
-    setConnectionState('connecting')
+    setConnectionState("connecting");
 
-    console.info(`[app] creating provider projectId=${projectId} wsUrl=${wsUrl}`)
+    console.info(
+      `[app] creating provider projectId=${projectId} wsUrl=${wsUrl}`,
+    );
 
     const prov = new HocuspocusProvider({
       url: wsUrl,
@@ -1277,753 +1512,907 @@ export function ProjectWorkspace({
       document: ydoc,
       onOpen: () => console.info(`[app] ws-open projectId=${projectId}`),
       onClose: ({ event }) => {
-        console.info(`[app] ws-close projectId=${projectId} code=${event.code}`)
-        setConnectionState('disconnected')
+        console.info(
+          `[app] ws-close projectId=${projectId} code=${event.code}`,
+        );
+        setConnectionState("disconnected");
       },
       onConnect: () => {
-        console.info(`[app] provider-connected projectId=${projectId}`)
-        setConnectionState('connected')
+        console.info(`[app] provider-connected projectId=${projectId}`);
+        setConnectionState("connected");
       },
       onDisconnect: () => {
-        console.info(`[app] provider-disconnected projectId=${projectId}`)
-        setConnectionState('disconnected')
+        console.info(`[app] provider-disconnected projectId=${projectId}`);
+        setConnectionState("disconnected");
       },
-      onAuthenticated: () => console.info(`[app] provider-authenticated projectId=${projectId}`),
+      onAuthenticated: () =>
+        console.info(`[app] provider-authenticated projectId=${projectId}`),
       onAuthenticationFailed: ({ reason }: { reason: string }) => {
-        console.error(`[app] provider-auth-FAILED projectId=${projectId} reason=${reason}`)
-        setConnectionState('disconnected')
+        console.error(
+          `[app] provider-auth-FAILED projectId=${projectId} reason=${reason}`,
+        );
+        setConnectionState("disconnected");
       },
       onSynced: ({ state }) => {
-        console.info(`[app] provider-synced projectId=${projectId} state=${state}`)
-        if (state) setInitialSyncDone(true)
+        console.info(
+          `[app] provider-synced projectId=${projectId} state=${state}`,
+        );
+        if (state) setInitialSyncDone(true);
       },
       onStatus: ({ status }) => {
-        console.info(`[app] provider-status projectId=${projectId} status=${status}`)
-        if (status === 'connected' || status === 'connecting' || status === 'disconnected') {
-          setConnectionState(status)
+        console.info(
+          `[app] provider-status projectId=${projectId} status=${status}`,
+        );
+        if (
+          status === "connected" ||
+          status === "connecting" ||
+          status === "disconnected"
+        ) {
+          setConnectionState(status);
         }
       },
       onMessage: (payload: unknown) => {
-        const event = (payload as { event?: MessageEvent }).event ?? (payload as MessageEvent)
-        const bytes = typeof event.data === 'string'
-          ? event.data.length
-          : event.data instanceof ArrayBuffer
-            ? event.data.byteLength
-            : 0
-        console.info(`[app] provider-incoming-message projectId=${projectId} bytes=${bytes}`)
+        const event =
+          (payload as { event?: MessageEvent }).event ??
+          (payload as MessageEvent);
+        const bytes =
+          typeof event.data === "string"
+            ? event.data.length
+            : event.data instanceof ArrayBuffer
+              ? event.data.byteLength
+              : 0;
+        console.info(
+          `[app] provider-incoming-message projectId=${projectId} bytes=${bytes}`,
+        );
       },
-    })
+    });
 
-    setProvider(prov)
+    setProvider(prov);
 
     const handleStateless = ({ payload }: { payload: string }) => {
       try {
-        const msg = JSON.parse(payload)
-        if (msg.type === 'history-updated') {
-          setHistoryRefreshKey((k) => k + 1)
+        const msg = JSON.parse(payload);
+        if (msg.type === "history-updated") {
+          setHistoryRefreshKey((k) => k + 1);
         }
-      } catch { /* ignore malformed payloads */ }
-    }
-    prov.on('stateless', handleStateless)
+      } catch {
+        /* ignore malformed payloads */
+      }
+    };
+    prov.on("stateless", handleStateless);
 
     return () => {
-      prov.off('stateless', handleStateless)
-      setConnectionState('connecting')
-      prov.destroy()
-    }
-  }, [projectId, shareToken, ydoc])
+      prov.off("stateless", handleStateless);
+      setConnectionState("connecting");
+      prov.destroy();
+    };
+  }, [projectId, shareToken, ydoc]);
 
   useEffect(() => {
     return () => {
-      ydoc.destroy()
-    }
-  }, [ydoc])
+      ydoc.destroy();
+    };
+  }, [ydoc]);
 
   const loadAccess = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectId}/access`, {
-        credentials: 'same-origin',
+        credentials: "same-origin",
         headers: shareHeaders,
-      })
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to load project access')
+        throw new Error("Failed to load project access");
       }
 
-      const body = await res.json() as ProjectAccessResponse
-      setPeopleWithAccess(body.people)
-      setLinkEnabled(body.linkSharing.enabled)
-      setLinkRole(body.linkSharing.role ?? 'view')
-      setLinkToken(body.linkSharing.token)
-      setAccessRole(body.currentRole)
-      setMaxTextFileSizeBytes(body.maxTextFileSizeBytes)
-      setLargeFileThresholdChars(body.largeFileThresholdChars)
+      const body = (await res.json()) as ProjectAccessResponse;
+      setPeopleWithAccess(body.people);
+      setLinkEnabled(body.linkSharing.enabled);
+      setLinkRole(body.linkSharing.role ?? "view");
+      setLinkToken(body.linkSharing.token);
+      setAccessRole(body.currentRole);
+      setMaxTextFileSizeBytes(body.maxTextFileSizeBytes);
+      setLargeFileThresholdChars(body.largeFileThresholdChars);
     } catch (err) {
-      console.warn(`[app] load-access-failed ${String(err)}`)
+      console.warn(`[app] load-access-failed ${String(err)}`);
     }
-  }, [projectId, shareHeaders])
+  }, [projectId, shareHeaders]);
 
-  const commentsSyncMap = useMemo(() => ydoc.getMap<string>('comments-sync'), [ydoc])
+  const commentsSyncMap = useMemo(
+    () => ydoc.getMap<string>("comments-sync"),
+    [ydoc],
+  );
 
-  const signalCommentsChanged = useCallback((action: 'create' | 'update' | 'delete') => {
-    ydoc.transact(() => {
-      commentsSyncMap.set(
-        'lastChange',
-        `${Date.now()}:${Math.random().toString(36).slice(2)}:${action}`,
-      )
-    }, 'pressmark:comments-changed')
-  }, [commentsSyncMap, ydoc])
+  const signalCommentsChanged = useCallback(
+    (action: "create" | "update" | "delete") => {
+      ydoc.transact(() => {
+        commentsSyncMap.set(
+          "lastChange",
+          `${Date.now()}:${Math.random().toString(36).slice(2)}:${action}`,
+        );
+      }, "composure:comments-changed");
+    },
+    [commentsSyncMap, ydoc],
+  );
 
   const loadComments = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectId}/comments`, {
-        credentials: 'same-origin',
+        credentials: "same-origin",
         headers: shareHeaders,
-      })
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to load comments')
+        throw new Error("Failed to load comments");
       }
 
-      const body = await res.json() as ProjectComment[]
-      setComments(body)
+      const body = (await res.json()) as ProjectComment[];
+      setComments(body);
     } catch (err) {
-      console.warn(`[app] load-comments-failed ${String(err)}`)
+      console.warn(`[app] load-comments-failed ${String(err)}`);
     }
-  }, [projectId, shareHeaders])
+  }, [projectId, shareHeaders]);
 
   useEffect(() => {
-    void loadAccess()
-    void loadComments()
-  }, [loadAccess, loadComments])
+    void loadAccess();
+    void loadComments();
+  }, [loadAccess, loadComments]);
 
   useEffect(() => {
     const handleCommentsSync = () => {
-      void loadComments()
-    }
+      void loadComments();
+    };
 
-    commentsSyncMap.observe(handleCommentsSync)
+    commentsSyncMap.observe(handleCommentsSync);
     return () => {
-      commentsSyncMap.unobserve(handleCommentsSync)
-    }
-  }, [commentsSyncMap, loadComments])
+      commentsSyncMap.unobserve(handleCommentsSync);
+    };
+  }, [commentsSyncMap, loadComments]);
 
-  const activeFileRef = useRef(activeFile)
-  activeFileRef.current = activeFile
+  const activeFileRef = useRef(activeFile);
+  activeFileRef.current = activeFile;
 
   // Follow renames/moves: when the active file is deleted and a new key is
   // added in the same Yjs transaction (rename/move), switch to the new path
   // so collaborators stay on the same document instead of landing on a blank
   // page or jumping to the first alphabetical file.
   useEffect(() => {
-    if (!initialSyncDone) return
+    if (!initialSyncDone) return;
 
     const handler = (event: Y.YMapEvent<string>) => {
-      const current = activeFileRef.current
-      if (!current) return
+      const current = activeFileRef.current;
+      if (!current) return;
 
-      const change = event.changes.keys.get(current)
-      if (!change || change.action !== 'delete') return
+      const change = event.changes.keys.get(current);
+      if (!change || change.action !== "delete") return;
 
       // Collect keys added in the same transaction
-      const added: string[] = []
+      const added: string[] = [];
       event.changes.keys.forEach((info, key) => {
-        if (info.action === 'add') added.push(key)
-      })
+        if (info.action === "add") added.push(key);
+      });
 
       if (added.length === 0) {
         // Pure deletion — fall back to a remaining open tab, then first file.
         const fallbackFromTabs = openTabsRef.current
           .map((tab) => tab.path)
-          .find((path) => path !== current && fileMap.has(path))
+          .find((path) => path !== current && fileMap.has(path));
         const remainingFiles = Array.from(fileMap.entries())
-          .filter(([, raw]) => parseFileMetadata(raw).type !== 'folder')
+          .filter(([, raw]) => parseFileMetadata(raw).type !== "folder")
           .map(([path]) => path)
-          .sort()
+          .sort();
 
         if (fallbackFromTabs || remainingFiles.length > 0) {
-          const nextPath = fallbackFromTabs ?? remainingFiles[0]
-          setActiveFile(nextPath)
-          console.info(`[app] active-file-recovered path=${nextPath}`)
+          const nextPath = fallbackFromTabs ?? remainingFiles[0];
+          setActiveFile(nextPath);
+          console.info(`[app] active-file-recovered path=${nextPath}`);
         } else {
-          setActiveFile('')
-          console.info('[app] active-file-cleared no-files-remaining')
+          setActiveFile("");
+          console.info("[app] active-file-cleared no-files-remaining");
         }
-        return
+        return;
       }
 
       // Try to find the best match: same basename first, then any added key
-      const oldName = current.split('/').pop()!
-      const match = added.find((k) => k.split('/').pop() === oldName) ?? added[0]
-      setActiveFile(match)
-      console.info(`[app] active-file-followed old=${current} new=${match}`)
-    }
+      const oldName = current.split("/").pop()!;
+      const match =
+        added.find((k) => k.split("/").pop() === oldName) ?? added[0];
+      setActiveFile(match);
+      console.info(`[app] active-file-followed old=${current} new=${match}`);
+    };
 
-    fileMap.observe(handler)
-    return () => fileMap.unobserve(handler)
-  }, [fileMap, initialSyncDone])
+    fileMap.observe(handler);
+    return () => fileMap.unobserve(handler);
+  }, [fileMap, initialSyncDone]);
 
   const createPaneId = useCallback(() => {
-    const paneId = `pane-${paneIdCounterRef.current}`
-    paneIdCounterRef.current += 1
-    return paneId
-  }, [])
+    const paneId = `pane-${paneIdCounterRef.current}`;
+    paneIdCounterRef.current += 1;
+    return paneId;
+  }, []);
 
   const createSplitId = useCallback(() => {
-    const splitId = `split-${splitIdCounterRef.current}`
-    splitIdCounterRef.current += 1
-    return splitId
-  }, [])
+    const splitId = `split-${splitIdCounterRef.current}`;
+    splitIdCounterRef.current += 1;
+    return splitId;
+  }, []);
 
-  const openFileInPane = useCallback((paneId: string, path: string, mode: 'ephemeral' | 'persistent') => {
-    setPaneStateById((prev) => {
-      const pane = prev[paneId] ?? { tabs: [], activePath: '', showSnippetToolbar: true }
-      const existingIndex = pane.tabs.findIndex((tab) => tab.path === path)
-      let nextTabs = pane.tabs
+  const openFileInPane = useCallback(
+    (paneId: string, path: string, mode: "ephemeral" | "persistent") => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId] ?? {
+          tabs: [],
+          activePath: "",
+          showSnippetToolbar: true,
+        };
+        const existingIndex = pane.tabs.findIndex((tab) => tab.path === path);
+        let nextTabs = pane.tabs;
 
-      if (existingIndex !== -1) {
-        if (mode === 'persistent' && pane.tabs[existingIndex].isEphemeral) {
-          nextTabs = [...pane.tabs]
-          nextTabs[existingIndex] = { path, isEphemeral: false }
-        }
-      } else if (mode === 'ephemeral') {
-        const previewIndex = pane.tabs.findIndex((tab) => tab.isEphemeral)
-        if (previewIndex !== -1) {
-          nextTabs = [...pane.tabs]
-          nextTabs[previewIndex] = { path, isEphemeral: true }
+        if (existingIndex !== -1) {
+          if (mode === "persistent" && pane.tabs[existingIndex].isEphemeral) {
+            nextTabs = [...pane.tabs];
+            nextTabs[existingIndex] = { path, isEphemeral: false };
+          }
+        } else if (mode === "ephemeral") {
+          const previewIndex = pane.tabs.findIndex((tab) => tab.isEphemeral);
+          if (previewIndex !== -1) {
+            nextTabs = [...pane.tabs];
+            nextTabs[previewIndex] = { path, isEphemeral: true };
+          } else {
+            nextTabs = [...pane.tabs, { path, isEphemeral: true }];
+          }
         } else {
-          nextTabs = [...pane.tabs, { path, isEphemeral: true }]
+          nextTabs = [...pane.tabs, { path, isEphemeral: false }];
         }
-      } else {
-        nextTabs = [...pane.tabs, { path, isEphemeral: false }]
+
+        if (nextTabs === pane.tabs && pane.activePath === path) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [paneId]: {
+            tabs: nextTabs,
+            activePath: path,
+            showSnippetToolbar: pane.showSnippetToolbar,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const focusPane = useCallback(
+    (paneId: string, preferredPath?: string) => {
+      setActivePaneId(paneId);
+      if (preferredPath !== undefined) {
+        setActiveFile(preferredPath);
+        return;
+      }
+      setActiveFile(paneStateById[paneId]?.activePath ?? "");
+    },
+    [paneStateById],
+  );
+
+  const handlePaneEditorFocusChange = useCallback(
+    (paneId: string, isFocused: boolean) => {
+      setFocusedEditorPaneId((current) => {
+        if (isFocused) {
+          return paneId;
+        }
+        return current === paneId ? null : current;
+      });
+    },
+    [],
+  );
+
+  const openFileFromTree = useCallback(
+    (path: string, mode: "ephemeral" | "persistent") => {
+      setHistoryState(null);
+      openFileInPane(activePaneId, path, mode);
+      focusPane(activePaneId, path);
+    },
+    [activePaneId, openFileInPane, focusPane],
+  );
+
+  const activateTab = useCallback(
+    (paneId: string, path: string) => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane || pane.activePath === path) return prev;
+        return {
+          ...prev,
+          [paneId]: {
+            ...pane,
+            activePath: path,
+          },
+        };
+      });
+      setHistoryState(null);
+      focusPane(paneId, path);
+    },
+    [focusPane],
+  );
+
+  const promoteTab = useCallback(
+    (paneId: string, path: string) => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane) return prev;
+        const tabIndex = pane.tabs.findIndex((tab) => tab.path === path);
+        if (tabIndex === -1 || !pane.tabs[tabIndex].isEphemeral) {
+          return prev;
+        }
+
+        const nextTabs = [...pane.tabs];
+        nextTabs[tabIndex] = { path, isEphemeral: false };
+
+        return {
+          ...prev,
+          [paneId]: {
+            tabs: nextTabs,
+            activePath: path,
+            showSnippetToolbar: pane.showSnippetToolbar,
+          },
+        };
+      });
+      setHistoryState(null);
+      focusPane(paneId, path);
+    },
+    [focusPane],
+  );
+
+  const moveTab = useCallback(
+    (paneId: string, path: string, targetIndex: number) => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane) return prev;
+
+        const sourceIndex = pane.tabs.findIndex((tab) => tab.path === path);
+        if (sourceIndex === -1) {
+          return prev;
+        }
+
+        const nextTabs = [...pane.tabs];
+        const [moved] = nextTabs.splice(sourceIndex, 1);
+        let insertAt = targetIndex;
+        if (insertAt > sourceIndex) {
+          insertAt -= 1;
+        }
+        insertAt = Math.max(0, Math.min(insertAt, nextTabs.length));
+        nextTabs.splice(insertAt, 0, {
+          path: moved.path,
+          isEphemeral: false,
+        });
+
+        return {
+          ...prev,
+          [paneId]: {
+            tabs: nextTabs,
+            activePath: path,
+            showSnippetToolbar: pane.showSnippetToolbar,
+          },
+        };
+      });
+      setHistoryState(null);
+      focusPane(paneId, path);
+    },
+    [focusPane],
+  );
+
+  const closeTab = useCallback(
+    (paneId: string, path: string) => {
+      let nextActivePath: string | null = null;
+
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane) return prev;
+
+        const closeIndex = pane.tabs.findIndex((tab) => tab.path === path);
+        if (closeIndex === -1) {
+          return prev;
+        }
+
+        const nextTabs = pane.tabs.filter((tab) => tab.path !== path);
+        const paneActivePath =
+          pane.activePath === path
+            ? (nextTabs[closeIndex]?.path ??
+              nextTabs[closeIndex - 1]?.path ??
+              "")
+            : pane.activePath;
+        nextActivePath = paneActivePath;
+
+        return {
+          ...prev,
+          [paneId]: {
+            tabs: nextTabs,
+            activePath: paneActivePath,
+            showSnippetToolbar: pane.showSnippetToolbar,
+          },
+        };
+      });
+
+      if (nextActivePath !== null && paneId === activePaneId) {
+        setActiveFile(nextActivePath);
+        if (nextActivePath) {
+          setHistoryState(null);
+        }
+      }
+    },
+    [activePaneId],
+  );
+
+  const handleDropPathsOnTabs = useCallback(
+    (paneId: string, payload: FileTabsDropPayload) => {
+      const paths = dedupePaths(payload.paths).filter((path) =>
+        allFilePaths.has(path),
+      );
+      if (paths.length === 0) {
+        return;
       }
 
-      if (nextTabs === pane.tabs && pane.activePath === path) {
-        return prev
-      }
+      setPaneStateById((prev) => {
+        return applyDroppedPathsToPaneState(prev, paneId, paths, {
+          fromTabBar: payload.fromTabBar,
+          sourcePaneId: payload.sourcePaneId,
+          targetIndex: payload.targetIndex,
+        });
+      });
 
-      return {
-        ...prev,
-        [paneId]: {
-          tabs: nextTabs,
-          activePath: path,
-          showSnippetToolbar: pane.showSnippetToolbar,
-        },
-      }
-    })
-  }, [])
-
-  const focusPane = useCallback((paneId: string, preferredPath?: string) => {
-    setActivePaneId(paneId)
-    if (preferredPath !== undefined) {
-      setActiveFile(preferredPath)
-      return
-    }
-    setActiveFile(paneStateById[paneId]?.activePath ?? '')
-  }, [paneStateById])
-
-  const handlePaneEditorFocusChange = useCallback((paneId: string, isFocused: boolean) => {
-    setFocusedEditorPaneId((current) => {
-      if (isFocused) {
-        return paneId
-      }
-      return current === paneId ? null : current
-    })
-  }, [])
-
-  const openFileFromTree = useCallback((path: string, mode: 'ephemeral' | 'persistent') => {
-    setHistoryState(null)
-    openFileInPane(activePaneId, path, mode)
-    focusPane(activePaneId, path)
-  }, [activePaneId, openFileInPane, focusPane])
-
-  const activateTab = useCallback((paneId: string, path: string) => {
-    setPaneStateById((prev) => {
-      const pane = prev[paneId]
-      if (!pane || pane.activePath === path) return prev
-      return {
-        ...prev,
-        [paneId]: {
-          ...pane,
-          activePath: path,
-        },
-      }
-    })
-    setHistoryState(null)
-    focusPane(paneId, path)
-  }, [focusPane])
-
-  const promoteTab = useCallback((paneId: string, path: string) => {
-    setPaneStateById((prev) => {
-      const pane = prev[paneId]
-      if (!pane) return prev
-      const tabIndex = pane.tabs.findIndex((tab) => tab.path === path)
-      if (tabIndex === -1 || !pane.tabs[tabIndex].isEphemeral) {
-        return prev
-      }
-
-      const nextTabs = [...pane.tabs]
-      nextTabs[tabIndex] = { path, isEphemeral: false }
-
-      return {
-        ...prev,
-        [paneId]: {
-          tabs: nextTabs,
-          activePath: path,
-          showSnippetToolbar: pane.showSnippetToolbar,
-        },
-      }
-    })
-    setHistoryState(null)
-    focusPane(paneId, path)
-  }, [focusPane])
-
-  const moveTab = useCallback((paneId: string, path: string, targetIndex: number) => {
-    setPaneStateById((prev) => {
-      const pane = prev[paneId]
-      if (!pane) return prev
-
-      const sourceIndex = pane.tabs.findIndex((tab) => tab.path === path)
-      if (sourceIndex === -1) {
-        return prev
-      }
-
-      const nextTabs = [...pane.tabs]
-      const [moved] = nextTabs.splice(sourceIndex, 1)
-      let insertAt = targetIndex
-      if (insertAt > sourceIndex) {
-        insertAt -= 1
-      }
-      insertAt = Math.max(0, Math.min(insertAt, nextTabs.length))
-      nextTabs.splice(insertAt, 0, {
-        path: moved.path,
-        isEphemeral: false,
-      })
-
-      return {
-        ...prev,
-        [paneId]: {
-          tabs: nextTabs,
-          activePath: path,
-          showSnippetToolbar: pane.showSnippetToolbar,
-        },
-      }
-    })
-    setHistoryState(null)
-    focusPane(paneId, path)
-  }, [focusPane])
-
-  const closeTab = useCallback((paneId: string, path: string) => {
-    let nextActivePath: string | null = null
-
-    setPaneStateById((prev) => {
-      const pane = prev[paneId]
-      if (!pane) return prev
-
-      const closeIndex = pane.tabs.findIndex((tab) => tab.path === path)
-      if (closeIndex === -1) {
-        return prev
-      }
-
-      const nextTabs = pane.tabs.filter((tab) => tab.path !== path)
-      const paneActivePath = pane.activePath === path
-        ? (nextTabs[closeIndex]?.path ?? nextTabs[closeIndex - 1]?.path ?? '')
-        : pane.activePath
-      nextActivePath = paneActivePath
-
-      return {
-        ...prev,
-        [paneId]: {
-          tabs: nextTabs,
-          activePath: paneActivePath,
-          showSnippetToolbar: pane.showSnippetToolbar,
-        },
-      }
-    })
-
-    if (nextActivePath !== null && paneId === activePaneId) {
-      setActiveFile(nextActivePath)
-      if (nextActivePath) {
-        setHistoryState(null)
-      }
-    }
-  }, [activePaneId])
-
-  const handleDropPathsOnTabs = useCallback((paneId: string, payload: FileTabsDropPayload) => {
-    const paths = dedupePaths(payload.paths).filter((path) => allFilePaths.has(path))
-    if (paths.length === 0) {
-      return
-    }
-
-    setPaneStateById((prev) => {
-      return applyDroppedPathsToPaneState(prev, paneId, paths, {
-        fromTabBar: payload.fromTabBar,
-        sourcePaneId: payload.sourcePaneId,
-        targetIndex: payload.targetIndex,
-      })
-    })
-
-    setHistoryState(null)
-    focusPane(paneId, paths[paths.length - 1])
-  }, [allFilePaths, focusPane])
+      setHistoryState(null);
+      focusPane(paneId, paths[paths.length - 1]);
+    },
+    [allFilePaths, focusPane],
+  );
 
   const togglePaneSnippetToolbar = useCallback((paneId: string) => {
     setPaneStateById((prev) => {
-      const pane = prev[paneId] ?? { tabs: [], activePath: '', showSnippetToolbar: true }
+      const pane = prev[paneId] ?? {
+        tabs: [],
+        activePath: "",
+        showSnippetToolbar: true,
+      };
       return {
         ...prev,
         [paneId]: {
           ...pane,
           showSnippetToolbar: !pane.showSnippetToolbar,
         },
-      }
-    })
-  }, [])
+      };
+    });
+  }, []);
 
   useEffect(() => {
-    if (!initialSyncDone) return
+    if (!initialSyncDone) return;
 
     ydoc.transact(() => {
       fileMap.forEach((mapContent, filePath) => {
-        const metadata = parseFileMetadata(mapContent)
-        if (metadata.type !== 'text') {
-          return
+        const metadata = parseFileMetadata(mapContent);
+        if (metadata.type !== "text") {
+          return;
         }
 
-        const key = `file:${filePath}`
+        const key = `file:${filePath}`;
         if (!ydoc.share.has(key)) {
-          const text = ydoc.getText(key)
-          let legacyContent = ''
+          const text = ydoc.getText(key);
+          let legacyContent = "";
           try {
-            const parsed = JSON.parse(mapContent)
-            if (!(parsed && typeof parsed === 'object' && 'type' in parsed)) {
-              legacyContent = mapContent
+            const parsed = JSON.parse(mapContent);
+            if (!(parsed && typeof parsed === "object" && "type" in parsed)) {
+              legacyContent = mapContent;
             }
           } catch {
-            legacyContent = mapContent
+            legacyContent = mapContent;
           }
 
           if (legacyContent) {
-            text.insert(0, legacyContent)
+            text.insert(0, legacyContent);
           }
-          console.info(`[app] initialized-ytext key=${key} fromMapContent=${legacyContent.length}`)
+          console.info(
+            `[app] initialized-ytext key=${key} fromMapContent=${legacyContent.length}`,
+          );
         }
-      })
-    }, 'pressmark:sync-file-map-to-texts')
-  }, [fileMap, ydoc, initialSyncDone])
+      });
+    }, "composure:sync-file-map-to-texts");
+  }, [fileMap, ydoc, initialSyncDone]);
 
   useEffect(() => {
     const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      const originLabel = origin === provider
-        ? 'provider(remote)'
-        : origin === null || origin === undefined
-          ? 'unknown'
-          : typeof origin === 'string'
-            ? origin
-            : (origin as { constructor?: { name?: string } })?.constructor?.name ?? String(origin)
+      const originLabel =
+        origin === provider
+          ? "provider(remote)"
+          : origin === null || origin === undefined
+            ? "unknown"
+            : typeof origin === "string"
+              ? origin
+              : ((origin as { constructor?: { name?: string } })?.constructor
+                  ?.name ?? String(origin));
       console.info(
         `[app] ydoc-update bytes=${update.length} origin=${originLabel} sharedTypes=${ydoc.share.size}`,
-      )
-    }
+      );
+    };
 
-    ydoc.on('update', onDocUpdate)
+    ydoc.on("update", onDocUpdate);
     return () => {
-      ydoc.off('update', onDocUpdate)
-    }
-  }, [ydoc, provider])
+      ydoc.off("update", onDocUpdate);
+    };
+  }, [ydoc, provider]);
 
   useEffect(() => {
-    const awareness = provider?.awareness
-    if (!awareness) return
+    const awareness = provider?.awareness;
+    if (!awareness) return;
 
     const update = () => {
-      const states = awareness.getStates()
-      const localId = awareness.clientID
-      const seen = new Map<string, ActiveCollaborator>()
+      const states = awareness.getStates();
+      const localId = awareness.clientID;
+      const seen = new Map<string, ActiveCollaborator>();
 
       states.forEach((state: Record<string, unknown>, clientId: number) => {
-        if (clientId === localId) return
-        const user = state.user as { name?: string; color?: string; userId?: string; guestId?: string; profileImageUrl?: string } | undefined
-        if (!user) return
-        const key = user.userId ?? user.guestId ?? `c:${clientId}`
+        if (clientId === localId) return;
+        const user = state.user as
+          | {
+              name?: string;
+              color?: string;
+              userId?: string;
+              guestId?: string;
+              profileImageUrl?: string;
+            }
+          | undefined;
+        if (!user) return;
+        const key = user.userId ?? user.guestId ?? `c:${clientId}`;
         const next = {
           clientId,
-          name: user.name ?? 'Guest',
-          color: user.color ?? '#6366f1',
+          name: user.name ?? "Guest",
+          color: user.color ?? "#6366f1",
           userId: user.userId ?? null,
           profileImageUrl: user.profileImageUrl ?? null,
           hasCursor: hasAwarenessCursor((state as { cursor?: unknown }).cursor),
-        }
+        };
 
-        const existing = seen.get(key)
+        const existing = seen.get(key);
         if (!existing || (!existing.hasCursor && next.hasCursor)) {
-          seen.set(key, next)
+          seen.set(key, next);
         }
-      })
+      });
 
-      setActiveEditors(Array.from(seen.values()))
-    }
+      setActiveEditors(Array.from(seen.values()));
+    };
 
-    awareness.on('change', update)
-    update()
+    awareness.on("change", update);
+    update();
 
     return () => {
-      awareness.off('change', update)
-    }
-  }, [provider])
+      awareness.off("change", update);
+    };
+  }, [provider]);
 
-  const persistSnapshot = useCallback(async (reason: 'manual' | 'autosave' | 'compile') => {
-    const documentUpdateBase64 = uint8ArrayToBase64(Y.encodeStateAsUpdate(ydoc))
+  const persistSnapshot = useCallback(
+    async (reason: "manual" | "autosave" | "compile") => {
+      const documentUpdateBase64 = uint8ArrayToBase64(
+        Y.encodeStateAsUpdate(ydoc),
+      );
 
-    if (!canEdit) {
-      throw new Error('You do not have edit permissions for this project')
-    }
+      if (!canEdit) {
+        throw new Error("You do not have edit permissions for this project");
+      }
 
-    const res = await fetch(`/api/save/${projectId}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ documentUpdateBase64, reason }),
-    })
+      const res = await fetch(`/api/save/${projectId}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...shareHeaders,
+        },
+        body: JSON.stringify({ documentUpdateBase64, reason }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Save failed' }))
-      throw new Error(String(err.error ?? 'Save failed'))
-    }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Save failed" }));
+        throw new Error(String(err.error ?? "Save failed"));
+      }
 
-    const body = await res.json()
-    console.info(`[app] save-success projectId=${projectId} bytes=${String(body.bytes ?? 'n/a')} reason=${reason}`)
-  }, [projectId, ydoc, canEdit, shareHeaders])
+      const body = await res.json();
+      console.info(
+        `[app] save-success projectId=${projectId} bytes=${String(body.bytes ?? "n/a")} reason=${reason}`,
+      );
+    },
+    [projectId, ydoc, canEdit, shareHeaders],
+  );
 
   const handleSave = useCallback(async () => {
-    beginSaving()
+    beginSaving();
     try {
-      await persistSnapshot('manual')
-      setHistoryRefreshKey((k) => k + 1)
+      await persistSnapshot("manual");
+      setHistoryRefreshKey((k) => k + 1);
     } catch (err) {
-      console.error(`[app] manual-save-failed ${String(err)}`)
-      onPopupAlert(getErrorMessage(err), 'Save failed')
+      console.error(`[app] manual-save-failed ${String(err)}`);
+      onPopupAlert(getErrorMessage(err), "Save failed");
     } finally {
-      endSaving()
+      endSaving();
     }
-  }, [persistSnapshot, beginSaving, endSaving, onPopupAlert])
+  }, [persistSnapshot, beginSaving, endSaving, onPopupAlert]);
 
   const clearCompileOutputLocally = useCallback(() => {
     setPdfUrl((prev) => {
-      if (prev?.startsWith('blob:')) {
-        URL.revokeObjectURL(prev)
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
       }
-      return null
-    })
+      return null;
+    });
 
     try {
-      sessionStorage.removeItem(pdfPreviewStorageKey(projectId))
+      sessionStorage.removeItem(pdfPreviewStorageKey(projectId));
     } catch {
       // Ignore storage failures in private mode or constrained environments.
     }
-  }, [projectId])
+  }, [projectId]);
 
   const handleClearCompileOutput = useCallback(async () => {
     if (clearingCompileOutput) {
-      return
+      return;
     }
 
-    setClearingCompileOutput(true)
+    setClearingCompileOutput(true);
     try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/preview.pdf`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: shareHeaders,
-      })
+      const res = await fetch(
+        `/api/projects/${encodeURIComponent(projectId)}/preview.pdf`,
+        {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: shareHeaders,
+        },
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(async () => {
-          const fallback = await res.text().catch(() => '')
-          return { error: fallback || 'Failed to clear compiled output' }
-        })
-        throw new Error(String(err.error ?? 'Failed to clear compiled output'))
+          const fallback = await res.text().catch(() => "");
+          return { error: fallback || "Failed to clear compiled output" };
+        });
+        throw new Error(String(err.error ?? "Failed to clear compiled output"));
       }
 
-      clearCompileOutputLocally()
-      setCompileError(null)
+      clearCompileOutputLocally();
+      setCompileError(null);
     } catch (err) {
-      onPopupAlert(getErrorMessage(err), 'Clear output failed')
+      onPopupAlert(getErrorMessage(err), "Clear output failed");
     } finally {
-      setClearingCompileOutput(false)
+      setClearingCompileOutput(false);
     }
-  }, [clearingCompileOutput, projectId, shareHeaders, clearCompileOutputLocally, onPopupAlert])
+  }, [
+    clearingCompileOutput,
+    projectId,
+    shareHeaders,
+    clearCompileOutputLocally,
+    onPopupAlert,
+  ]);
 
-  const handleCompile = useCallback(async (isAutoCompile = false) => {
-    // Cancel any pending auto-compile timer by marking the current revision as handled.
-    lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current
+  const handleCompile = useCallback(
+    async (isAutoCompile = false) => {
+      // Cancel any pending auto-compile timer by marking the current revision as handled.
+      lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
 
-    const isHistory = historyState != null
-    const rootFile = isHistory ? historyState.filePath : activeFile
+      const isHistory = historyState != null;
+      const rootFile = isHistory ? historyState.filePath : activeFile;
 
-    if (!rootFile) {
-      setCompileError('Create or select a file before compiling.')
-      return
-    }
+      if (!rootFile) {
+        setCompileError("Create or select a file before compiling.");
+        return;
+      }
 
-    setCompiling(true)
-    setCompileError(null)
-    try {
-      if (!isHistory) {
-        const shouldSave = autoSaveOnCompile && !isAutoCompile
-        if (shouldSave) {
-          await persistSnapshot('compile').catch((err) => {
-            console.warn(`[app] compile-pre-save-failed ${String(err)}`)
-          })
+      setCompiling(true);
+      setCompileError(null);
+      try {
+        if (!isHistory) {
+          const shouldSave = autoSaveOnCompile && !isAutoCompile;
+          if (shouldSave) {
+            await persistSnapshot("compile").catch((err) => {
+              console.warn(`[app] compile-pre-save-failed ${String(err)}`);
+            });
+          }
         }
-      }
 
-      const compileBody: Record<string, unknown> = {
-        projectId,
-        rootFile,
-        responseMode: 'metadata',
-      }
+        const compileBody: Record<string, unknown> = {
+          projectId,
+          rootFile,
+          responseMode: "metadata",
+        };
 
-      if (isHistory) {
-        compileBody.commitSha = historyState.commitSha
-      } else {
-        compileBody.documentUpdateBase64 = uint8ArrayToBase64(Y.encodeStateAsUpdate(ydoc))
-      }
-
-      console.info(`[app] compile-request projectId=${projectId} rootFile=${rootFile}${isHistory ? ` commitSha=${historyState.commitSha}` : ''}`)
-      const res = await fetch('/api/compile', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...shareHeaders,
-        },
-        body: JSON.stringify(compileBody),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(async () => {
-          const fallback = await res.text().catch(() => '')
-          return { error: fallback || 'Compilation failed' }
-        })
-        console.warn(
-          `[app] compile-failed status=${res.status} error=${String(err.error ?? 'unknown')}`,
-        )
-        setCompileError(err.error || 'Compilation failed')
-        return
-      }
-      const contentType = res.headers.get('content-type') ?? ''
-      const compileIdHeader = res.headers.get('x-compile-id') ?? undefined
-      let compileId = compileIdHeader
-      if (contentType.includes('application/json')) {
-        const body = (await res.json().catch(() => ({} as { compileId?: string }))) as {
-          compileId?: string
+        if (isHistory) {
+          compileBody.commitSha = historyState.commitSha;
+        } else {
+          compileBody.documentUpdateBase64 = uint8ArrayToBase64(
+            Y.encodeStateAsUpdate(ydoc),
+          );
         }
-        if (typeof body.compileId === 'string' && body.compileId.length > 0) {
-          compileId = body.compileId
-        }
-      }
 
-      const previewParams = new URLSearchParams()
-      previewParams.set('v', compileId ?? String(Date.now()))
-      if (shareToken) {
-        previewParams.set('shareToken', shareToken)
-      }
-      const url = `/api/projects/${encodeURIComponent(projectId)}/preview.pdf?${previewParams.toString()}`
-      console.info(`[app] compile-success compileId=${String(compileId ?? 'none')} previewUrl=${url}`)
-      setPdfUrl((prev) => {
-        if (prev?.startsWith('blob:')) {
-          URL.revokeObjectURL(prev)
+        console.info(
+          `[app] compile-request projectId=${projectId} rootFile=${rootFile}${isHistory ? ` commitSha=${historyState.commitSha}` : ""}`,
+        );
+        const res = await fetch("/api/compile", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            ...shareHeaders,
+          },
+          body: JSON.stringify(compileBody),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(async () => {
+            const fallback = await res.text().catch(() => "");
+            return { error: fallback || "Compilation failed" };
+          });
+          console.warn(
+            `[app] compile-failed status=${res.status} error=${String(err.error ?? "unknown")}`,
+          );
+          setCompileError(err.error || "Compilation failed");
+          return;
         }
-        return url
-      })
-      try { sessionStorage.setItem(pdfPreviewStorageKey(projectId), url) } catch { /* quota */ }
-      setHistoryRefreshKey((k) => k + 1)
-    } catch (e: unknown) {
-      console.error(`[app] compile-network-error ${String(e)}`)
-      setCompileError(e instanceof Error ? e.message : 'Network error')
-    } finally {
-      setCompiling(false)
-    }
-  }, [projectId, activeFile, historyState, ydoc, persistSnapshot, shareHeaders, shareToken, autoSaveOnCompile])
+        const contentType = res.headers.get("content-type") ?? "";
+        const compileIdHeader = res.headers.get("x-compile-id") ?? undefined;
+        let compileId = compileIdHeader;
+        if (contentType.includes("application/json")) {
+          const body = (await res
+            .json()
+            .catch(() => ({}) as { compileId?: string })) as {
+            compileId?: string;
+          };
+          if (typeof body.compileId === "string" && body.compileId.length > 0) {
+            compileId = body.compileId;
+          }
+        }
 
-  const handleExport = useCallback(async (format: string) => {
-    const rootFile = historyState?.filePath ?? activeFile
-    if (!rootFile) return
-    setExporting(true)
-    try {
-      if (autoSaveOnExport && !historyState && canEdit) {
-        await persistSnapshot('compile').catch((err) => {
-          console.warn(`[app] export-pre-save-failed ${String(err)}`)
-        })
+        const previewParams = new URLSearchParams();
+        previewParams.set("v", compileId ?? String(Date.now()));
+        if (shareToken) {
+          previewParams.set("shareToken", shareToken);
+        }
+        const url = `/api/projects/${encodeURIComponent(projectId)}/preview.pdf?${previewParams.toString()}`;
+        console.info(
+          `[app] compile-success compileId=${String(compileId ?? "none")} previewUrl=${url}`,
+        );
+        setPdfUrl((prev) => {
+          if (prev?.startsWith("blob:")) {
+            URL.revokeObjectURL(prev);
+          }
+          return url;
+        });
+        try {
+          sessionStorage.setItem(pdfPreviewStorageKey(projectId), url);
+        } catch {
+          /* quota */
+        }
+        setHistoryRefreshKey((k) => k + 1);
+      } catch (e: unknown) {
+        console.error(`[app] compile-network-error ${String(e)}`);
+        setCompileError(e instanceof Error ? e.message : "Network error");
+      } finally {
+        setCompiling(false);
       }
-      const exportBody: Record<string, unknown> = { format, rootFile }
-      if (historyState) {
-        exportBody.commitSha = historyState.commitSha
+    },
+    [
+      projectId,
+      activeFile,
+      historyState,
+      ydoc,
+      persistSnapshot,
+      shareHeaders,
+      shareToken,
+      autoSaveOnCompile,
+    ],
+  );
+
+  const handleExport = useCallback(
+    async (format: string) => {
+      const rootFile = historyState?.filePath ?? activeFile;
+      if (!rootFile) return;
+      setExporting(true);
+      try {
+        if (autoSaveOnExport && !historyState && canEdit) {
+          await persistSnapshot("compile").catch((err) => {
+            console.warn(`[app] export-pre-save-failed ${String(err)}`);
+          });
+        }
+        const exportBody: Record<string, unknown> = { format, rootFile };
+        if (historyState) {
+          exportBody.commitSha = historyState.commitSha;
+        }
+        const res = await fetch(
+          `/api/export/${encodeURIComponent(projectId)}`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              ...shareHeaders,
+            },
+            body: JSON.stringify(exportBody),
+          },
+        );
+        if (!res.ok) {
+          const err = await res
+            .json()
+            .catch(() => ({ error: "Export failed" }));
+          onPopupAlert(err.error || "Export failed", "Export Error");
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get("content-disposition") ?? "";
+        const filenameMatch = /filename="?([^";\n]+)"?/.exec(disposition);
+        const filename = filenameMatch?.[1] ?? `export.${format}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        if (autoSaveOnExport) setHistoryRefreshKey((k) => k + 1);
+      } catch (e: unknown) {
+        onPopupAlert(
+          e instanceof Error ? e.message : "Export failed",
+          "Export Error",
+        );
+      } finally {
+        setExporting(false);
       }
-      const res = await fetch(`/api/export/${encodeURIComponent(projectId)}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...shareHeaders,
-        },
-        body: JSON.stringify(exportBody),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Export failed' }))
-        onPopupAlert(err.error || 'Export failed', 'Export Error')
-        return
-      }
-      const blob = await res.blob()
-      const disposition = res.headers.get('content-disposition') ?? ''
-      const filenameMatch = /filename="?([^";\n]+)"?/.exec(disposition)
-      const filename = filenameMatch?.[1] ?? `export.${format}`
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
-      if (autoSaveOnExport) setHistoryRefreshKey((k) => k + 1)
-    } catch (e: unknown) {
-      onPopupAlert(e instanceof Error ? e.message : 'Export failed', 'Export Error')
-    } finally {
-      setExporting(false)
-    }
-  }, [projectId, activeFile, historyState, shareHeaders, onPopupAlert, autoSaveOnExport, canEdit, persistSnapshot])
+    },
+    [
+      projectId,
+      activeFile,
+      historyState,
+      shareHeaders,
+      onPopupAlert,
+      autoSaveOnExport,
+      canEdit,
+      persistSnapshot,
+    ],
+  );
 
   useEffect(() => {
     const onDocUpdate = (_update: Uint8Array, origin: unknown) => {
-      if (!autoCompileEnabled || !canEdit || !initialSyncDone || !activeFile) return
-      if (origin === provider) return
-      if (typeof origin === 'string' && origin.startsWith('pressmark:')) return
+      if (!autoCompileEnabled || !canEdit || !initialSyncDone || !activeFile)
+        return;
+      if (origin === provider) return;
+      if (typeof origin === "string" && origin.startsWith("composure:")) return;
       setAutoCompileRevision((prev) => {
-        const next = prev + 1
-        autoCompileRevisionRef.current = next
-        return next
-      })
-    }
+        const next = prev + 1;
+        autoCompileRevisionRef.current = next;
+        return next;
+      });
+    };
 
-    ydoc.on('update', onDocUpdate)
+    ydoc.on("update", onDocUpdate);
     return () => {
-      ydoc.off('update', onDocUpdate)
-    }
-  }, [ydoc, provider, autoCompileEnabled, canEdit, initialSyncDone, activeFile])
+      ydoc.off("update", onDocUpdate);
+    };
+  }, [
+    ydoc,
+    provider,
+    autoCompileEnabled,
+    canEdit,
+    initialSyncDone,
+    activeFile,
+  ]);
 
   useEffect(() => {
-    if (!autoCompileEnabled || !canEdit || !initialSyncDone || !activeFile || compiling) return
-    if (autoCompileRevision <= lastAutoCompiledRevisionRef.current) return
+    if (
+      !autoCompileEnabled ||
+      !canEdit ||
+      !initialSyncDone ||
+      !activeFile ||
+      compiling
+    )
+      return;
+    if (autoCompileRevision <= lastAutoCompiledRevisionRef.current) return;
 
     const timeout = window.setTimeout(() => {
-      lastAutoCompiledRevisionRef.current = autoCompileRevision
-      void handleCompile(true)
-    }, autoCompileTimeoutSeconds * 1000)
+      lastAutoCompiledRevisionRef.current = autoCompileRevision;
+      void handleCompile(true);
+    }, autoCompileTimeoutSeconds * 1000);
 
     return () => {
-      window.clearTimeout(timeout)
-    }
+      window.clearTimeout(timeout);
+    };
   }, [
     autoCompileEnabled,
     canEdit,
@@ -2033,700 +2422,875 @@ export function ProjectWorkspace({
     autoCompileRevision,
     autoCompileTimeoutSeconds,
     handleCompile,
-  ])
+  ]);
 
   // Live Markdown/AsciiDoc preview: render on doc changes with 300ms debounce
   useEffect(() => {
-    if ((projectFormat !== 'markdown' && projectFormat !== 'asciidoc') || !activeFile || !initialSyncDone) return
+    if (
+      (projectFormat !== "markdown" && projectFormat !== "asciidoc") ||
+      !activeFile ||
+      !initialSyncDone
+    )
+      return;
 
     const renderPreview = () => {
-      const textKey = `file:${activeFile}`
-      const text = ydoc.getText(textKey).toString()
-      if (projectFormat === 'markdown') {
-        setMarkdownHtml(md.render(text))
+      const textKey = `file:${activeFile}`;
+      const text = ydoc.getText(textKey).toString();
+      if (projectFormat === "markdown") {
+        setMarkdownHtml(md.render(text));
       } else {
-        setMarkdownHtml(adoc.convert(text, { safe: 'safe', standalone: false }) as string)
+        setMarkdownHtml(
+          adoc.convert(text, { safe: "safe", standalone: false }) as string,
+        );
       }
-    }
+    };
 
     // Initial render
-    renderPreview()
+    renderPreview();
 
     const onDocUpdate = () => {
-      clearTimeout(debounceTimer)
-      debounceTimer = window.setTimeout(renderPreview, 300)
-    }
+      clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(renderPreview, 300);
+    };
 
-    let debounceTimer: number
-    ydoc.on('update', onDocUpdate)
+    let debounceTimer: number;
+    ydoc.on("update", onDocUpdate);
     return () => {
-      ydoc.off('update', onDocUpdate)
-      clearTimeout(debounceTimer)
-    }
-  }, [ydoc, activeFile, projectFormat, initialSyncDone, md, adoc])
+      ydoc.off("update", onDocUpdate);
+      clearTimeout(debounceTimer);
+    };
+  }, [ydoc, activeFile, projectFormat, initialSyncDone, md, adoc]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.shiftKey || event.altKey) {
-        return
+        return;
       }
 
-      const target = event.target as HTMLElement | null
-      if (target?.closest('[data-pm-comment-input="true"]')) {
-        return
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-cz-comment-input="true"]')) {
+        return;
       }
 
-      const isFormInput = target instanceof HTMLInputElement
-        || target instanceof HTMLTextAreaElement
-        || target instanceof HTMLSelectElement
-        || Boolean(target?.isContentEditable)
+      const isFormInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        Boolean(target?.isContentEditable);
 
-      if (isFormInput && !target?.closest('.cm-editor')) {
-        return
+      if (isFormInput && !target?.closest(".cm-editor")) {
+        return;
       }
 
-      const isCtrlEnter = event.key === 'Enter' && event.ctrlKey && !event.metaKey
-      const isCompileSave = event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)
+      const isCtrlEnter =
+        event.key === "Enter" && event.ctrlKey && !event.metaKey;
+      const isCompileSave =
+        event.key.toLowerCase() === "s" && (event.ctrlKey || event.metaKey);
       if (!isCtrlEnter && !isCompileSave) {
-        return
+        return;
       }
 
-      event.preventDefault()
-      void handleCompile()
-    }
+      event.preventDefault();
+      void handleCompile();
+    };
 
-    window.addEventListener('keydown', onKeyDown, { capture: true })
+    window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => {
-      window.removeEventListener('keydown', onKeyDown, { capture: true })
-    }
-  }, [handleCompile])
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+    };
+  }, [handleCompile]);
 
-  const createComment = useCallback(async (input: {
-    filePath: string
-    startLine: number | null
-    endLine: number | null
-    parentCommentId: string | null
-    body: string
-  }) => {
-    if (!canInteractWithComments) {
-      throw new Error('Comment actions are disabled in view mode')
-    }
-
-    const res = await fetch(`/api/projects/${projectId}/comments`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify(input),
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to create comment' }))
-      throw new Error(String(err.error ?? 'Failed to create comment'))
-    }
-
-    const created = await res.json() as ProjectComment
-    setComments((prev) => [...prev, created])
-    signalCommentsChanged('create')
-  }, [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged])
-
-  const updateComment = useCallback(async (commentId: string, body: string) => {
-    if (!canInteractWithComments) {
-      throw new Error('Comment actions are disabled in view mode')
-    }
-
-    const res = await fetch(`/api/projects/${projectId}/comments/${commentId}`, {
-      method: 'PATCH',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ body }),
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to update comment' }))
-      throw new Error(String(err.error ?? 'Failed to update comment'))
-    }
-
-    const updated = await res.json() as ProjectComment
-    setComments((prev) => prev.map((comment) => (comment.id === updated.id ? updated : comment)))
-    signalCommentsChanged('update')
-  }, [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged])
-
-  const removeComment = useCallback(async (commentId: string) => {
-    if (!canInteractWithComments) {
-      throw new Error('Comment actions are disabled in view mode')
-    }
-
-    const res = await fetch(`/api/projects/${projectId}/comments/${commentId}`, {
-      method: 'DELETE',
-      credentials: 'same-origin',
-      headers: shareHeaders,
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to delete comment' }))
-      throw new Error(String(err.error ?? 'Failed to delete comment'))
-    }
-
-    setComments((prev) => {
-      const getDescendantIds = (parentId: string): Set<string> => {
-        const directChildren = prev.filter(c => c.parentCommentId === parentId)
-        const ids = new Set(directChildren.map(c => c.id))
-        directChildren.forEach(child => {
-          getDescendantIds(child.id).forEach(id => ids.add(id))
-        })
-        return ids
+  const createComment = useCallback(
+    async (input: {
+      filePath: string;
+      startLine: number | null;
+      endLine: number | null;
+      parentCommentId: string | null;
+      body: string;
+    }) => {
+      if (!canInteractWithComments) {
+        throw new Error("Comment actions are disabled in view mode");
       }
 
-      const toRemove = new Set([commentId, ...getDescendantIds(commentId)])
-      return prev.filter(c => !toRemove.has(c.id))
-    })
-    signalCommentsChanged('delete')
-  }, [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged])
+      const res = await fetch(`/api/projects/${projectId}/comments`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...shareHeaders,
+        },
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to create comment" }));
+        throw new Error(String(err.error ?? "Failed to create comment"));
+      }
+
+      const created = (await res.json()) as ProjectComment;
+      setComments((prev) => [...prev, created]);
+      signalCommentsChanged("create");
+    },
+    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
+  );
+
+  const updateComment = useCallback(
+    async (commentId: string, body: string) => {
+      if (!canInteractWithComments) {
+        throw new Error("Comment actions are disabled in view mode");
+      }
+
+      const res = await fetch(
+        `/api/projects/${projectId}/comments/${commentId}`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            ...shareHeaders,
+          },
+          body: JSON.stringify({ body }),
+        },
+      );
+
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to update comment" }));
+        throw new Error(String(err.error ?? "Failed to update comment"));
+      }
+
+      const updated = (await res.json()) as ProjectComment;
+      setComments((prev) =>
+        prev.map((comment) => (comment.id === updated.id ? updated : comment)),
+      );
+      signalCommentsChanged("update");
+    },
+    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
+  );
+
+  const removeComment = useCallback(
+    async (commentId: string) => {
+      if (!canInteractWithComments) {
+        throw new Error("Comment actions are disabled in view mode");
+      }
+
+      const res = await fetch(
+        `/api/projects/${projectId}/comments/${commentId}`,
+        {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: shareHeaders,
+        },
+      );
+
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to delete comment" }));
+        throw new Error(String(err.error ?? "Failed to delete comment"));
+      }
+
+      setComments((prev) => {
+        const getDescendantIds = (parentId: string): Set<string> => {
+          const directChildren = prev.filter(
+            (c) => c.parentCommentId === parentId,
+          );
+          const ids = new Set(directChildren.map((c) => c.id));
+          directChildren.forEach((child) => {
+            getDescendantIds(child.id).forEach((id) => ids.add(id));
+          });
+          return ids;
+        };
+
+        const toRemove = new Set([commentId, ...getDescendantIds(commentId)]);
+        return prev.filter((c) => !toRemove.has(c.id));
+      });
+      signalCommentsChanged("delete");
+    },
+    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
+  );
 
   const inviteMember = useCallback(async () => {
-    const email = inviteEmail.trim()
-    if (!email) return
+    const email = inviteEmail.trim();
+    if (!email) return;
 
-    setInviting(true)
+    setInviting(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/members`, {
-        method: 'POST',
-        credentials: 'same-origin',
+        method: "POST",
+        credentials: "same-origin",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...shareHeaders,
         },
         body: JSON.stringify({ email, role: inviteRole }),
-      })
+      });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Invite failed' }))
-        throw new Error(String(err.error ?? 'Invite failed'))
+        const err = await res.json().catch(() => ({ error: "Invite failed" }));
+        throw new Error(String(err.error ?? "Invite failed"));
       }
 
-      setInviteEmail('')
-      await loadAccess()
+      setInviteEmail("");
+      await loadAccess();
     } catch (err) {
-      onPopupAlert(getErrorMessage(err), 'Invite failed')
+      onPopupAlert(getErrorMessage(err), "Invite failed");
     } finally {
-      setInviting(false)
+      setInviting(false);
     }
-  }, [inviteEmail, inviteRole, projectId, shareHeaders, loadAccess, onPopupAlert])
+  }, [
+    inviteEmail,
+    inviteRole,
+    projectId,
+    shareHeaders,
+    loadAccess,
+    onPopupAlert,
+  ]);
 
-  const updateMemberRole = useCallback(async (userId: string, role: ShareRole | 'remove') => {
-    const res = await fetch(`/api/projects/${projectId}/members/${userId}`, {
-      method: 'PATCH',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify(role === 'remove' ? { remove: true } : { role }),
-    })
+  const updateMemberRole = useCallback(
+    async (userId: string, role: ShareRole | "remove") => {
+      const res = await fetch(`/api/projects/${projectId}/members/${userId}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...shareHeaders,
+        },
+        body: JSON.stringify(role === "remove" ? { remove: true } : { role }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to update member' }))
-      onPopupAlert(String(err.error ?? 'Failed to update member'), 'Update failed')
-      return
-    }
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to update member" }));
+        onPopupAlert(
+          String(err.error ?? "Failed to update member"),
+          "Update failed",
+        );
+        return;
+      }
 
-    await loadAccess()
-  }, [projectId, shareHeaders, loadAccess, onPopupAlert])
+      await loadAccess();
+    },
+    [projectId, shareHeaders, loadAccess, onPopupAlert],
+  );
 
-  const setLinkSharing = useCallback(async (enabled: boolean, role: ShareRole) => {
-    const res = await fetch(`/api/projects/${projectId}/link-sharing`, {
-      method: 'PATCH',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ enabled, role }),
-    })
+  const setLinkSharing = useCallback(
+    async (enabled: boolean, role: ShareRole) => {
+      const res = await fetch(`/api/projects/${projectId}/link-sharing`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...shareHeaders,
+        },
+        body: JSON.stringify({ enabled, role }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to update link sharing' }))
-      onPopupAlert(String(err.error ?? 'Failed to update link sharing'), 'Update failed')
-      return
-    }
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to update link sharing" }));
+        onPopupAlert(
+          String(err.error ?? "Failed to update link sharing"),
+          "Update failed",
+        );
+        return;
+      }
 
-    const body = await res.json() as { enabled: boolean; role: ShareRole | null; token: string | null }
-    setLinkEnabled(body.enabled)
-    setLinkRole(body.role ?? 'view')
-    setLinkToken(body.token)
-  }, [projectId, shareHeaders, onPopupAlert])
+      const body = (await res.json()) as {
+        enabled: boolean;
+        role: ShareRole | null;
+        token: string | null;
+      };
+      setLinkEnabled(body.enabled);
+      setLinkRole(body.role ?? "view");
+      setLinkToken(body.token);
+    },
+    [projectId, shareHeaders, onPopupAlert],
+  );
 
   const invalidateLinkSharing = useCallback(async () => {
     const res = await fetch(`/api/projects/${projectId}/link-sharing`, {
-      method: 'PATCH',
-      credentials: 'same-origin',
+      method: "PATCH",
+      credentials: "same-origin",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...shareHeaders,
       },
       body: JSON.stringify({ invalidate: true }),
-    })
+    });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to rotate link' }))
-      onPopupAlert(String(err.error ?? 'Failed to rotate link'), 'Rotate failed')
-      return
+      const err = await res
+        .json()
+        .catch(() => ({ error: "Failed to rotate link" }));
+      onPopupAlert(
+        String(err.error ?? "Failed to rotate link"),
+        "Rotate failed",
+      );
+      return;
     }
 
-    const body = await res.json() as { enabled: boolean; role: ShareRole | null; token: string | null }
-    setLinkEnabled(body.enabled)
-    setLinkRole(body.role ?? 'view')
-    setLinkToken(body.token)
-  }, [projectId, shareHeaders, onPopupAlert])
+    const body = (await res.json()) as {
+      enabled: boolean;
+      role: ShareRole | null;
+      token: string | null;
+    };
+    setLinkEnabled(body.enabled);
+    setLinkRole(body.role ?? "view");
+    setLinkToken(body.token);
+  }, [projectId, shareHeaders, onPopupAlert]);
 
-  const resizeSidebar = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = sidebarWidthRef.current
-    setIsResizingSidebar(true)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+  const resizeSidebar = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = sidebarWidthRef.current;
+      setIsResizingSidebar(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
 
-    const onMove = (moveEvent: MouseEvent) => {
-      const delta = moveEvent.clientX - startX
-      const nextWidth = Math.min(420, Math.max(180, startWidth + delta))
-      if (nextWidth !== sidebarWidthRef.current) {
-        sidebarWidthRef.current = nextWidth
-        setSidebarWidth(nextWidth)
+      const onMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = Math.min(420, Math.max(180, startWidth + delta));
+        if (nextWidth !== sidebarWidthRef.current) {
+          sidebarWidthRef.current = nextWidth;
+          setSidebarWidth(nextWidth);
+        }
+      };
+
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("blur", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setIsResizingSidebar(false);
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("blur", onUp);
+    },
+    [],
+  );
+
+  const resizePreview = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = previewWidth;
+      setIsResizingPreview(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const delta = startX - moveEvent.clientX;
+        const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
+        const maxWidth = Math.max(380, layoutWidth - 380);
+        setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)));
+      };
+
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("blur", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setIsResizingPreview(false);
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("blur", onUp);
+    },
+    [previewWidth],
+  );
+
+  const resizeEditorSplit = useCallback(
+    (
+      event: ReactMouseEvent<HTMLDivElement>,
+      splitId: string,
+      orientation: SplitOrientation,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const container = event.currentTarget.parentElement;
+      if (!container) {
+        return;
       }
-    }
 
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('blur', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      setIsResizingSidebar(false)
-    }
-
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('blur', onUp)
-  }, [])
-
-  const resizePreview = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = previewWidth
-    setIsResizingPreview(true)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const delta = startX - moveEvent.clientX
-      const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth
-      const maxWidth = Math.max(380, layoutWidth - 380)
-      setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)))
-    }
-
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('blur', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      setIsResizingPreview(false)
-    }
-
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('blur', onUp)
-  }, [previewWidth])
-
-  const resizeEditorSplit = useCallback((
-    event: ReactMouseEvent<HTMLDivElement>,
-    splitId: string,
-    orientation: SplitOrientation,
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const container = event.currentTarget.parentElement
-    if (!container) {
-      return
-    }
-
-    const containerRect = container.getBoundingClientRect()
-    const startRatio = findSplitRatio(editorLayout, splitId)
-    if (startRatio === null) {
-      return
-    }
-
-    const startX = event.clientX
-    const startY = event.clientY
-    document.body.style.cursor = orientation === 'horizontal' ? 'col-resize' : 'row-resize'
-    document.body.style.userSelect = 'none'
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const axisSize = orientation === 'horizontal'
-        ? Math.max(1, containerRect.width)
-        : Math.max(1, containerRect.height)
-      const delta = orientation === 'horizontal'
-        ? moveEvent.clientX - startX
-        : moveEvent.clientY - startY
-      const nextRatio = clampSplitRatio((startRatio * axisSize + delta) / axisSize)
-      setEditorLayout((prev) => updateSplitRatio(prev, splitId, nextRatio))
-    }
-
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('blur', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('blur', onUp)
-  }, [editorLayout])
-
-  const resizeEditorCorner = useCallback((
-    event: ReactMouseEvent<HTMLDivElement>,
-    corner: SplitCornerTarget,
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
-
-    const xSplitGeometry = splitGeometry.byId[corner.xSplitId]
-    const ySplitGeometry = splitGeometry.byId[corner.ySplitId]
-    if (!xSplitGeometry || !ySplitGeometry) {
-      return
-    }
-
-    const startXRatio = findSplitRatio(editorLayout, corner.xSplitId)
-    const startYRatio = findSplitRatio(editorLayout, corner.ySplitId)
-    if (startXRatio === null || startYRatio === null) {
-      return
-    }
-
-    const startX = event.clientX
-    const startY = event.clientY
-    const xAxisSize = Math.max(1, xSplitGeometry.rect.width)
-    const yAxisSize = Math.max(1, ySplitGeometry.rect.height)
-
-    setHoveredCornerKey(corner.key)
-    setDraggingCornerSplitIds([corner.xSplitId, corner.ySplitId])
-    document.body.style.cursor = 'move'
-    document.body.style.userSelect = 'none'
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const nextXRatio = clampSplitRatio((startXRatio * xAxisSize + (moveEvent.clientX - startX)) / xAxisSize)
-      const nextYRatio = clampSplitRatio((startYRatio * yAxisSize + (moveEvent.clientY - startY)) / yAxisSize)
-
-      setEditorLayout((prev) => {
-        const withX = updateSplitRatio(prev, corner.xSplitId, nextXRatio)
-        return updateSplitRatio(withX, corner.ySplitId, nextYRatio)
-      })
-    }
-
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('blur', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      setDraggingCornerSplitIds(null)
-    }
-
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('blur', onUp)
-  }, [editorLayout, splitGeometry.byId])
-
-  const openDroppedPathsInPane = useCallback((
-    paneId: string,
-    paths: string[],
-    fromTabBar: boolean,
-    sourcePaneId: string | null,
-  ) => {
-    const validPaths = dedupePaths(paths).filter((path) => allFilePaths.has(path))
-    if (validPaths.length === 0) {
-      return
-    }
-
-    setPaneStateById((prev) => {
-      return applyDroppedPathsToPaneState(prev, paneId, validPaths, { fromTabBar, sourcePaneId })
-    })
-
-    setHistoryState(null)
-    focusPane(paneId, validPaths[validPaths.length - 1])
-  }, [allFilePaths, focusPane])
-
-  const splitPaneWithDroppedPaths = useCallback((
-    targetPaneId: string,
-    orientation: SplitOrientation,
-    paths: string[],
-    fromTabBar: boolean,
-    sourcePaneId: string | null,
-  ) => {
-    const validPaths = dedupePaths(paths).filter((path) => allFilePaths.has(path))
-    if (validPaths.length === 0) {
-      return
-    }
-
-    const newPaneId = createPaneId()
-    const splitId = createSplitId()
-
-    setPaneStateById((prev) => {
-      const next = fromTabBar
-        ? removeDroppedTabPathsFromSource(prev, validPaths, sourcePaneId)
-        : { ...prev }
-      next[newPaneId] = {
-        tabs: validPaths.map((path) => ({ path, isEphemeral: false })),
-        activePath: validPaths[validPaths.length - 1],
-        showSnippetToolbar: true,
+      const containerRect = container.getBoundingClientRect();
+      const startRatio = findSplitRatio(editorLayout, splitId);
+      if (startRatio === null) {
+        return;
       }
-      return next
-    })
 
-    setEditorLayout((prev) => insertSplitAtPane(prev, targetPaneId, newPaneId, splitId, orientation))
-    setHistoryState(null)
-    focusPane(newPaneId, validPaths[validPaths.length - 1])
-  }, [allFilePaths, createPaneId, createSplitId, focusPane])
+      const startX = event.clientX;
+      const startY = event.clientY;
+      document.body.style.cursor =
+        orientation === "horizontal" ? "col-resize" : "row-resize";
+      document.body.style.userSelect = "none";
 
-  const handlePaneDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-    const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths)
-    if (!payload) {
-      return
-    }
+      const onMove = (moveEvent: MouseEvent) => {
+        const axisSize =
+          orientation === "horizontal"
+            ? Math.max(1, containerRect.width)
+            : Math.max(1, containerRect.height);
+        const delta =
+          orientation === "horizontal"
+            ? moveEvent.clientX - startX
+            : moveEvent.clientY - startY;
+        const nextRatio = clampSplitRatio(
+          (startRatio * axisSize + delta) / axisSize,
+        );
+        setEditorLayout((prev) => updateSplitRatio(prev, splitId, nextRatio));
+      };
 
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("blur", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
 
-    const rect = event.currentTarget.getBoundingClientRect()
-    const zone = computeDropZone(rect, event.clientX, event.clientY)
-    setPaneDropHint((prev) => {
-      if (prev?.paneId === paneId && prev.zone === zone) {
-        return prev
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("blur", onUp);
+    },
+    [editorLayout],
+  );
+
+  const resizeEditorCorner = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>, corner: SplitCornerTarget) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const xSplitGeometry = splitGeometry.byId[corner.xSplitId];
+      const ySplitGeometry = splitGeometry.byId[corner.ySplitId];
+      if (!xSplitGeometry || !ySplitGeometry) {
+        return;
       }
-      return { paneId, zone }
-    })
-  }, [allFilePaths])
 
-  const handlePaneDragLeave = useCallback((event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-    const nextTarget = event.relatedTarget
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-      return
-    }
-    setPaneDropHint((prev) => (prev?.paneId === paneId ? null : prev))
-  }, [])
+      const startXRatio = findSplitRatio(editorLayout, corner.xSplitId);
+      const startYRatio = findSplitRatio(editorLayout, corner.ySplitId);
+      if (startXRatio === null || startYRatio === null) {
+        return;
+      }
 
-  const handlePaneDrop = useCallback((event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-    const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths)
-    if (!payload) {
-      return
-    }
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const xAxisSize = Math.max(1, xSplitGeometry.rect.width);
+      const yAxisSize = Math.max(1, ySplitGeometry.rect.height);
 
-    event.preventDefault()
-    event.stopPropagation()
-    const rect = event.currentTarget.getBoundingClientRect()
-    const zone = computeDropZone(rect, event.clientX, event.clientY)
-    setPaneDropHint(null)
+      setHoveredCornerKey(corner.key);
+      setDraggingCornerSplitIds([corner.xSplitId, corner.ySplitId]);
+      document.body.style.cursor = "move";
+      document.body.style.userSelect = "none";
 
-    if (zone === 'center') {
-      openDroppedPathsInPane(paneId, payload.paths, payload.fromTabBar, payload.sourcePaneId)
-      return
-    }
+      const onMove = (moveEvent: MouseEvent) => {
+        const nextXRatio = clampSplitRatio(
+          (startXRatio * xAxisSize + (moveEvent.clientX - startX)) / xAxisSize,
+        );
+        const nextYRatio = clampSplitRatio(
+          (startYRatio * yAxisSize + (moveEvent.clientY - startY)) / yAxisSize,
+        );
 
-    const orientation: SplitOrientation = zone === 'right' ? 'horizontal' : 'vertical'
-    splitPaneWithDroppedPaths(paneId, orientation, payload.paths, payload.fromTabBar, payload.sourcePaneId)
-  }, [allFilePaths, openDroppedPathsInPane, splitPaneWithDroppedPaths])
+        setEditorLayout((prev) => {
+          const withX = updateSplitRatio(prev, corner.xSplitId, nextXRatio);
+          return updateSplitRatio(withX, corner.ySplitId, nextYRatio);
+        });
+      };
 
-  const renameFile = useCallback((path: string, nextPath: string) => {
-    const trimmed = nextPath.trim()
-    if (!trimmed || trimmed === path || fileMap.has(trimmed)) {
-      return false
-    }
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("blur", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setDraggingCornerSplitIds(null);
+      };
 
-    const rawMeta = fileMap.get(path) ?? ''
-    const meta = withFileId(parseFileMetadata(rawMeta))
-    const normalizedMeta = JSON.stringify(meta)
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("blur", onUp);
+    },
+    [editorLayout, splitGeometry.byId],
+  );
 
-    if (meta.type === 'asset') {
-      // Asset rename: just move the map key, no YText
-      ydoc.transact(() => {
-        fileMap.delete(path)
-        fileMap.set(trimmed, rawMeta)
-      }, 'pressmark:rename-asset')
-    } else {
-      // Text file rename
-      ydoc.transact(() => {
-        const source = ydoc.getText(`file:${path}`).toString()
-        const target = ydoc.getText(`file:${trimmed}`)
-        target.delete(0, target.length)
-        target.insert(0, source)
-        const previous = ydoc.getText(`file:${path}`)
-        previous.delete(0, previous.length)
-        fileMap.delete(path)
-        fileMap.set(trimmed, normalizedMeta)
-      }, 'pressmark:rename-file')
-    }
+  const openDroppedPathsInPane = useCallback(
+    (
+      paneId: string,
+      paths: string[],
+      fromTabBar: boolean,
+      sourcePaneId: string | null,
+    ) => {
+      const validPaths = dedupePaths(paths).filter((path) =>
+        allFilePaths.has(path),
+      );
+      if (validPaths.length === 0) {
+        return;
+      }
 
-    if (activeFile === path) {
-      setActiveFile(trimmed)
-    }
-    setPaneStateById((prev) => {
-      let changed = false
-      const next: Record<string, EditorPaneState> = {}
+      setPaneStateById((prev) => {
+        return applyDroppedPathsToPaneState(prev, paneId, validPaths, {
+          fromTabBar,
+          sourcePaneId,
+        });
+      });
 
-      for (const [paneId, paneState] of Object.entries(prev)) {
-        const nextTabs = paneState.tabs.map((tab) => (tab.path === path ? { ...tab, path: trimmed } : tab))
-        const nextActivePath = paneState.activePath === path ? trimmed : paneState.activePath
-        if (nextActivePath !== paneState.activePath || nextTabs.some((tab, index) => tab !== paneState.tabs[index])) {
-          changed = true
-          next[paneId] = {
-            tabs: nextTabs,
-            activePath: nextActivePath,
-            showSnippetToolbar: paneState.showSnippetToolbar,
+      setHistoryState(null);
+      focusPane(paneId, validPaths[validPaths.length - 1]);
+    },
+    [allFilePaths, focusPane],
+  );
+
+  const splitPaneWithDroppedPaths = useCallback(
+    (
+      targetPaneId: string,
+      orientation: SplitOrientation,
+      paths: string[],
+      fromTabBar: boolean,
+      sourcePaneId: string | null,
+    ) => {
+      const validPaths = dedupePaths(paths).filter((path) =>
+        allFilePaths.has(path),
+      );
+      if (validPaths.length === 0) {
+        return;
+      }
+
+      const newPaneId = createPaneId();
+      const splitId = createSplitId();
+
+      setPaneStateById((prev) => {
+        const next = fromTabBar
+          ? removeDroppedTabPathsFromSource(prev, validPaths, sourcePaneId)
+          : { ...prev };
+        next[newPaneId] = {
+          tabs: validPaths.map((path) => ({ path, isEphemeral: false })),
+          activePath: validPaths[validPaths.length - 1],
+          showSnippetToolbar: true,
+        };
+        return next;
+      });
+
+      setEditorLayout((prev) =>
+        insertSplitAtPane(prev, targetPaneId, newPaneId, splitId, orientation),
+      );
+      setHistoryState(null);
+      focusPane(newPaneId, validPaths[validPaths.length - 1]);
+    },
+    [allFilePaths, createPaneId, createSplitId, focusPane],
+  );
+
+  const handlePaneDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
+      const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths);
+      if (!payload) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const zone = computeDropZone(rect, event.clientX, event.clientY);
+      setPaneDropHint((prev) => {
+        if (prev?.paneId === paneId && prev.zone === zone) {
+          return prev;
+        }
+        return { paneId, zone };
+      });
+    },
+    [allFilePaths],
+  );
+
+  const handlePaneDragLeave = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
+      const nextTarget = event.relatedTarget;
+      if (
+        nextTarget instanceof Node &&
+        event.currentTarget.contains(nextTarget)
+      ) {
+        return;
+      }
+      setPaneDropHint((prev) => (prev?.paneId === paneId ? null : prev));
+    },
+    [],
+  );
+
+  const handlePaneDrop = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
+      const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths);
+      if (!payload) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const zone = computeDropZone(rect, event.clientX, event.clientY);
+      setPaneDropHint(null);
+
+      if (zone === "center") {
+        openDroppedPathsInPane(
+          paneId,
+          payload.paths,
+          payload.fromTabBar,
+          payload.sourcePaneId,
+        );
+        return;
+      }
+
+      const orientation: SplitOrientation =
+        zone === "right" ? "horizontal" : "vertical";
+      splitPaneWithDroppedPaths(
+        paneId,
+        orientation,
+        payload.paths,
+        payload.fromTabBar,
+        payload.sourcePaneId,
+      );
+    },
+    [allFilePaths, openDroppedPathsInPane, splitPaneWithDroppedPaths],
+  );
+
+  const renameFile = useCallback(
+    (path: string, nextPath: string) => {
+      const trimmed = nextPath.trim();
+      if (!trimmed || trimmed === path || fileMap.has(trimmed)) {
+        return false;
+      }
+
+      const rawMeta = fileMap.get(path) ?? "";
+      const meta = withFileId(parseFileMetadata(rawMeta));
+      const normalizedMeta = JSON.stringify(meta);
+
+      if (meta.type === "asset") {
+        // Asset rename: just move the map key, no YText
+        ydoc.transact(() => {
+          fileMap.delete(path);
+          fileMap.set(trimmed, rawMeta);
+        }, "composure:rename-asset");
+      } else {
+        // Text file rename
+        ydoc.transact(() => {
+          const source = ydoc.getText(`file:${path}`).toString();
+          const target = ydoc.getText(`file:${trimmed}`);
+          target.delete(0, target.length);
+          target.insert(0, source);
+          const previous = ydoc.getText(`file:${path}`);
+          previous.delete(0, previous.length);
+          fileMap.delete(path);
+          fileMap.set(trimmed, normalizedMeta);
+        }, "composure:rename-file");
+      }
+
+      if (activeFile === path) {
+        setActiveFile(trimmed);
+      }
+      setPaneStateById((prev) => {
+        let changed = false;
+        const next: Record<string, EditorPaneState> = {};
+
+        for (const [paneId, paneState] of Object.entries(prev)) {
+          const nextTabs = paneState.tabs.map((tab) =>
+            tab.path === path ? { ...tab, path: trimmed } : tab,
+          );
+          const nextActivePath =
+            paneState.activePath === path ? trimmed : paneState.activePath;
+          if (
+            nextActivePath !== paneState.activePath ||
+            nextTabs.some((tab, index) => tab !== paneState.tabs[index])
+          ) {
+            changed = true;
+            next[paneId] = {
+              tabs: nextTabs,
+              activePath: nextActivePath,
+              showSnippetToolbar: paneState.showSnippetToolbar,
+            };
+          } else {
+            next[paneId] = paneState;
           }
-        } else {
-          next[paneId] = paneState
         }
+
+        return changed ? next : prev;
+      });
+      return true;
+    },
+    [fileMap, ydoc, activeFile],
+  );
+
+  const deleteFile = useCallback(
+    (path: string) => {
+      if (!fileMap.has(path)) {
+        return false;
       }
 
-      return changed ? next : prev
-    })
-    return true
-  }, [fileMap, ydoc, activeFile])
+      const rawMeta = fileMap.get(path) ?? "";
+      const meta = withFileId(parseFileMetadata(rawMeta));
 
-  const deleteFile = useCallback((path: string) => {
-    if (!fileMap.has(path)) {
-      return false
-    }
+      const remainingFiles = Array.from(fileMap.entries())
+        .filter(
+          ([candidatePath, raw]) =>
+            candidatePath !== path && parseFileMetadata(raw).type !== "folder",
+        )
+        .map(([candidatePath]) => candidatePath)
+        .sort();
 
-    const rawMeta = fileMap.get(path) ?? ''
-    const meta = withFileId(parseFileMetadata(rawMeta))
+      const tabIndex = openTabs.findIndex((tab) => tab.path === path);
+      const fallbackFromTabs =
+        tabIndex === -1
+          ? ""
+          : (openTabs[tabIndex + 1]?.path ??
+            openTabs[tabIndex - 1]?.path ??
+            "");
 
-    const remainingFiles = Array.from(fileMap.entries())
-      .filter(([candidatePath, raw]) => candidatePath !== path && parseFileMetadata(raw).type !== 'folder')
-      .map(([candidatePath]) => candidatePath)
-      .sort()
+      if (meta.type === "asset") {
+        // Asset delete: just remove from map (server deletion handled by FileTree)
+        fileMap.delete(path);
+      } else {
+        ydoc.transact(() => {
+          const text = ydoc.getText(`file:${path}`);
+          text.delete(0, text.length);
+          fileMap.delete(path);
+        }, "composure:delete-file");
+      }
 
-    const tabIndex = openTabs.findIndex((tab) => tab.path === path)
-    const fallbackFromTabs = tabIndex === -1
-      ? ''
-      : (openTabs[tabIndex + 1]?.path ?? openTabs[tabIndex - 1]?.path ?? '')
+      let nextActiveForCurrentPane = "";
+      setPaneStateById((prev) => {
+        let changed = false;
+        const next: Record<string, EditorPaneState> = {};
 
-    if (meta.type === 'asset') {
-      // Asset delete: just remove from map (server deletion handled by FileTree)
-      fileMap.delete(path)
-    } else {
-      ydoc.transact(() => {
-        const text = ydoc.getText(`file:${path}`)
-        text.delete(0, text.length)
-        fileMap.delete(path)
-      }, 'pressmark:delete-file')
-    }
+        for (const [paneId, paneState] of Object.entries(prev)) {
+          const closeIndex = paneState.tabs.findIndex(
+            (tab) => tab.path === path,
+          );
+          const nextTabs =
+            closeIndex === -1
+              ? paneState.tabs
+              : paneState.tabs.filter((tab) => tab.path !== path);
+          const nextActivePath =
+            paneState.activePath === path
+              ? (nextTabs[closeIndex]?.path ??
+                nextTabs[closeIndex - 1]?.path ??
+                "")
+              : paneState.activePath;
 
-    let nextActiveForCurrentPane = ''
-    setPaneStateById((prev) => {
-      let changed = false
-      const next: Record<string, EditorPaneState> = {}
-
-      for (const [paneId, paneState] of Object.entries(prev)) {
-        const closeIndex = paneState.tabs.findIndex((tab) => tab.path === path)
-        const nextTabs = closeIndex === -1
-          ? paneState.tabs
-          : paneState.tabs.filter((tab) => tab.path !== path)
-        const nextActivePath = paneState.activePath === path
-          ? (nextTabs[closeIndex]?.path ?? nextTabs[closeIndex - 1]?.path ?? '')
-          : paneState.activePath
-
-        if (paneId === activePaneId && paneState.activePath === path) {
-          nextActiveForCurrentPane = nextActivePath
-        }
-
-        if (nextTabs !== paneState.tabs || nextActivePath !== paneState.activePath) {
-          changed = true
-          next[paneId] = {
-            tabs: nextTabs,
-            activePath: nextActivePath,
-            showSnippetToolbar: paneState.showSnippetToolbar,
+          if (paneId === activePaneId && paneState.activePath === path) {
+            nextActiveForCurrentPane = nextActivePath;
           }
-        } else {
-          next[paneId] = paneState
+
+          if (
+            nextTabs !== paneState.tabs ||
+            nextActivePath !== paneState.activePath
+          ) {
+            changed = true;
+            next[paneId] = {
+              tabs: nextTabs,
+              activePath: nextActivePath,
+              showSnippetToolbar: paneState.showSnippetToolbar,
+            };
+          } else {
+            next[paneId] = paneState;
+          }
         }
+
+        return changed ? next : prev;
+      });
+
+      if (activeFile === path) {
+        setActiveFile(
+          nextActiveForCurrentPane ||
+            fallbackFromTabs ||
+            remainingFiles[0] ||
+            "",
+        );
+      }
+      return true;
+    },
+    [fileMap, ydoc, activeFile, openTabs, activePaneId],
+  );
+
+  const resolveTextFileSizeBytes = useCallback(
+    (filePath: string): number => {
+      const cached = textByteSizeByPath[filePath];
+      if (typeof cached === "number") {
+        return cached;
       }
 
-      return changed ? next : prev
-    })
+      if (maxTextFileSizeBytes === "unlimited") {
+        return 0;
+      }
 
-    if (activeFile === path) {
-      setActiveFile(nextActiveForCurrentPane || fallbackFromTabs || remainingFiles[0] || '')
-    }
-    return true
-  }, [fileMap, ydoc, activeFile, openTabs, activePaneId])
+      const text = ydoc.getText(`file:${filePath}`);
+      return evaluateUtf8Limit(text.length, maxTextFileSizeBytes, () =>
+        text.toString(),
+      ).sizeBytes;
+    },
+    [textByteSizeByPath, maxTextFileSizeBytes, ydoc],
+  );
 
-  const resolveTextFileSizeBytes = useCallback((filePath: string): number => {
-    const cached = textByteSizeByPath[filePath]
-    if (typeof cached === 'number') {
-      return cached
-    }
+  const handleTextLimitExceeded = useCallback(
+    (input: { filePath: string; sizeBytes: number; limitBytes: number }) => {
+      const now = Date.now();
+      if (now - lastTextLimitPopupAtRef.current < 750) {
+        return;
+      }
+      lastTextLimitPopupAtRef.current = now;
 
-    if (maxTextFileSizeBytes === 'unlimited') {
-      return 0
-    }
+      onPopupAlert(
+        `Cannot apply edit to "${input.filePath}" because it would exceed the ${formatBinarySize(input.limitBytes)} text file limit (attempted size: ~${formatBinarySize(input.sizeBytes)}).`,
+        "Text File Limit Reached",
+      );
+    },
+    [onPopupAlert],
+  );
 
-    const text = ydoc.getText(`file:${filePath}`)
-    return evaluateUtf8Limit(text.length, maxTextFileSizeBytes, () => text.toString()).sizeBytes
-  }, [textByteSizeByPath, maxTextFileSizeBytes, ydoc])
-
-  const handleTextLimitExceeded = useCallback((input: {
-    filePath: string
-    sizeBytes: number
-    limitBytes: number
-  }) => {
-    const now = Date.now()
-    if (now - lastTextLimitPopupAtRef.current < 750) {
-      return
-    }
-    lastTextLimitPopupAtRef.current = now
-
-    onPopupAlert(
-      `Cannot apply edit to "${input.filePath}" because it would exceed the ${formatBinarySize(input.limitBytes)} text file limit (attempted size: ~${formatBinarySize(input.sizeBytes)}).`,
-      'Text File Limit Reached',
-    )
-  }, [onPopupAlert])
-
-  const shareUrl = `${window.location.origin}${makeProjectUrl(projectId, linkToken ?? shareToken)}`
-  const hasProjectEntries = fileMap.size > 0
+  const shareUrl = `${window.location.origin}${makeProjectUrl(projectId, linkToken ?? shareToken)}`;
+  const hasProjectEntries = fileMap.size > 0;
 
   const renderPane = (paneId: string) => {
-    const paneState = paneStateById[paneId] ?? { tabs: [], activePath: '', showSnippetToolbar: true }
-    const paneActiveFile = paneState.activePath
-    const paneHasActiveTextFile = paneActiveFile.length > 0 && textFilePaths.has(paneActiveFile)
-    const paneTextLimitBytes = typeof maxTextFileSizeBytes === 'number' ? maxTextFileSizeBytes : null
+    const paneState = paneStateById[paneId] ?? {
+      tabs: [],
+      activePath: "",
+      showSnippetToolbar: true,
+    };
+    const paneActiveFile = paneState.activePath;
+    const paneHasActiveTextFile =
+      paneActiveFile.length > 0 && textFilePaths.has(paneActiveFile);
+    const paneTextLimitBytes =
+      typeof maxTextFileSizeBytes === "number" ? maxTextFileSizeBytes : null;
     const paneTextSizeBytes = paneHasActiveTextFile
       ? resolveTextFileSizeBytes(paneActiveFile)
-      : null
-    const paneTextOverLimit = paneHasActiveTextFile
-      && paneTextLimitBytes !== null
-      && paneTextSizeBytes !== null
-      && paneTextSizeBytes > paneTextLimitBytes
-    const paneActiveAsset = paneActiveFile.length > 0 ? assetInfoByPath[paneActiveFile] ?? null : null
-    const paneDropZone = paneDropHint?.paneId === paneId ? paneDropHint.zone : null
-    const isFocusedPane = paneId === activePaneId
-    const showActiveTabBorder = isFocusedPane && focusedEditorPaneId === paneId
+      : null;
+    const paneTextOverLimit =
+      paneHasActiveTextFile &&
+      paneTextLimitBytes !== null &&
+      paneTextSizeBytes !== null &&
+      paneTextSizeBytes > paneTextLimitBytes;
+    const paneActiveAsset =
+      paneActiveFile.length > 0
+        ? (assetInfoByPath[paneActiveFile] ?? null)
+        : null;
+    const paneDropZone =
+      paneDropHint?.paneId === paneId ? paneDropHint.zone : null;
+    const isFocusedPane = paneId === activePaneId;
+    const showActiveTabBorder = isFocusedPane && focusedEditorPaneId === paneId;
 
     return (
       <div
         key={paneId}
-        className={`flex h-full min-h-0 min-w-0 flex-col ${isFocusedPane ? 'bg-pm-bg' : ''}`}
+        className={`flex h-full min-h-0 min-w-0 flex-col ${isFocusedPane ? "bg-cz-bg" : ""}`}
         onMouseDown={() => {
           if (activePaneId !== paneId) {
-            focusPane(paneId)
+            focusPane(paneId);
           }
         }}
       >
@@ -2760,18 +3324,22 @@ export function ProjectWorkspace({
               canRestore={canEdit}
               onExitHistory={exitHistoryMode}
               onRestore={() => {
-                exitHistoryMode()
-                setHistoryRefreshKey((k) => k + 1)
+                exitHistoryMode();
+                setHistoryRefreshKey((k) => k + 1);
               }}
               onPopupAlert={onPopupAlert}
             />
           ) : paneTextOverLimit ? (
-            <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+            <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
               <div className="flex max-w-md flex-col items-center gap-2 text-center">
                 <FileQuestion size={32} className="opacity-40" />
-                <span className="text-pm-text">This file is too large to open in the editor.</span>
-                <span className="text-xs text-pm-text-muted">
-                  File size {formatBinarySize(paneTextSizeBytes ?? 0)} exceeds the configured text file limit of {formatBinarySize(paneTextLimitBytes ?? 0)}.
+                <span className="text-cz-text">
+                  This file is too large to open in the editor.
+                </span>
+                <span className="text-xs text-cz-text-muted">
+                  File size {formatBinarySize(paneTextSizeBytes ?? 0)} exceeds
+                  the configured text file limit of{" "}
+                  {formatBinarySize(paneTextLimitBytes ?? 0)}.
                 </span>
               </div>
             </div>
@@ -2780,12 +3348,14 @@ export function ProjectWorkspace({
               ydoc={ydoc}
               provider={provider}
               activeFile={paneActiveFile}
-              onFocusChange={(isFocused) => handlePaneEditorFocusChange(paneId, isFocused)}
+              onFocusChange={(isFocused) =>
+                handlePaneEditorFocusChange(paneId, isFocused)
+              }
               availableFilePaths={availableFilePathList}
               maxTextFileSizeBytes={maxTextFileSizeBytes}
               largeFileThresholdChars={largeFileThresholdChars}
               showFormatToolbar={paneState.showSnippetToolbar}
-              canEdit={effectiveMode === 'edit'}
+              canEdit={effectiveMode === "edit"}
               canComment={canInteractWithComments}
               presenceName={sessionUser?.displayName ?? accountLabel}
               presenceUserId={sessionUser?.id ?? null}
@@ -2794,7 +3364,9 @@ export function ProjectWorkspace({
               comments={comments}
               activeCommentId={paneId === activePaneId ? activeCommentId : null}
               activeCommentRevision={activeCommentRevision}
-              focusCollaboratorRequest={paneId === activePaneId ? focusCollaboratorRequest : null}
+              focusCollaboratorRequest={
+                paneId === activePaneId ? focusCollaboratorRequest : null
+              }
               editorBraceMatching={editorBraceMatching}
               editorHighlightSelectionMatches={editorHighlightSelectionMatches}
               editorInEditorFind={editorInEditorFind}
@@ -2804,17 +3376,19 @@ export function ProjectWorkspace({
               onTextLimitExceeded={handleTextLimitExceeded}
               onCommentLineNumbersChange={(nextFileLineNumbers) => {
                 setCommentLineNumbersById((prev) => {
-                  const next = { ...prev }
+                  const next = { ...prev };
                   for (const comment of comments) {
                     if (comment.filePath === paneActiveFile) {
-                      delete next[comment.id]
+                      delete next[comment.id];
                     }
                   }
-                  for (const [commentId, lines] of Object.entries(nextFileLineNumbers)) {
-                    next[commentId] = lines
+                  for (const [commentId, lines] of Object.entries(
+                    nextFileLineNumbers,
+                  )) {
+                    next[commentId] = lines;
                   }
-                  return next
-                })
+                  return next;
+                });
               }}
             />
           ) : paneActiveAsset ? (
@@ -2827,23 +3401,27 @@ export function ProjectWorkspace({
             />
           ) : !initialSyncDone ? (
             <div className="flex h-full items-center justify-center">
-              <div className="flex items-center gap-3 text-sm text-pm-text-muted">
-                <span className="pm-spinner shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-3 text-sm text-cz-text-muted">
+                <span className="cz-spinner shrink-0" aria-hidden="true" />
                 Loading document...
               </div>
             </div>
           ) : hasProjectEntries ? (
-            <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+            <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
               <div className="flex flex-col items-center gap-2">
                 <MousePointerClick size={32} className="opacity-30" />
-                <span>Select a file from the Files panel to start editing.</span>
+                <span>
+                  Select a file from the Files panel to start editing.
+                </span>
               </div>
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+            <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
               <div className="flex flex-col items-center gap-2">
                 <FilePlus2 size={32} className="opacity-30" />
-                <span>No files in this project yet. Create one from the Files panel.</span>
+                <span>
+                  No files in this project yet. Create one from the Files panel.
+                </span>
               </div>
             </div>
           )}
@@ -2851,63 +3429,76 @@ export function ProjectWorkspace({
           {paneDropZone && (
             <div className="pointer-events-none absolute inset-0 z-40 p-2">
               <div
-                className={`absolute rounded-md border-2 border-pm-accent bg-pm-accent/15 ${
-                  paneDropZone === 'center'
-                    ? 'inset-2'
-                    : paneDropZone === 'right'
-                        ? 'bottom-2 right-2 top-2 w-[50%]'
-                        : 'bottom-2 left-2 right-2 h-[50%]'
+                className={`absolute rounded-md border-2 border-cz-accent bg-cz-accent/15 ${
+                  paneDropZone === "center"
+                    ? "inset-2"
+                    : paneDropZone === "right"
+                      ? "bottom-2 right-2 top-2 w-[50%]"
+                      : "bottom-2 left-2 right-2 h-[50%]"
                 }`}
               />
             </div>
           )}
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   const renderLayoutNode = (node: EditorLayoutNode) => {
-    if (node.kind === 'pane') {
-      return renderPane(node.paneId)
+    if (node.kind === "pane") {
+      return renderPane(node.paneId);
     }
 
-    const firstGrow = node.ratio
-    const secondGrow = 1 - node.ratio
-    const isHorizontal = node.orientation === 'horizontal'
+    const firstGrow = node.ratio;
+    const secondGrow = 1 - node.ratio;
+    const isHorizontal = node.orientation === "horizontal";
 
     return (
-      <div className={`flex h-full min-h-0 min-w-0 ${isHorizontal ? 'flex-row' : 'flex-col'}`}>
-        <div className="min-h-0 min-w-0 overflow-hidden" style={{ flexBasis: 0, flexGrow: firstGrow }}>
+      <div
+        className={`flex h-full min-h-0 min-w-0 ${isHorizontal ? "flex-row" : "flex-col"}`}
+      >
+        <div
+          className="min-h-0 min-w-0 overflow-hidden"
+          style={{ flexBasis: 0, flexGrow: firstGrow }}
+        >
           {renderLayoutNode(node.first)}
         </div>
 
         <ResizeHandle
-          orientation={isHorizontal ? 'vertical' : 'horizontal'}
+          orientation={isHorizontal ? "vertical" : "horizontal"}
           ariaLabel="Resize editor split"
-          onMouseDown={(event) => resizeEditorSplit(event, node.splitId, node.orientation)}
+          onMouseDown={(event) =>
+            resizeEditorSplit(event, node.splitId, node.orientation)
+          }
           forceActive={forcedActiveSplitIds.has(node.splitId)}
           className="z-30"
         />
 
-        <div className="min-h-0 min-w-0 overflow-hidden" style={{ flexBasis: 0, flexGrow: secondGrow }}>
+        <div
+          className="min-h-0 min-w-0 overflow-hidden"
+          style={{ flexBasis: 0, flexGrow: secondGrow }}
+        >
           {renderLayoutNode(node.second)}
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
-    <div id="app-root" className="flex h-screen w-screen overflow-hidden bg-pm-bg">
+    <div
+      id="app-root"
+      className="flex h-screen w-screen overflow-hidden bg-cz-bg"
+    >
       <aside
-        className={`${isResizingSidebar ? '' : 'transition-sidebar'} flex flex-col bg-pm-surface ${
-          sidebarOpen ? 'opacity-100' : 'w-0 opacity-0 overflow-hidden'
+        className={`${isResizingSidebar ? "" : "transition-sidebar"} flex flex-col bg-cz-surface ${
+          sidebarOpen ? "opacity-100" : "w-0 opacity-0 overflow-hidden"
         }`}
         style={sidebarOpen ? { width: sidebarWidth } : undefined}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-pm-border">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-cz-border">
           <button
             onClick={navigateToProjects}
-            className="group flex items-center text-sm font-semibold tracking-tight text-pm-text"
+            className="group flex items-center text-sm font-semibold tracking-tight text-cz-text"
             title="All projects"
           >
             <ChevronLeft
@@ -2915,32 +3506,32 @@ export function ProjectWorkspace({
               className="mr-0 -translate-x-1 opacity-0 transition-all duration-200 group-hover:mr-1 group-hover:translate-x-0 group-hover:opacity-100"
             />
             <span className="transition-transform duration-200 group-hover:translate-x-1.5">
-              <span className="text-pm-accent">P</span>ressmark
+              <span className="text-cz-accent">C</span>omposure
             </span>
           </button>
         </div>
-        <div className="grid grid-cols-3 border-b border-pm-border">
+        <div className="grid grid-cols-3 border-b border-cz-border">
           <button
-            onClick={() => setSidebarTab('files')}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === 'files' ? 'bg-pm-accent-muted text-pm-accent' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            onClick={() => setSidebarTab("files")}
+            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "files" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
           >
             Files
           </button>
           <button
-            onClick={() => setSidebarTab('review')}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === 'review' ? 'bg-pm-accent-muted text-pm-accent' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            onClick={() => setSidebarTab("review")}
+            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "review" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
           >
             Review
           </button>
           <button
-            onClick={() => setSidebarTab('history')}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === 'history' ? 'bg-pm-accent-muted text-pm-accent' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            onClick={() => setSidebarTab("history")}
+            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "history" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
           >
             History
           </button>
         </div>
 
-        {sidebarTab === 'files' ? (
+        {sidebarTab === "files" ? (
           <FileTree
             fileMap={fileMap}
             ydoc={ydoc}
@@ -2949,19 +3540,19 @@ export function ProjectWorkspace({
             activeFile={activeFile}
             isDocumentLoading={!initialSyncDone}
             onSelect={(path) => {
-              openFileFromTree(path, 'ephemeral')
+              openFileFromTree(path, "ephemeral");
             }}
             onSelectPersistent={(path) => {
-              openFileFromTree(path, 'persistent')
+              openFileFromTree(path, "persistent");
             }}
             onRename={renameFile}
             onDelete={deleteFile}
           />
-        ) : sidebarTab === 'history' ? (
+        ) : sidebarTab === "history" ? (
           <HistoryPanel
             projectId={projectId}
             onViewDiff={(sha, filePath) => {
-              enterHistoryMode(sha, filePath)
+              enterHistoryMode(sha, filePath);
             }}
             canEdit={canEdit}
             refreshKey={historyRefreshKey}
@@ -2973,17 +3564,17 @@ export function ProjectWorkspace({
             comments={comments}
             commentLineNumbersById={commentLineNumbersById}
             canComment={canInteractWithComments}
-            canModerate={accessRole === 'owner' && canInteractWithComments}
+            canModerate={accessRole === "owner" && canInteractWithComments}
             onActivateComment={(commentId) => {
-              setSelectedCommentId(commentId)
-              setHoveredCommentId(null)
-              setActiveCommentRevision((prev) => prev + 1)
+              setSelectedCommentId(commentId);
+              setHoveredCommentId(null);
+              setActiveCommentRevision((prev) => prev + 1);
             }}
             onHoverComment={(commentId) => {
-              setHoveredCommentId(commentId)
+              setHoveredCommentId(commentId);
             }}
             onHoverCommentEnd={() => {
-              setHoveredCommentId(null)
+              setHoveredCommentId(null);
             }}
             principalUserId={principal.userId}
             principalGuestId={principal.guestId}
@@ -3020,7 +3611,7 @@ export function ProjectWorkspace({
           onOpenShare={() => setShowShareModal(true)}
           onCompile={handleCompile}
           onClearCompileOutput={() => {
-            void handleClearCompileOutput()
+            void handleClearCompileOutput();
           }}
           hasCompiledOutput={pdfUrl != null}
           clearingCompileOutput={clearingCompileOutput}
@@ -3041,13 +3632,16 @@ export function ProjectWorkspace({
           onTogglePreview={() => setPreviewOpen((open) => !open)}
           projectId={projectId}
           onViewDiff={(sha, filePath) => {
-            enterHistoryMode(sha, filePath)
+            enterHistoryMode(sha, filePath);
           }}
           historyState={historyState}
         />
 
         <div ref={layoutRef} className="relative flex flex-1 min-h-0">
-          <div ref={editorLayoutSurfaceRef} className="relative min-h-0 min-w-0 flex-1">
+          <div
+            ref={editorLayoutSurfaceRef}
+            className="relative min-h-0 min-w-0 flex-1"
+          >
             {renderLayoutNode(editorLayout)}
 
             {splitGeometry.corners.map((corner) => (
@@ -3059,17 +3653,19 @@ export function ProjectWorkspace({
                   top: corner.y,
                   width: CORNER_HIT_SIZE_PX,
                   height: CORNER_HIT_SIZE_PX,
-                  cursor: 'move',
+                  cursor: "move",
                 }}
                 className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-sm"
                 onMouseEnter={() => {
-                  setHoveredCornerKey(corner.key)
+                  setHoveredCornerKey(corner.key);
                 }}
                 onMouseLeave={() => {
-                  setHoveredCornerKey((prev) => (prev === corner.key ? null : prev))
+                  setHoveredCornerKey((prev) =>
+                    prev === corner.key ? null : prev,
+                  );
                 }}
                 onMouseDown={(event) => {
-                  resizeEditorCorner(event, corner)
+                  resizeEditorCorner(event, corner);
                 }}
               />
             ))}
@@ -3083,8 +3679,12 @@ export function ProjectWorkspace({
                 onMouseDown={resizePreview}
               />
 
-              <div className="relative min-w-[300px]" style={{ width: previewWidth }}>
-                {projectFormat === 'markdown' || projectFormat === 'asciidoc' ? (
+              <div
+                className="relative min-w-[300px]"
+                style={{ width: previewWidth }}
+              >
+                {projectFormat === "markdown" ||
+                projectFormat === "asciidoc" ? (
                   <HtmlPreview html={markdownHtml} error={null} />
                 ) : (
                   <CompilePreview
@@ -3121,22 +3721,22 @@ export function ProjectWorkspace({
         onInviteEmailChange={setInviteEmail}
         onInviteRoleChange={setInviteRole}
         onInvite={() => {
-          void inviteMember()
+          void inviteMember();
         }}
         onMemberRoleChange={(userId, role) => {
-          void updateMemberRole(userId, role)
+          void updateMemberRole(userId, role);
         }}
         onLinkToggle={(enabled) => {
-          void setLinkSharing(enabled, linkRole)
+          void setLinkSharing(enabled, linkRole);
         }}
         onLinkRoleChange={(role) => {
-          setLinkRole(role)
-          void setLinkSharing(linkEnabled, role)
+          setLinkRole(role);
+          void setLinkSharing(linkEnabled, role);
         }}
         onLinkInvalidate={() => {
-          void invalidateLinkSharing()
+          void invalidateLinkSharing();
         }}
       />
     </div>
-  )
+  );
 }

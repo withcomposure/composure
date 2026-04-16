@@ -127,7 +127,7 @@ function usePdfRenderer(
         const baseWidth = viewport.width / renderScale
         const baseHeight = viewport.height / renderScale
         const pageLayer = document.createElement('div')
-        pageLayer.className = 'pm-pdf-page'
+        pageLayer.className = 'cz-pdf-page'
         pageLayer.dataset.baseWidth = String(baseWidth)
         pageLayer.dataset.baseHeight = String(baseHeight)
         pageLayer.style.width = `${baseWidth * displayScaleRef.current}px`
@@ -141,7 +141,7 @@ function usePdfRenderer(
         canvas.style.display = 'block'
 
         const textLayerContainer = document.createElement('div')
-        textLayerContainer.className = 'pm-pdf-text-layer'
+        textLayerContainer.className = 'cz-pdf-text-layer'
         textLayerContainer.style.setProperty('--scale-factor', String(displayScaleRef.current))
 
         const ctx = canvas.getContext('2d')
@@ -209,7 +209,7 @@ function usePdfRenderer(
     const container = containerRef.current
     if (!container) return
 
-    const pages = container.querySelectorAll<HTMLDivElement>('.pm-pdf-page')
+    const pages = container.querySelectorAll<HTMLDivElement>('.cz-pdf-page')
     pages.forEach((page) => {
       const baseWidth = Number.parseFloat(page.dataset.baseWidth ?? '')
       const baseHeight = Number.parseFloat(page.dataset.baseHeight ?? '')
@@ -218,7 +218,7 @@ function usePdfRenderer(
       page.style.height = `${baseHeight * displayScale}px`
     })
 
-    const textLayers = container.querySelectorAll<HTMLDivElement>('.pm-pdf-text-layer')
+    const textLayers = container.querySelectorAll<HTMLDivElement>('.cz-pdf-text-layer')
     textLayers.forEach((textLayer) => {
       textLayer.style.setProperty('--scale-factor', String(displayScale))
     })
@@ -272,7 +272,7 @@ function useDragToPan(scrollRef: React.RefObject<HTMLDivElement | null>, enabled
 
     const target = event.target as Element | null
     const isTextGlyph = target instanceof HTMLElement
-      && target.closest('.pm-pdf-text-layer') != null
+      && target.closest('.cz-pdf-text-layer') != null
       && (target.tagName === 'SPAN' || target.tagName === 'BR')
     if (isTextGlyph) {
       // Preserve native text selection in the PDF text layer.
@@ -382,11 +382,11 @@ function CompilingPlaceholderContent() {
     <>
       <span
         aria-hidden="true"
-        className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-pm-text-muted/40 border-t-pm-text-muted"
+        className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-cz-text-muted/40 border-t-cz-text-muted"
       />
-      <p className="text-sm text-pm-text-muted">Compiling...</p>
+      <p className="text-sm text-cz-text-muted">Compiling...</p>
       {showSlowCompileHint && (
-        <p className="text-xs text-pm-text-muted italic mt-2">
+        <p className="text-xs text-cz-text-muted italic mt-2">
           This is taking longer than usual.
         </p>
       )}
@@ -447,9 +447,9 @@ export function CompilePreview({ pdfUrl, error, documentName = 'Compile', compil
             {showCompilingState ? (
               <CompilingPlaceholderContent />
             ) : (
-              <p className="text-sm text-pm-text-muted">
+              <p className="text-sm text-cz-text-muted">
                 Press{' '}
-                <kbd className="px-1.5 py-0.5 rounded bg-pm-surface border border-pm-border text-[11px] font-mono">
+                <kbd className="px-1.5 py-0.5 rounded bg-cz-surface border border-cz-border text-[11px] font-mono">
                   Ctrl+Enter
                 </kbd>{' '}
                 to compile
@@ -504,7 +504,7 @@ export function PdfViewer({ url, error, documentName = 'Preview' }: PdfViewerPro
   if (!url && !displayError) {
     return (
       <PreviewEmptyState icon={<FileText size={40} aria-hidden="true" />}>
-        <p className="text-sm text-pm-text-muted">No PDF to display</p>
+        <p className="text-sm text-cz-text-muted">No PDF to display</p>
       </PreviewEmptyState>
     )
   }
@@ -579,7 +579,7 @@ export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewe
   if (!url && !error) {
     return (
       <PreviewEmptyState icon={<FileImage size={40} aria-hidden="true" />}>
-        <p className="text-sm text-pm-text-muted">No image to display</p>
+        <p className="text-sm text-cz-text-muted">No image to display</p>
       </PreviewEmptyState>
     )
   }

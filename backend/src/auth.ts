@@ -37,7 +37,7 @@ import { isValidEmail } from './security.js'
 const IS_PROD = isProductionEnv(process.env.NODE_ENV)
 
 export const GUEST_COOKIE_NAME = 'guest_id'
-export const SESSION_COOKIE_NAME = 'pressmark_session'
+export const SESSION_COOKIE_NAME = 'composure_session'
 
 const GUEST_COOKIE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60

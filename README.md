@@ -1,21 +1,21 @@
-# 🌿 Pressmark
+# 🌿 Composure
 
-[![Tests](https://github.com/sebseager/pressmark/actions/workflows/test.yml/badge.svg)](https://github.com/sebseager/pressmark/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/sebseager/pressmark/branch/main/graph/badge.svg)](https://codecov.io/gh/sebseager/pressmark)
+[![Tests](https://github.com/withcomposure/composure/actions/workflows/test.yml/badge.svg)](https://github.com/withcomposure/composure/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/withcomposure/composure/branch/main/graph/badge.svg)](https://codecov.io/gh/withcomposure/composure)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-24-green?logo=node.js)](https://nodejs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/sebseager/pressmark/pulls)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/withcomposure/composure/pulls)
 
-Pressmark is a self-hostable, collaborative editor for LaTeX, Typst, Markdown, and more 
+Composure is a self-hostable, collaborative editor for LaTeX, Typst, Markdown, and more 
 — built as a modern open-source alternative to Overleaf.
 
 ## Getting Started
 
 Full self-hosting docs are coming soon. In the meantime:
 ```bash
-git clone https://github.com/sebseager/pressmark
-cd pressmark
+git clone https://github.com/withcomposure/composure
+cd composure
 docker compose up --build
 ```
 
@@ -135,4 +135,4 @@ request, please check out the [Contributing Guide](CONTRIBUTING.md) to get start
 
 ## License
 
-Pressmark is available under the [MIT License](LICENSE).
+Composure is available under the [MIT License](LICENSE).

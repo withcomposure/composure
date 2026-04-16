@@ -114,7 +114,7 @@ export async function setTestGuestSignups(enabled: boolean): Promise<void> {
  * Helper to make a request with a session cookie.
  */
 export function sessionCookie(sessionId: string): string {
-  return `pressmark_session=${sessionId}`
+  return `composure_session=${sessionId}`
 }
 
 /**

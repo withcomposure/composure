@@ -4,11 +4,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
  * Tests the sessionStorage persistence contract used by ProjectWorkspace
  * for restoring the last known PDF preview URL across page reloads.
  *
- * The workspace writes:   sessionStorage.setItem(`pressmark:pdfUrl:${projectId}`, url)
- * The workspace reads:    sessionStorage.getItem(`pressmark:pdfUrl:${projectId}`)
+ * The workspace writes:   sessionStorage.setItem(`composure:pdfUrl:${projectId}`, url)
+ * The workspace reads:    sessionStorage.getItem(`composure:pdfUrl:${projectId}`)
  */
 
-const STORAGE_KEY = (projectId: string) => `pressmark:pdfUrl:${projectId}`
+const STORAGE_KEY = (projectId: string) => `composure:pdfUrl:${projectId}`
 
 describe('PDF URL sessionStorage persistence', () => {
   beforeEach(() => {

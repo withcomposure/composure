@@ -45,7 +45,7 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
     background: ${bgColor};
     color: ${textColor};
   }
-  #pm-preview-root {
+  #cz-preview-root {
     width: 100%;
     max-width: 100%;
     margin: 0 auto;
@@ -107,7 +107,7 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
   .task-list-item input { margin-right: 0.5em; }
 </style>
 </head>
-<body><div id="pm-preview-root">${html}</div></body>
+<body><div id="cz-preview-root">${html}</div></body>
 </html>`
   }, [darkMode, html, scale])
 
@@ -158,7 +158,7 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
   if (!html && !error) {
     return (
       <PreviewEmptyState icon={<FileText size={40} aria-hidden="true" />}>
-        <p className="text-sm text-pm-text-muted">Start typing to see a live preview</p>
+        <p className="text-sm text-cz-text-muted">Start typing to see a live preview</p>
       </PreviewEmptyState>
     )
   }

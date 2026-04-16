@@ -108,32 +108,32 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-4xl rounded-xl border border-pm-border bg-pm-surface shadow-2xl"
+        className="w-full max-w-4xl rounded-xl border border-cz-border bg-cz-surface shadow-2xl"
       >
-        <div className="flex items-center justify-between border-b border-pm-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-cz-border px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold text-pm-text">New project from template</h2>
-            <p className="mt-0.5 text-xs text-pm-text-muted">Choose an engine, then a category, then a template.</p>
+            <h2 className="text-base font-semibold text-cz-text">New project from template</h2>
+            <p className="mt-0.5 text-xs text-cz-text-muted">Choose an engine, then a category, then a template.</p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close template gallery"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div className="border-b border-pm-border px-6 py-3">
-          <div className="inline-flex rounded-md border border-pm-border bg-pm-bg p-1">
+        <div className="border-b border-cz-border px-6 py-3">
+          <div className="inline-flex rounded-md border border-cz-border bg-cz-bg p-1">
             {availableEngines.map((value) => (
               <button
                 key={value}
                 onClick={() => setEngine(value)}
                 className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                   value === activeEngine
-                    ? 'bg-pm-accent text-white'
-                    : 'text-pm-text-muted hover:bg-pm-surface-hover'
+                    ? 'bg-cz-accent text-white'
+                    : 'text-cz-text-muted hover:bg-cz-surface-hover'
                 }`}
               >
                 {projectFormatLabel(value)}
@@ -143,8 +143,8 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
         </div>
 
         <div className="grid grid-cols-[220px_1fr] gap-4 p-6">
-          <div className="rounded-lg border border-pm-border bg-pm-bg/40 p-2">
-            <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-pm-text-muted">Categories</div>
+          <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-2">
+            <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-cz-text-muted">Categories</div>
             <div className="mt-1 space-y-1">
               {categories.map((value) => (
                 <button
@@ -152,8 +152,8 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
                   onClick={() => setCategory(value)}
                   className={`w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                     value === activeCategory
-                      ? 'bg-pm-accent-muted text-pm-accent'
-                      : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+                      ? 'bg-cz-accent-muted text-cz-accent'
+                      : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
                   }`}
                 >
                   {categoryLabel(value)}
@@ -164,11 +164,11 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
 
           <div className="space-y-3">
             {loading ? (
-              <div className="rounded-lg border border-pm-border px-4 py-8 text-sm text-pm-text-muted">Loading templates...</div>
+              <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">Loading templates...</div>
             ) : error ? (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
             ) : visibleTemplates.length === 0 ? (
-              <div className="rounded-lg border border-pm-border px-4 py-8 text-sm text-pm-text-muted">No templates in this category.</div>
+              <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">No templates in this category.</div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {visibleTemplates.map((template) => (
@@ -180,13 +180,13 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
                     }}
                     className={`rounded-lg border p-4 text-left transition-all ${
                       template.id === activeSelectedTemplateId
-                        ? 'border-pm-accent bg-pm-accent-muted'
-                        : 'border-pm-border hover:border-pm-accent/40 hover:bg-pm-accent-muted'
+                        ? 'border-cz-accent bg-cz-accent-muted'
+                        : 'border-cz-border hover:border-cz-accent/40 hover:bg-cz-accent-muted'
                     }`}
                   >
-                    <div className="mb-1 text-sm font-medium text-pm-text">{template.name}</div>
-                    <p className="text-[11px] text-pm-text-muted">{template.description}</p>
-                    <div className="mt-2 text-[10px] uppercase tracking-wider text-pm-text-muted">
+                    <div className="mb-1 text-sm font-medium text-cz-text">{template.name}</div>
+                    <p className="text-[11px] text-cz-text-muted">{template.description}</p>
+                    <div className="mt-2 text-[10px] uppercase tracking-wider text-cz-text-muted">
                       {template.isBlank ? 'Blank starter' : categoryLabel(template.category)}
                     </div>
                   </button>
@@ -194,13 +194,13 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
               </div>
             )}
 
-            <div className="rounded-lg border border-pm-border bg-pm-bg/40 p-3">
-              <label className="mb-1 block text-xs text-pm-text-muted">Project title</label>
+            <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-3">
+              <label className="mb-1 block text-xs text-cz-text-muted">Project title</label>
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 disabled={!selectedTemplate || creating}
-                className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent disabled:opacity-60"
+                className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
               />
               <div className="mt-3 flex justify-end">
                 <button
@@ -210,7 +210,7 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
                     onCreate({ templateId: selectedTemplate.id, title: normalizedTitle })
                   }}
                   disabled={!selectedTemplate || creating}
-                  className="rounded-md bg-pm-accent px-3 py-2 text-sm font-medium text-white hover:bg-pm-accent-hover disabled:opacity-70"
+                  className="rounded-md bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover disabled:opacity-70"
                 >
                   {creating ? 'Creating...' : 'Create project'}
                 </button>

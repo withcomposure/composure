@@ -88,7 +88,7 @@ function ToolbarButton({
       type="button"
       disabled={disabled}
       onClick={() => onApply(snippet)}
-      className="flex items-center justify-center rounded p-1.5 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-40 disabled:pointer-events-none"
+      className="flex items-center justify-center rounded p-1.5 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-40 disabled:pointer-events-none"
       title={snippet.label}
       aria-label={snippet.label}
     >
@@ -129,7 +129,7 @@ function GroupDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-0.5 rounded p-1.5 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-40 disabled:pointer-events-none"
+        className="flex items-center gap-0.5 rounded p-1.5 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-40 disabled:pointer-events-none"
         title={group.label}
         aria-label={group.label}
         aria-expanded={open}
@@ -139,7 +139,7 @@ function GroupDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-pm-border bg-pm-surface p-1 shadow-xl">
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-cz-border bg-cz-surface p-1 shadow-xl">
           {snippets.map((snippet) => {
             return (
               <button
@@ -149,7 +149,7 @@ function GroupDropdown({
                   onApply(snippet)
                   setOpen(false)
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
               >
                 {renderMenuIcon(snippet.icon)}
                 {snippet.label}
@@ -191,7 +191,7 @@ function OverflowMenu({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center justify-center rounded p-1.5 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-40 disabled:pointer-events-none"
+        className="flex items-center justify-center rounded p-1.5 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-40 disabled:pointer-events-none"
         title="More actions"
         aria-label="More actions"
         aria-expanded={open}
@@ -200,7 +200,7 @@ function OverflowMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-pm-border bg-pm-surface p-1 shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-cz-border bg-cz-surface p-1 shadow-xl">
           {snippets.map((snippet) => {
             return (
               <button
@@ -210,7 +210,7 @@ function OverflowMenu({
                   onApply(snippet)
                   setOpen(false)
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
               >
                 {renderMenuIcon(snippet.icon)}
                 {snippet.label}
@@ -236,7 +236,7 @@ function MeasureSlot({
     return (
       <button
         type="button"
-        className="flex items-center justify-center rounded p-1.5 text-pm-text-muted"
+        className="flex items-center justify-center rounded p-1.5 text-cz-text-muted"
         tabIndex={-1}
       >
         {renderIcon(snippet.icon, snippet.label)}
@@ -247,7 +247,7 @@ function MeasureSlot({
   return (
     <button
       type="button"
-      className="flex items-center gap-0.5 rounded p-1.5 text-pm-text-muted"
+      className="flex items-center gap-0.5 rounded p-1.5 text-cz-text-muted"
       tabIndex={-1}
     >
       {renderIcon(slot.icon, slot.label)}
@@ -412,7 +412,7 @@ export function FormatToolbar({ language, editorViewRef, disabled }: FormatToolb
   return (
     <div
       ref={containerRef}
-      className="relative flex items-center gap-0.5 border-b border-pm-border bg-pm-surface px-2"
+      className="relative flex items-center gap-0.5 border-b border-cz-border bg-cz-surface px-2"
       style={{ height: 32 }}
       role="toolbar"
       aria-label="Formatting toolbar"
@@ -438,7 +438,7 @@ export function FormatToolbar({ language, editorViewRef, disabled }: FormatToolb
 
       {overflowSnippets.length > 0 && (
         <div className="flex items-center gap-0.5">
-          <div className="mx-1 h-4 w-px bg-pm-border" />
+          <div className="mx-1 h-4 w-px bg-cz-border" />
           <OverflowMenu snippets={overflowSnippets} disabled={disabled} onApply={handleApply} />
         </div>
       )}
@@ -456,10 +456,10 @@ export function FormatToolbar({ language, editorViewRef, disabled }: FormatToolb
             </div>
           ))}
           <div ref={overflowMeasureRef} className="flex items-center gap-0.5">
-            <div className="mx-1 h-4 w-px bg-pm-border" />
+            <div className="mx-1 h-4 w-px bg-cz-border" />
             <button
               type="button"
-              className="flex items-center justify-center rounded p-1.5 text-pm-text-muted"
+              className="flex items-center justify-center rounded p-1.5 text-cz-text-muted"
               tabIndex={-1}
             >
               <Ellipsis size={15} strokeWidth={1.8} />

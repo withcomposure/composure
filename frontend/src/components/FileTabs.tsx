@@ -1,13 +1,13 @@
 import { useId, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import {
-  readPressmarkDragData,
+  readComposureDragData,
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_BAR_MIME,
   TAB_SOURCE_PANE_MIME,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
-  writePressmarkDragPayload,
+  writeComposureDragPayload,
 } from '../shared/drag-data'
 
 export interface WorkspaceTab {
@@ -46,16 +46,16 @@ function dedupePaths(paths: string[]): string[] {
 }
 
 function parseExternalDropPayload(dataTransfer: DataTransfer): Omit<FileTabsDropPayload, 'targetIndex'> | null {
-  const tabPath = readPressmarkDragData(dataTransfer, TAB_SINGLE_PATH_MIME)
+  const tabPath = readComposureDragData(dataTransfer, TAB_SINGLE_PATH_MIME)
   if (tabPath) {
     return {
       paths: [tabPath],
       fromTabBar: true,
-      sourcePaneId: readPressmarkDragData(dataTransfer, TAB_SOURCE_PANE_MIME) || null,
+      sourcePaneId: readComposureDragData(dataTransfer, TAB_SOURCE_PANE_MIME) || null,
     }
   }
 
-  const multiRaw = readPressmarkDragData(dataTransfer, TREE_MULTI_PATHS_MIME)
+  const multiRaw = readComposureDragData(dataTransfer, TREE_MULTI_PATHS_MIME)
   if (multiRaw) {
     try {
       const parsed = JSON.parse(multiRaw) as unknown
@@ -74,7 +74,7 @@ function parseExternalDropPayload(dataTransfer: DataTransfer): Omit<FileTabsDrop
     }
   }
 
-  const singlePath = readPressmarkDragData(dataTransfer, TREE_SINGLE_PATH_MIME)
+  const singlePath = readComposureDragData(dataTransfer, TREE_SINGLE_PATH_MIME)
   if (singlePath) {
     return {
       paths: [singlePath],
@@ -90,7 +90,7 @@ function isDragFromThisTabBar(dataTransfer: DataTransfer | null, sourceBarId: st
   if (!dataTransfer) {
     return false
   }
-  return readPressmarkDragData(dataTransfer, TAB_SOURCE_BAR_MIME) === sourceBarId
+  return readComposureDragData(dataTransfer, TAB_SOURCE_BAR_MIME) === sourceBarId
 }
 
 export function FileTabs({
@@ -168,7 +168,7 @@ export function FileTabs({
 
   return (
     <div
-      className="flex items-center border-b border-pm-border bg-pm-surface px-2 py-1"
+      className="flex items-center border-b border-cz-border bg-cz-surface px-2 py-1"
       onPointerEnter={() => setIsTabBarHovered(true)}
       onPointerLeave={() => setIsTabBarHovered(false)}
     >
@@ -262,7 +262,7 @@ export function FileTabs({
                 const dataTransfer = event.dataTransfer
                 if (dataTransfer) {
                   dataTransfer.effectAllowed = 'move'
-                  writePressmarkDragPayload(dataTransfer, {
+                  writeComposureDragPayload(dataTransfer, {
                     [TAB_SINGLE_PATH_MIME]: tab.path,
                     [TAB_SOURCE_PANE_MIME]: paneId,
                     [TAB_SOURCE_BAR_MIME]: sourceBarId,
@@ -290,8 +290,8 @@ export function FileTabs({
               }}
               title={tab.path}
               className={`group flex h-7 w-fit min-w-[4rem] max-w-[12rem] shrink-0 grow-0 items-center gap-1 rounded border px-2 text-xs select-none ${isActive
-                ? `${isFocusedPane ? 'border-pm-accent' : 'border-transparent'} bg-pm-accent-muted text-pm-accent`
-                : 'border-transparent text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+                ? `${isFocusedPane ? 'border-cz-accent' : 'border-transparent'} bg-cz-accent-muted text-cz-accent`
+                : 'border-transparent text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
               }`}
             >
               <span className={`min-w-0 flex-1 truncate pr-0.5 ${tab.isEphemeral ? 'italic' : ''}`}>{tabLabel}</span>
@@ -301,7 +301,7 @@ export function FileTabs({
                   event.stopPropagation()
                   onClose(tab.path)
                 }}
-                className="rounded opacity-0 pointer-events-none transition-opacity hover:bg-pm-surface-hover hover:text-pm-text group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                className="rounded opacity-0 pointer-events-none transition-opacity hover:bg-cz-surface-hover hover:text-cz-text group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
                 aria-label={`Close ${tabLabel}`}
                 title={`Close ${tabLabel}`}
               >
@@ -314,10 +314,10 @@ export function FileTabs({
           <div
             data-testid="file-tabs-drop-indicator"
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-1 top-1 w-1 -translate-x-1/2 rounded-sm border border-pm-accent/70 bg-pm-accent/10"
+            className="pointer-events-none absolute bottom-1 top-1 w-1 -translate-x-1/2 rounded-sm border border-cz-accent/70 bg-cz-accent/10"
             style={{
               left: `${dropTarget.left}px`,
-              backgroundImage: 'repeating-linear-gradient(180deg, var(--pm-accent) 0 2px, transparent 2px 4px)',
+              backgroundImage: 'repeating-linear-gradient(180deg, var(--cz-accent) 0 2px, transparent 2px 4px)',
             }}
           />
         )}
@@ -334,7 +334,7 @@ export function FileTabs({
           aria-label={snippetToolbarVisible ? 'Hide snippet toolbar' : 'Show snippet toolbar'}
           title={snippetToolbarVisible ? 'Hide snippet toolbar' : 'Show snippet toolbar'}
           data-testid={`file-tabs-toolbar-toggle-${paneId}`}
-          className={`flex h-6 w-6 items-center justify-center rounded text-pm-text-muted transition-opacity hover:bg-pm-surface-hover hover:text-pm-text ${showToolbarToggle ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          className={`flex h-6 w-6 items-center justify-center rounded text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${showToolbarToggle ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         >
           <ToggleIcon size={14} strokeWidth={1.9} />
         </button>

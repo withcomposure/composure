@@ -577,7 +577,7 @@ class PlainLineMarker extends GutterMarker {
 
   toDOM(): HTMLElement {
     const span = document.createElement('span')
-    span.className = 'pm-line-number'
+    span.className = 'cz-line-number'
     span.textContent = this.textValue
     return span
   }
@@ -604,14 +604,14 @@ class CommentRangeMarker extends GutterMarker {
 
   toDOM(): HTMLElement {
     const wrapper = document.createElement('div')
-    wrapper.className = 'pm-comment-range-marker'
+    wrapper.className = 'cz-comment-range-marker'
 
     const number = document.createElement('span')
-    number.className = 'pm-line-number'
+    number.className = 'cz-line-number'
     number.textContent = String(this.value)
 
     const stripe = document.createElement('span')
-    stripe.className = `pm-comment-line-stripe is-${this.rangeValue.edge}`
+    stripe.className = `cz-comment-line-stripe is-${this.rangeValue.edge}`
     stripe.dataset.rangeId = this.rangeValue.rangeId
     stripe.dataset.lineNumber = String(this.value)
     stripe.onmouseenter = () => {
@@ -619,7 +619,7 @@ class CommentRangeMarker extends GutterMarker {
     }
     stripe.onmouseleave = (event) => {
       const related = event.relatedTarget as HTMLElement | null
-      const relatedStripe = related?.closest('.pm-comment-line-stripe') as HTMLElement | null
+      const relatedStripe = related?.closest('.cz-comment-line-stripe') as HTMLElement | null
       if (relatedStripe?.dataset.rangeId === stripe.dataset.rangeId) {
         return
       }
@@ -648,14 +648,14 @@ class SelectionStripeMarker extends GutterMarker {
 
   toDOM(): HTMLElement {
     const wrapper = document.createElement('div')
-    wrapper.className = 'pm-selection-stripe-marker'
+    wrapper.className = 'cz-selection-stripe-marker'
 
     const number = document.createElement('span')
-    number.className = 'pm-line-number'
+    number.className = 'cz-line-number'
     number.textContent = String(this.value)
 
     const stripe = document.createElement('span')
-    stripe.className = `pm-selection-line-stripe is-${this.edgeValue}`
+    stripe.className = `cz-selection-line-stripe is-${this.edgeValue}`
     wrapper.append(number, stripe)
 
     return wrapper
@@ -680,17 +680,17 @@ class SelectionTriggerMarker extends GutterMarker {
 
   toDOM(): HTMLElement {
     const wrapper = document.createElement('div')
-    wrapper.className = 'pm-selection-trigger-marker'
+    wrapper.className = 'cz-selection-trigger-marker'
 
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'pm-selection-trigger-row'
+    button.className = 'cz-selection-trigger-row'
     button.tabIndex = -1
     button.title = 'Add comment'
     button.setAttribute('aria-label', 'Add comment')
 
     const icon = createCommentTriggerIcon()
-    icon.classList.add('pm-selection-trigger-icon')
+    icon.classList.add('cz-selection-trigger-icon')
     button.append(icon)
 
     button.onmousedown = (event) => {
@@ -807,7 +807,7 @@ const panelIcons = {
   close: renderPanelIcon(X),
 }
 
-class PressmarkSearchPanel implements Panel {
+class ComposureSearchPanel implements Panel {
   private readonly view: EditorView
   private query: SearchQuery
   readonly dom: HTMLElement
@@ -826,7 +826,7 @@ class PressmarkSearchPanel implements Panel {
     this.commit = this.commit.bind(this)
 
     this.searchField = document.createElement('input')
-    this.searchField.className = 'pm-search-input cm-textfield'
+    this.searchField.className = 'cz-search-input cm-textfield'
     this.searchField.name = 'search'
     this.searchField.placeholder = view.state.phrase('Find')
     this.searchField.setAttribute('aria-label', view.state.phrase('Find'))
@@ -836,7 +836,7 @@ class PressmarkSearchPanel implements Panel {
     this.searchField.onkeyup = this.commit
 
     this.replaceField = document.createElement('input')
-    this.replaceField.className = 'pm-search-input cm-textfield'
+    this.replaceField.className = 'cz-search-input cm-textfield'
     this.replaceField.name = 'replace'
     this.replaceField.placeholder = view.state.phrase('Replace')
     this.replaceField.setAttribute('aria-label', view.state.phrase('Replace'))
@@ -861,15 +861,15 @@ class PressmarkSearchPanel implements Panel {
     this.wordButton = this.createToggleButton('Match Whole Word', panelIcons.wholeWord, this.wordField)
 
     const findInputWrap = document.createElement('div')
-    findInputWrap.className = 'pm-search-input-wrap'
+    findInputWrap.className = 'cz-search-input-wrap'
 
     const findToggleWrap = document.createElement('div')
-    findToggleWrap.className = 'pm-search-inline-toggles'
+    findToggleWrap.className = 'cz-search-inline-toggles'
     findToggleWrap.append(this.caseButton, this.wordButton, this.reButton)
     findInputWrap.append(this.searchField, findToggleWrap)
 
     const findActions = document.createElement('div')
-    findActions.className = 'pm-search-actions'
+    findActions.className = 'cz-search-actions'
     findActions.append(
       this.createActionButton('Next', panelIcons.next, () => {
         findNext(view)
@@ -886,15 +886,15 @@ class PressmarkSearchPanel implements Panel {
     )
 
     const findRow = document.createElement('div')
-    findRow.className = 'pm-search-row'
+    findRow.className = 'cz-search-row'
     findRow.append(findInputWrap, findActions)
 
     const replaceInputWrap = document.createElement('div')
-    replaceInputWrap.className = 'pm-search-input-wrap'
+    replaceInputWrap.className = 'cz-search-input-wrap'
     replaceInputWrap.append(this.replaceField)
 
     const replaceActions = document.createElement('div')
-    replaceActions.className = 'pm-search-actions'
+    replaceActions.className = 'cz-search-actions'
     replaceActions.append(
       this.createActionButton('replace', panelIcons.replace, () => {
         replaceNext(view)
@@ -905,11 +905,11 @@ class PressmarkSearchPanel implements Panel {
     )
 
     const replaceRow = document.createElement('div')
-    replaceRow.className = 'pm-search-row pm-search-row-replace'
+    replaceRow.className = 'cz-search-row cz-search-row-replace'
     replaceRow.append(replaceInputWrap, replaceActions)
 
     this.dom = document.createElement('div')
-    this.dom.className = 'cm-search pm-search-panel'
+    this.dom.className = 'cm-search cz-search-panel'
     this.dom.onkeydown = (event) => this.keydown(event)
     this.dom.append(findRow)
     if (!view.state.readOnly) {
@@ -922,7 +922,7 @@ class PressmarkSearchPanel implements Panel {
   private createActionButton(label: string, iconMarkup: string, onClick: () => void): HTMLButtonElement {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'pm-search-button cm-button'
+    button.className = 'cz-search-button cm-button'
     button.setAttribute('aria-label', this.view.state.phrase(label))
     button.title = this.view.state.phrase(label)
     button.innerHTML = iconMarkup
@@ -939,7 +939,7 @@ class PressmarkSearchPanel implements Panel {
       this.syncToggleButtons()
       this.commit()
     })
-    button.classList.add('pm-search-toggle')
+    button.classList.add('cz-search-toggle')
     return button
   }
 
@@ -1010,8 +1010,8 @@ class PressmarkSearchPanel implements Panel {
   }
 }
 
-function createPressmarkSearchPanel(view: EditorView): Panel {
-  return new PressmarkSearchPanel(view)
+function createComposureSearchPanel(view: EditorView): Panel {
+  return new ComposureSearchPanel(view)
 }
 
 function fmtTime(epochSeconds: number): string {
@@ -1268,7 +1268,7 @@ export function Editor({
       }
       : null
 
-    const stripes = container.querySelectorAll<HTMLElement>('.pm-comment-line-stripe')
+    const stripes = container.querySelectorAll<HTMLElement>('.cz-comment-line-stripe')
     for (const stripe of stripes) {
       const lineNumber = Number(stripe.dataset.lineNumber)
       const isInActiveSpan = active !== null
@@ -1293,7 +1293,7 @@ export function Editor({
       const target = event.target as HTMLElement | null
       if (!target) return
 
-      if (target.closest('.pm-comment-line-stripe') || target.closest('.pm-comment-range-cards')) {
+      if (target.closest('.cz-comment-line-stripe') || target.closest('.cz-comment-range-cards')) {
         return
       }
 
@@ -1403,7 +1403,7 @@ export function Editor({
     }
 
     const commentGutter = gutter({
-      class: 'cm-pm-comment-gutter',
+      class: 'cm-cz-comment-gutter',
       renderEmptyElements: false,
       lineMarkerChange(update) {
         return update.selectionSet
@@ -1565,10 +1565,10 @@ export function Editor({
     let floatingPanelContainer: HTMLDivElement | null = null
     if (!isLargeDoc && editorInEditorFind) {
       floatingPanelContainer = document.createElement('div')
-      floatingPanelContainer.className = 'pm-floating-search-container'
+      floatingPanelContainer.className = 'cz-floating-search-container'
       extensions.push(
         panels({ topContainer: floatingPanelContainer }),
-        search({ top: true, createPanel: createPressmarkSearchPanel }),
+        search({ top: true, createPanel: createComposureSearchPanel }),
       )
     }
     if (!isLargeDoc && editorAutocomplete) {
@@ -1713,7 +1713,7 @@ export function Editor({
     <div className="flex flex-col h-full w-full overflow-hidden">
       {showFormatToolbar && <FormatToolbar language={editorLanguage} editorViewRef={viewRef} disabled={!canEdit} />}
       {largeFileMode && (
-        <div className="flex items-center gap-1.5 border-b border-pm-border bg-pm-surface px-3 py-1 text-[11px] text-pm-text-muted">
+        <div className="flex items-center gap-1.5 border-b border-cz-border bg-cz-surface px-3 py-1 text-[11px] text-cz-text-muted">
           <Zap size={11} className="shrink-0 opacity-60" />
           <span>
             In Large File Mode, features like syntax highlighting, line wrapping, and autocomplete are disabled
@@ -1722,8 +1722,8 @@ export function Editor({
       )}
       <div className="relative flex-1 min-h-0 overflow-hidden">
         {deferredLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-pm-bg">
-            <span className="text-sm text-pm-text-muted">Loading large file…</span>
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-cz-bg">
+            <span className="text-sm text-cz-text-muted">Loading large file…</span>
           </div>
         )}
         <div
@@ -1734,19 +1734,19 @@ export function Editor({
 
       {draft && canComment && (
         <div
-          className="absolute z-20 w-[260px] rounded-lg border border-pm-border bg-pm-surface p-3 shadow-xl"
+          className="absolute z-20 w-[260px] rounded-lg border border-cz-border bg-cz-surface p-3 shadow-xl"
           style={{ top: `${Math.max(8, draft.top)}px`, left: `${draft.left}px` }}
         >
-          <div className="mb-2 text-[11px] text-pm-text-muted">
+          <div className="mb-2 text-[11px] text-cz-text-muted">
             Comment on {draft.startLine === draft.endLine ? `line ${draft.startLine}` : `lines ${draft.startLine}-${draft.endLine}`}
           </div>
           <textarea
             autoFocus
-            data-pm-comment-input="true"
+            data-cz-comment-input="true"
             value={draftBody}
             onChange={(event) => setDraftBody(event.target.value)}
             onKeyDown={handleDraftKeyDown}
-            className="h-20 w-full resize-none rounded-md border border-pm-border bg-pm-bg px-2 py-1.5 text-xs text-pm-text outline-none focus:border-pm-accent"
+            className="h-20 w-full resize-none rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-xs text-cz-text outline-none focus:border-cz-accent"
             placeholder="Add a comment"
           />
           <div className="mt-2 flex gap-2">
@@ -1756,7 +1756,7 @@ export function Editor({
                 void submitDraft()
               }}
               disabled={draftSubmitting || draftBody.trim().length === 0}
-              className="rounded-md bg-pm-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
+              className="rounded-md bg-cz-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
             >
               {draftSubmitting ? 'Posting...' : 'Comment'}
             </button>
@@ -1766,7 +1766,7 @@ export function Editor({
                 setDraft(null)
                 setDraftBody('')
               }}
-              className="rounded-md border border-pm-border px-2 py-1 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover"
+              className="rounded-md border border-cz-border px-2 py-1 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover"
             >
               Cancel
             </button>
@@ -1776,16 +1776,16 @@ export function Editor({
 
       {activeRangeOverlay && (
         <div
-          className="pm-comment-range-cards absolute z-20 w-[300px] space-y-2"
+          className="cz-comment-range-cards absolute z-20 w-[300px] space-y-2"
           style={{ top: `${Math.max(8, activeRangeOverlay.top)}px`, left: `${COMMENT_OVERLAY_LEFT_PX}px` }}
         >
           {activeRangeOverlay.comments.map((comment) => (
-            <div key={comment.id} className="rounded-lg border border-pm-border bg-pm-surface p-3 shadow-xl">
+            <div key={comment.id} className="rounded-lg border border-cz-border bg-cz-surface p-3 shadow-xl">
               <div className="mb-2 flex items-center gap-2">
-                <div className="text-xs font-medium text-pm-text">{comment.authorDisplayName}</div>
-                <div className="ml-auto text-[11px] text-pm-text-muted">{fmtTime(comment.createdAt)}</div>
+                <div className="text-xs font-medium text-cz-text">{comment.authorDisplayName}</div>
+                <div className="ml-auto text-[11px] text-cz-text-muted">{fmtTime(comment.createdAt)}</div>
               </div>
-              <div className="whitespace-pre-wrap text-xs text-pm-text-muted">{comment.body}</div>
+              <div className="whitespace-pre-wrap text-xs text-cz-text-muted">{comment.body}</div>
             </div>
           ))}
         </div>

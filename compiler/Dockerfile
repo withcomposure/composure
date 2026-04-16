@@ -44,15 +44,15 @@ COPY compiler/ ./compiler/
 RUN npm run build --workspace=compiler
 
 ENV PORT=4000
-ENV COMPILE_DIR=/var/pressmark/compiles
-ENV TECTONIC_CACHE=/var/pressmark/caches/tectonic
-ENV TYPST_CACHE=/var/pressmark/caches/typst
+ENV COMPILE_DIR=/var/composure/compiles
+ENV TECTONIC_CACHE=/var/composure/caches/tectonic
+ENV TYPST_CACHE=/var/composure/caches/typst
 ENV ASSETS_DIR=/app/data/assets
 
-RUN mkdir -p /var/pressmark/compiles /var/pressmark/caches/tectonic /var/pressmark/caches/typst /app/data/assets
-VOLUME /var/pressmark/compiles
-VOLUME /var/pressmark/caches/tectonic
-VOLUME /var/pressmark/caches/typst
+RUN mkdir -p /var/composure/compiles /var/composure/caches/tectonic /var/composure/caches/typst /app/data/assets
+VOLUME /var/composure/compiles
+VOLUME /var/composure/caches/tectonic
+VOLUME /var/composure/caches/typst
 
 EXPOSE 4000
 

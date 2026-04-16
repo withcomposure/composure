@@ -1,11 +1,11 @@
-# Contributing to Pressmark
+# Contributing to Composure
 
 Thanks for your interest in contributing! Here's how to get involved.
 
 ## Ways to Contribute
 
 - **Bug reports**: open an issue with steps to reproduce, expected vs. actual behavior, and your environment
-- **Feature requests**: open an issue describing the use case and why it belongs in Pressmark
+- **Feature requests**: open an issue describing the use case and why it belongs in Composure
 - **Pull requests**: see below for setup instructions and conventions
 
 ## Local Development Setup
@@ -13,8 +13,8 @@ Thanks for your interest in contributing! Here's how to get involved.
 Clone the repo and install dependencies:
 
 ```bash
-git clone https://github.com/sebseager/pressmark
-cd pressmark
+git clone https://github.com/withcomposure/composure
+cd composure
 npm ci
 ```
 
@@ -49,4 +49,4 @@ Please make sure all tests pass before opening a PR.
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/sebseager/pressmark/discussions) or file an issue — happy to help orient new contributors.
+Open a [GitHub Discussion](https://github.com/withcomposure/composure/discussions) or file an issue — happy to help orient new contributors.

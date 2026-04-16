@@ -93,7 +93,7 @@ export function ActionMenu({ items, ariaLabel }: ActionMenuProps) {
           event.stopPropagation()
           setOpen((prev) => !prev)
         }}
-        className="rounded-md border border-transparent p-1.5 text-pm-text-muted hover:border-pm-border hover:bg-pm-surface-hover hover:text-pm-text"
+        className="rounded-md border border-transparent p-1.5 text-cz-text-muted hover:border-cz-border hover:bg-cz-surface-hover hover:text-cz-text"
       >
         <Ellipsis size={16} />
       </button>
@@ -103,7 +103,7 @@ export function ActionMenu({ items, ariaLabel }: ActionMenuProps) {
           <div
             ref={menuRef}
             role="menu"
-            className="fixed z-[100] overflow-hidden rounded-lg border border-pm-border bg-pm-surface p-1 shadow-xl"
+            className="fixed z-[100] overflow-hidden rounded-lg border border-cz-border bg-cz-surface p-1 shadow-xl"
             style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, minWidth: `${menuPosition.minWidth}px` }}
           >
             {items.map((item) => {
@@ -118,7 +118,7 @@ export function ActionMenu({ items, ariaLabel }: ActionMenuProps) {
                     setOpen(false)
                     item.onSelect()
                   }}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${item.danger ? 'text-red-300 hover:bg-red-500/15' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${item.danger ? 'text-red-300 hover:bg-red-500/15' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
                 >
                   <Icon size={14} />
                   {item.label}

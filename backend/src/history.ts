@@ -11,7 +11,7 @@ import { classifyBuffer } from './classify.js'
 const DATA_DIR = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data')
 const REPOS_ROOT = path.join(DATA_DIR, 'repos')
 
-const AUTHOR = { name: 'Pressmark', email: 'pressmark@local' }
+const AUTHOR = { name: 'Composure', email: 'composure@local' }
 
 function repoDir(projectId: string): string {
   return path.join(REPOS_ROOT, projectId)
@@ -35,7 +35,7 @@ function listFiles(dir: string, base: string = dir): string[] {
   const files: string[] = []
   if (!fs.existsSync(dir)) return files
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git' || entry.name === '.pressmark') continue
+    if (entry.name === '.git' || entry.name === '.composure') continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) files.push(...listFiles(full, base))
     else files.push(path.relative(base, full))
@@ -124,10 +124,10 @@ async function doCommitSnapshot(projectId: string, yDocState?: Uint8Array, opts?
   }
 
   // When skipEmpty is set, only proceed if there are user-visible changes
-  // (i.e., not just .pressmark/ metadata changes)
+  // (i.e., not just .composure/ metadata changes)
   if (opts?.skipEmpty) {
     const hasVisibleChanges = matrix.some(([filepath, head, workdir, stage]) =>
-      !filepath.startsWith('.pressmark/') && (head !== 1 || workdir !== 1 || stage !== 1),
+      !filepath.startsWith('.composure/') && (head !== 1 || workdir !== 1 || stage !== 1),
     )
     if (!hasVisibleChanges) {
       return null
@@ -215,7 +215,7 @@ async function readTreePaths(dir: string, ref: string): Promise<Map<string, stri
       dir,
       trees: [git.TREE({ ref })],
       map: async (filepath, [entry]) => {
-        if (filepath === '.' || filepath.startsWith('.pressmark/')) return undefined
+        if (filepath === '.' || filepath.startsWith('.composure/')) return undefined
         if (!entry) return undefined
         const type = await entry.type()
         if (type === 'blob') {
@@ -513,7 +513,7 @@ export async function listSnapshots(projectId: string): Promise<SnapshotEntry[]>
 async function readTypeManifest(dir: string, sha: string): Promise<Map<string, 'text' | 'asset'>> {
   const result = new Map<string, 'text' | 'asset'>()
   try {
-    const blob = await git.readBlob({ fs, dir, oid: sha, filepath: '.pressmark/types.json' })
+    const blob = await git.readBlob({ fs, dir, oid: sha, filepath: '.composure/types.json' })
     const json = Buffer.from(blob.blob).toString('utf-8')
     const parsed = JSON.parse(json) as Record<string, string>
     for (const [filepath, type] of Object.entries(parsed)) {

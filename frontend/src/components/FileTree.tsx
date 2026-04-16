@@ -29,10 +29,10 @@ import {
 } from '../shared/file-metadata'
 import {
   hasDataTransferType,
-  readPressmarkDragData,
+  readComposureDragData,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
-  writePressmarkDragPayload,
+  writeComposureDragPayload,
 } from '../shared/drag-data'
 
 // ---------------------------------------------------------------------------
@@ -179,8 +179,8 @@ function FileIcon({ name, nodeType }: { name: string; nodeType: NodeType }) {
   if (nodeType === 'asset') {
     const ext = name.split('.').pop()?.toLowerCase()
     const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
-    if (ext && imageExts.includes(ext)) return <FileImage size={13} className="mr-2 text-pm-text-muted" />
-    return <FileCode2 size={13} className="mr-2 text-pm-text-muted" />
+    if (ext && imageExts.includes(ext)) return <FileImage size={13} className="mr-2 text-cz-text-muted" />
+    return <FileCode2 size={13} className="mr-2 text-cz-text-muted" />
   }
   const ext = name.split('.').pop()?.toLowerCase()
   const iconMap: Record<string, LucideIcon> = {
@@ -196,7 +196,7 @@ function FileIcon({ name, nodeType }: { name: string; nodeType: NodeType }) {
     json: FileJson,
   }
   const Icon = iconMap[ext ?? ''] ?? FileCode2
-  return <Icon size={13} className="mr-2 text-pm-text-muted" />
+  return <Icon size={13} className="mr-2 text-cz-text-muted" />
 }
 
 // ---------------------------------------------------------------------------
@@ -330,17 +330,17 @@ function InlineInputRow({
   return (
     <div style={{ paddingLeft: `${depth * 12 + 8}px` }} className="pr-2">
       <div
-        className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-pm-surface ${
-          error ? 'border border-red-500' : 'border border-pm-accent'
+        className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-cz-surface ${
+          error ? 'border border-red-500' : 'border border-cz-accent'
         }`}
       >
         {kind === 'folder' ? (
           <>
-            <ChevronRight size={12} className="mr-1.5 text-pm-text-muted" />
-            <Folder size={13} className="mr-1.5 text-pm-text-muted" />
+            <ChevronRight size={12} className="mr-1.5 text-cz-text-muted" />
+            <Folder size={13} className="mr-1.5 text-cz-text-muted" />
           </>
         ) : (
-          <FileCode2 size={13} className="mr-2 text-pm-text-muted" />
+          <FileCode2 size={13} className="mr-2 text-cz-text-muted" />
         )}
         <input
           autoFocus
@@ -352,7 +352,7 @@ function InlineInputRow({
           }}
           onBlur={onConfirm}
           placeholder={kind === 'file' ? 'filename' : 'folder name'}
-          className="flex-1 min-w-0 bg-transparent text-pm-text placeholder:text-pm-text-muted focus:outline-none"
+          className="flex-1 min-w-0 bg-transparent text-cz-text placeholder:text-cz-text-muted focus:outline-none"
         />
       </div>
       {error && (
@@ -440,16 +440,16 @@ function TreeItem({
         <div>
           <div style={{ paddingLeft: `${depth * 12 + 8}px` }} className="pr-2">
             <div
-              className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-pm-surface ${
-                renameError ? 'border border-red-500' : 'border border-pm-accent'
+              className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-cz-surface ${
+                renameError ? 'border border-red-500' : 'border border-cz-accent'
               }`}
             >
               <ChevronRight
                 size={12}
-                className="mr-1.5 text-pm-text-muted"
+                className="mr-1.5 text-cz-text-muted"
                 style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
               />
-              <Folder size={13} className="mr-1.5 text-pm-text-muted" />
+              <Folder size={13} className="mr-1.5 text-cz-text-muted" />
               <input
                 autoFocus
                 value={renaming.value}
@@ -459,7 +459,7 @@ function TreeItem({
                   if (e.key === 'Escape') { e.preventDefault(); onRenameCancel() }
                 }}
                 onBlur={onRenameConfirm}
-                className="flex-1 min-w-0 bg-transparent text-pm-text focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-cz-text focus:outline-none"
               />
             </div>
             {renameError && (
@@ -525,14 +525,14 @@ function TreeItem({
               Object.assign(badge.style, {
                 position: 'absolute', top: '-1000px', left: '-1000px',
                 padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
-                background: 'var(--pm-accent, #3b82f6)', color: '#fff',
+                background: 'var(--cz-accent, #3b82f6)', color: '#fff',
                 whiteSpace: 'nowrap', pointerEvents: 'none',
               })
               document.body.appendChild(badge)
               e.dataTransfer.setDragImage(badge, badge.offsetWidth / 2, badge.offsetHeight / 2)
               requestAnimationFrame(() => badge.remove())
             }
-            writePressmarkDragPayload(e.dataTransfer, dragPayload)
+            writeComposureDragPayload(e.dataTransfer, dragPayload)
             onDragStart(node.path)
           }}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); onDragOverItem(e, node.path) }}
@@ -540,10 +540,10 @@ function TreeItem({
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropOnItem(e, node.path) }}
           className={`group flex w-full items-center px-2 py-1 text-xs transition-colors rounded cursor-pointer ${
             isDropTarget
-              ? 'bg-pm-accent/20 text-pm-text border-l-2 border-pm-accent'
+              ? 'bg-cz-accent/20 text-cz-text border-l-2 border-cz-accent'
               : isSelected
-                ? 'bg-pm-accent-muted text-pm-accent'
-                : 'text-pm-text-muted hover:bg-pm-surface-hover'
+                ? 'bg-cz-accent-muted text-cz-accent'
+                : 'text-cz-text-muted hover:bg-cz-surface-hover'
           }`}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
           onClick={(e) => {
@@ -574,7 +574,7 @@ function TreeItem({
                 const rect = e.currentTarget.getBoundingClientRect()
                 onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
               }}
-              className="rounded p-0.5 text-pm-text-muted opacity-0 transition-opacity hover:bg-pm-surface-hover hover:text-pm-text group-hover:opacity-100"
+              className="rounded p-0.5 text-cz-text-muted opacity-0 transition-opacity hover:bg-cz-surface-hover hover:text-cz-text group-hover:opacity-100"
               title="Folder actions"
               aria-label="Folder actions"
             >
@@ -637,8 +637,8 @@ function TreeItem({
     return (
       <div style={{ paddingLeft: `${depth * 12 + 8}px` }} className="pr-2">
         <div
-          className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-pm-surface ${
-            renameError ? 'border border-red-500' : 'border border-pm-accent'
+          className={`relative z-10 flex items-center px-2 py-1 text-xs rounded bg-cz-surface ${
+            renameError ? 'border border-red-500' : 'border border-cz-accent'
           }`}
         >
           <FileIcon name={renaming.value || node.name} nodeType={node.nodeType} />
@@ -651,7 +651,7 @@ function TreeItem({
               if (e.key === 'Escape') { e.preventDefault(); onRenameCancel() }
             }}
             onBlur={onRenameConfirm}
-            className="flex-1 min-w-0 bg-transparent text-pm-text focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-cz-text focus:outline-none"
           />
         </div>
         {renameError && (
@@ -682,14 +682,14 @@ function TreeItem({
           Object.assign(badge.style, {
             position: 'absolute', top: '-1000px', left: '-1000px',
             padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
-            background: 'var(--pm-accent, #3b82f6)', color: '#fff',
+            background: 'var(--cz-accent, #3b82f6)', color: '#fff',
             whiteSpace: 'nowrap', pointerEvents: 'none',
           })
           document.body.appendChild(badge)
           e.dataTransfer.setDragImage(badge, badge.offsetWidth / 2, badge.offsetHeight / 2)
           requestAnimationFrame(() => badge.remove())
         }
-        writePressmarkDragPayload(e.dataTransfer, dragPayload)
+        writeComposureDragPayload(e.dataTransfer, dragPayload)
         onDragStart(node.path)
       }}
       onClick={(e) => {
@@ -716,28 +716,28 @@ function TreeItem({
         onOpenMenu('context', node.path, { x: e.clientX, y: e.clientY })
       }}
       className={`group relative flex w-full items-center px-2 py-1 text-xs transition-colors rounded ${
-        isUploading ? 'cursor-not-allowed bg-pm-surface text-pm-text-muted opacity-70' : canSelect ? 'cursor-pointer' : 'cursor-default'
+        isUploading ? 'cursor-not-allowed bg-cz-surface text-cz-text-muted opacity-70' : canSelect ? 'cursor-pointer' : 'cursor-default'
       } ${
         !isUploading && isSelected
-          ? 'bg-pm-accent-muted text-pm-accent'
+          ? 'bg-cz-accent-muted text-cz-accent'
           : !isUploading && isActive && selectedPaths.size === 0
-            ? 'bg-pm-accent-muted text-pm-accent'
+            ? 'bg-cz-accent-muted text-cz-accent'
             : isUploading
-              ? 'text-pm-text-muted'
-              : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+              ? 'text-cz-text-muted'
+              : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
       }`}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
     >
       {isUploading && (
         <>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-pm-border/70" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-cz-border/70" />
           <div
             role="progressbar"
             aria-label={`Uploading ${node.name}`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(uploadProgress ?? 0)}
-            className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-pm-accent transition-[width] duration-150"
+            className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-cz-accent transition-[width] duration-150"
             style={{ width: `${Math.max(0, Math.min(100, uploadProgress ?? 0))}%` }}
           />
         </>
@@ -754,7 +754,7 @@ function TreeItem({
             const rect = e.currentTarget.getBoundingClientRect()
             onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
           }}
-          className={`rounded p-0.5 text-pm-text-muted transition-opacity hover:bg-pm-surface-hover hover:text-pm-text ${
+          className={`rounded p-0.5 text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${
             isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'
           }`}
           title="File actions"
@@ -837,7 +837,7 @@ export function FileTree({
       for (const update of updates) {
         fileMap.set(update.path, update.value)
       }
-    }, 'pressmark:normalize-file-metadata')
+    }, 'composure:normalize-file-metadata')
   }, [fileMap, ydoc])
 
   const displayEntries = useMemo(() => {
@@ -969,7 +969,7 @@ export function FileTree({
     ydoc.transact(() => {
       fileMap.set(fullPath, serializeFileMetadata(withFileId({ type: 'text' })))
       ydoc.getText(`file:${fullPath}`)
-    }, 'pressmark:create-file')
+    }, 'composure:create-file')
     onSelect(fullPath)
   }, [fileMap, ydoc, scopedPath, onSelect])
 
@@ -1031,7 +1031,7 @@ export function FileTree({
           fileMap.delete(oldKey)
           fileMap.set(newKey, value)
         }
-      }, 'pressmark:rename-folder')
+      }, 'composure:rename-folder')
 
       // Update expanded folders
       setExpandedFolders((prev) => {
@@ -1090,7 +1090,7 @@ export function FileTree({
           }
           fileMap.delete(key)
         }
-      }, 'pressmark:delete-folder')
+      }, 'composure:delete-folder')
 
       closePopup()
       return
@@ -1154,7 +1154,7 @@ export function FileTree({
         }
         fileMap.delete(key)
       }
-    }, 'pressmark:multi-delete')
+    }, 'composure:multi-delete')
 
     setSelectedPaths(new Set())
     closePopup()
@@ -1219,7 +1219,7 @@ export function FileTree({
               mimeType: uploaded.mimeType,
             })))
           }
-        }, 'pressmark:upload-file')
+        }, 'composure:upload-file')
         return null
       } finally {
         setUploadProgressByPath((prev) => {
@@ -1283,7 +1283,7 @@ export function FileTree({
           fileMap.delete(oldKey)
           fileMap.set(newKey, value)
         }
-      }, 'pressmark:move-folder')
+      }, 'composure:move-folder')
 
       // Update expanded folders
       setExpandedFolders((prev) => {
@@ -1311,7 +1311,7 @@ export function FileTree({
         }
         fileMap.delete(sourcePath)
         fileMap.set(newPath, value)
-      }, 'pressmark:move-file')
+      }, 'composure:move-file')
     }
 
     // Expand the target folder so the moved item is visible
@@ -1384,7 +1384,7 @@ export function FileTree({
         fileMap.delete(oldKey)
         fileMap.set(newKey, value)
       }
-    }, 'pressmark:move-files')
+    }, 'composure:move-files')
 
     if (expandedUpdates.length > 0) {
       setExpandedFolders((prev) => {
@@ -1434,8 +1434,8 @@ export function FileTree({
     setDropTarget(null)
 
     // Internal move → move to root
-    const multiPaths = readPressmarkDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME)
-    const sourcePath = readPressmarkDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME)
+    const multiPaths = readComposureDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME)
+    const sourcePath = readComposureDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME)
     if (multiPaths) {
       try { moveNodes(JSON.parse(multiPaths) as string[], null) } catch { /* ignore bad data */ }
       dragSourceRef.current = null
@@ -1459,8 +1459,8 @@ export function FileTree({
 
   const handleDragOverItem = useCallback((e: React.DragEvent, path: string) => {
     // Only accept internal moves
-    const hasSinglePath = readPressmarkDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME).length > 0
-    const hasMultiPaths = readPressmarkDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME).length > 0
+    const hasSinglePath = readComposureDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME).length > 0
+    const hasMultiPaths = readComposureDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME).length > 0
     if (!hasSinglePath && !hasMultiPaths) return
     e.dataTransfer.dropEffect = 'move'
     setDropTarget(path)
@@ -1472,13 +1472,13 @@ export function FileTree({
 
   const handleDropOnItem = useCallback((e: React.DragEvent, targetPath: string) => {
     setDropTarget(null)
-    const multiPaths = readPressmarkDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME)
+    const multiPaths = readComposureDragData(e.dataTransfer, TREE_MULTI_PATHS_MIME)
     if (multiPaths) {
       try { moveNodes(JSON.parse(multiPaths) as string[], targetPath) } catch { /* ignore bad data */ }
       dragSourceRef.current = null
       return
     }
-    const sourcePath = readPressmarkDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME)
+    const sourcePath = readComposureDragData(e.dataTransfer, TREE_SINGLE_PATH_MIME)
     if (!sourcePath || sourcePath === targetPath) return
     moveNode(sourcePath, targetPath)
     dragSourceRef.current = null
@@ -1612,7 +1612,7 @@ export function FileTree({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 mb-2">
-        <span className="text-[10px] font-medium uppercase tracking-widest text-pm-text-muted">
+        <span className="text-[10px] font-medium uppercase tracking-widest text-cz-text-muted">
           Files
         </span>
         <button
@@ -1620,7 +1620,7 @@ export function FileTree({
             const rect = e.currentTarget.getBoundingClientRect()
             setActiveMenu({ kind: 'new-button', position: { x: rect.left, y: rect.bottom + 4 } })
           }}
-          className="flex items-center gap-1 text-pm-text-muted hover:text-pm-accent text-sm transition-colors"
+          className="flex items-center gap-1 text-cz-text-muted hover:text-cz-accent text-sm transition-colors"
           title="New"
         >
           <Plus size={14} />
@@ -1686,17 +1686,17 @@ export function FileTree({
       {isDocumentLoading && entries.length === 0 && (
         <div className="px-3 py-4">
           <div className="space-y-2">
-            <div className="pm-skeleton h-5 w-full rounded" />
-            <div className="pm-skeleton h-5 w-[92%] rounded" />
-            <div className="pm-skeleton h-5 w-[86%] rounded" />
-            <div className="pm-skeleton h-5 w-[78%] rounded" />
+            <div className="cz-skeleton h-5 w-full rounded" />
+            <div className="cz-skeleton h-5 w-[92%] rounded" />
+            <div className="cz-skeleton h-5 w-[86%] rounded" />
+            <div className="cz-skeleton h-5 w-[78%] rounded" />
           </div>
         </div>
       )}
 
       {/* Empty state */}
       {!isDocumentLoading && entries.length === 0 && (
-        <div className="px-4 py-8 text-center text-xs text-pm-text-muted">
+        <div className="px-4 py-8 text-center text-xs text-cz-text-muted">
           No files yet.
           <br />
           Click <strong>+ New</strong> to create one.
@@ -1705,8 +1705,8 @@ export function FileTree({
 
       {/* Drag-and-drop overlay */}
       {dragOver && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-pm-accent/10 border-2 border-dashed border-pm-accent rounded-lg transition-opacity duration-200">
-          <div className="flex flex-col items-center gap-2 text-pm-accent">
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-cz-accent/10 border-2 border-dashed border-cz-accent rounded-lg transition-opacity duration-200">
+          <div className="flex flex-col items-center gap-2 text-cz-accent">
             <Upload size={32} />
             <span className="text-sm font-medium">Drop files to upload</span>
           </div>
@@ -1787,7 +1787,7 @@ export function FileTree({
               if (e.key === 'Enter') { e.preventDefault(); confirmRename() }
             }}
             autoFocus
-            className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+            className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
           />
         )}
       </PopupDialog>

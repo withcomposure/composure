@@ -134,7 +134,7 @@ export function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-export const DASHBOARD_PREFS_STORAGE_KEY = 'pressmark.dashboard-preferences.v1'
+export const DASHBOARD_PREFS_STORAGE_KEY = 'composure.dashboard-preferences.v1'
 export const AVATAR_MAX_BYTES = 256 * 1024
 
 export function dataUrlPayloadBytes(dataUrl: string): number {

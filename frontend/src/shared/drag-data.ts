@@ -1,20 +1,20 @@
-export const TREE_MULTI_PATHS_MIME = 'text/x-pressmark-paths'
-export const TREE_SINGLE_PATH_MIME = 'text/x-pressmark-path'
-export const TAB_SINGLE_PATH_MIME = 'text/x-pressmark-tab-path'
-export const TAB_SOURCE_PANE_MIME = 'text/x-pressmark-tab-source-pane'
-export const TAB_SOURCE_BAR_MIME = 'text/x-pressmark-tab-source-bar'
+export const TREE_MULTI_PATHS_MIME = 'text/x-composure-paths'
+export const TREE_SINGLE_PATH_MIME = 'text/x-composure-path'
+export const TAB_SINGLE_PATH_MIME = 'text/x-composure-tab-path'
+export const TAB_SOURCE_PANE_MIME = 'text/x-composure-tab-source-pane'
+export const TAB_SOURCE_BAR_MIME = 'text/x-composure-tab-source-bar'
 
 const FALLBACK_TEXT_MIME = 'text/plain'
 const FALLBACK_TEXT_ALIAS_MIME = 'text'
-const FALLBACK_PREFIX = 'pressmark-dnd:'
+const FALLBACK_PREFIX = 'composure-dnd:'
 
 type DragPayloadRecord = Record<string, string>
 
-let activePressmarkDragPayload: DragPayloadRecord | null = null
+let activeComposureDragPayload: DragPayloadRecord | null = null
 let didBindCleanupListeners = false
 
-function clearActivePressmarkDragPayload(): void {
-  activePressmarkDragPayload = null
+function clearActiveComposureDragPayload(): void {
+  activeComposureDragPayload = null
 }
 
 function bindCleanupListeners(): void {
@@ -24,9 +24,9 @@ function bindCleanupListeners(): void {
 
   didBindCleanupListeners = true
   // Clear stale in-memory payload at the start and end of any drag lifecycle.
-  window.addEventListener('dragstart', clearActivePressmarkDragPayload, true)
-  window.addEventListener('dragend', clearActivePressmarkDragPayload, true)
-  window.addEventListener('drop', clearActivePressmarkDragPayload, true)
+  window.addEventListener('dragstart', clearActiveComposureDragPayload, true)
+  window.addEventListener('dragend', clearActiveComposureDragPayload, true)
+  window.addEventListener('drop', clearActiveComposureDragPayload, true)
 }
 
 function sanitizePayload(payload: DragPayloadRecord): DragPayloadRecord {
@@ -63,11 +63,11 @@ function readFallbackPayload(dataTransfer: DataTransfer): DragPayloadRecord | nu
   }
 }
 
-export function writePressmarkDragPayload(dataTransfer: DataTransfer, payload: DragPayloadRecord): void {
+export function writeComposureDragPayload(dataTransfer: DataTransfer, payload: DragPayloadRecord): void {
   bindCleanupListeners()
 
   const normalized = sanitizePayload(payload)
-  activePressmarkDragPayload = normalized
+  activeComposureDragPayload = normalized
 
   for (const [mime, value] of Object.entries(normalized)) {
     dataTransfer.setData(mime, value)
@@ -84,7 +84,7 @@ export function writePressmarkDragPayload(dataTransfer: DataTransfer, payload: D
   }
 }
 
-export function readPressmarkDragData(dataTransfer: DataTransfer, mime: string): string {
+export function readComposureDragData(dataTransfer: DataTransfer, mime: string): string {
   const direct = dataTransfer.getData(mime)
   if (direct) {
     return direct
@@ -95,7 +95,7 @@ export function readPressmarkDragData(dataTransfer: DataTransfer, mime: string):
     return fallback[mime]
   }
 
-  return activePressmarkDragPayload?.[mime] ?? ''
+  return activeComposureDragPayload?.[mime] ?? ''
 }
 
 type DragTypeList = {

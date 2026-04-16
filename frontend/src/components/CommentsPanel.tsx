@@ -243,14 +243,14 @@ export function CommentsPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-pm-border px-4 py-3">
-        <h3 className="text-sm font-semibold text-pm-text">Comments</h3>
-        <div className="text-xs text-pm-text-muted">{activeFile}</div>
+      <div className="border-b border-cz-border px-4 py-3">
+        <h3 className="text-sm font-semibold text-cz-text">Comments</h3>
+        <div className="text-xs text-cz-text-muted">{activeFile}</div>
       </div>
 
       <div className="h-full overflow-y-auto p-3">
         {rootComments.length === 0 ? (
-          <div className="rounded-md border border-pm-border-subtle bg-pm-bg/60 p-3 text-xs text-pm-text-muted">
+          <div className="rounded-md border border-cz-border-subtle bg-cz-bg/60 p-3 text-xs text-cz-text-muted">
             No comments for this file yet.
           </div>
         ) : (
@@ -263,7 +263,7 @@ export function CommentsPanel({
               const lineLabel = fmtLineRange(comment, commentLineNumbersById)
 
               return (
-                <div key={comment.id} className="rounded-md border border-pm-border-subtle bg-pm-bg/60 p-3">
+                <div key={comment.id} className="rounded-md border border-cz-border-subtle bg-cz-bg/60 p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Avatar
                       name={comment.authorDisplayName}
@@ -272,8 +272,8 @@ export function CommentsPanel({
                       size={24}
                     />
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-pm-text">{comment.authorDisplayName}</div>
-                      <div className="text-[11px] text-pm-text-muted">{fmtTime(comment.createdAt)}</div>
+                      <div className="truncate text-xs font-medium text-cz-text">{comment.authorDisplayName}</div>
+                      <div className="text-[11px] text-cz-text-muted">{fmtTime(comment.createdAt)}</div>
                     </div>
                     {lineLabel ? (
                       <button
@@ -281,7 +281,7 @@ export function CommentsPanel({
                         onClick={() => onActivateComment(comment.id)}
                         onMouseEnter={() => onHoverComment(comment.id)}
                         onMouseLeave={onHoverCommentEnd}
-                        className="ml-auto rounded border border-pm-border px-1.5 py-0.5 text-[10px] text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                        className="ml-auto rounded border border-cz-border px-1.5 py-0.5 text-[10px] text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                       >
                         {lineLabel}
                       </button>
@@ -291,7 +291,7 @@ export function CommentsPanel({
                   {editing ? (
                     <div className="space-y-2">
                       <textarea
-                        data-pm-comment-input="true"
+                        data-cz-comment-input="true"
                         ref={(node) => {
                           editInputByIdRef.current[comment.id] = node
                         }}
@@ -308,7 +308,7 @@ export function CommentsPanel({
                             clearEditDraft(comment.id)
                           }
                         }}
-                        className="h-20 w-full resize-none rounded-md border border-pm-border bg-pm-bg px-2 py-1.5 text-xs text-pm-text outline-none focus:border-pm-accent"
+                        className="h-20 w-full resize-none rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-xs text-cz-text outline-none focus:border-cz-accent"
                       />
                       <div className="flex items-center gap-2">
                         <button
@@ -316,13 +316,13 @@ export function CommentsPanel({
                             void submitEdit(comment)
                           }}
                           disabled={busyById[comment.id] || (editById[comment.id] ?? comment.body).trim().length === 0}
-                          className="rounded-md bg-pm-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
+                          className="rounded-md bg-cz-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
                         >
                           Save
                         </button>
                         <button
                           onClick={() => clearEditDraft(comment.id)}
-                          className="rounded-md border border-pm-border px-2 py-1 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover"
+                          className="rounded-md border border-cz-border px-2 py-1 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover"
                         >
                           Cancel
                         </button>
@@ -341,7 +341,7 @@ export function CommentsPanel({
                       </div>
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap text-xs text-pm-text">{comment.body}</p>
+                    <p className="whitespace-pre-wrap text-xs text-cz-text">{comment.body}</p>
                   )}
 
                   <div className="mt-2 flex items-center gap-2">
@@ -351,7 +351,7 @@ export function CommentsPanel({
                           setReplyById((prev) => ({ ...prev, [comment.id]: prev[comment.id] ?? '' }))
                           setReplyFocusId(comment.id)
                         }}
-                        className="rounded border border-pm-border px-2 py-0.5 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                        className="rounded border border-cz-border px-2 py-0.5 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                       >
                         Reply
                       </button>
@@ -362,7 +362,7 @@ export function CommentsPanel({
                           setEditById((prev) => ({ ...prev, [comment.id]: comment.body }))
                           setEditFocusId(comment.id)
                         }}
-                        className="rounded border border-pm-border px-2 py-0.5 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                        className="rounded border border-cz-border px-2 py-0.5 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                       >
                         Edit
                       </button>
@@ -382,14 +382,14 @@ export function CommentsPanel({
                   </div>
 
                   {replies.length > 0 && (
-                    <div className="mt-3 space-y-2 border-l border-pm-border pl-3">
+                    <div className="mt-3 space-y-2 border-l border-cz-border pl-3">
                       {replies.map((reply) => {
                         const replyOwn = isOwnComment(reply, principalUserId, principalGuestId)
                         const canManageReply = canComment && (replyOwn || canModerate)
                         const replyEditing = Object.prototype.hasOwnProperty.call(editById, reply.id)
 
                         return (
-                          <div key={reply.id} className="rounded border border-pm-border-subtle bg-pm-surface p-2">
+                          <div key={reply.id} className="rounded border border-cz-border-subtle bg-cz-surface p-2">
                             <div className="mb-1 flex items-center gap-2">
                               <Avatar
                                 name={reply.authorDisplayName}
@@ -397,7 +397,7 @@ export function CommentsPanel({
                                 isGuest={!reply.authorUserId}
                                 size={20}
                               />
-                              <div className="text-[11px] text-pm-text-muted">
+                              <div className="text-[11px] text-cz-text-muted">
                                 {reply.authorDisplayName} · {fmtTime(reply.createdAt)}
                               </div>
                             </div>
@@ -405,7 +405,7 @@ export function CommentsPanel({
                             {replyEditing ? (
                               <div className="space-y-2">
                                 <textarea
-                                  data-pm-comment-input="true"
+                                  data-cz-comment-input="true"
                                   ref={(node) => {
                                     editInputByIdRef.current[reply.id] = node
                                   }}
@@ -422,7 +422,7 @@ export function CommentsPanel({
                                       clearEditDraft(reply.id)
                                     }
                                   }}
-                                  className="h-16 w-full resize-none rounded-md border border-pm-border bg-pm-bg px-2 py-1.5 text-xs text-pm-text outline-none focus:border-pm-accent"
+                                  className="h-16 w-full resize-none rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-xs text-cz-text outline-none focus:border-cz-accent"
                                 />
                                 <div className="flex items-center gap-2">
                                   <button
@@ -430,13 +430,13 @@ export function CommentsPanel({
                                       void submitEdit(reply)
                                     }}
                                     disabled={busyById[reply.id] || (editById[reply.id] ?? reply.body).trim().length === 0}
-                                    className="rounded-md bg-pm-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
+                                    className="rounded-md bg-cz-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
                                   >
                                     Save
                                   </button>
                                   <button
                                     onClick={() => clearEditDraft(reply.id)}
-                                    className="rounded-md border border-pm-border px-2 py-1 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover"
+                                    className="rounded-md border border-cz-border px-2 py-1 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover"
                                   >
                                     Cancel
                                   </button>
@@ -455,7 +455,7 @@ export function CommentsPanel({
                                 </div>
                               </div>
                             ) : (
-                              <p className="whitespace-pre-wrap text-xs text-pm-text">{reply.body}</p>
+                              <p className="whitespace-pre-wrap text-xs text-cz-text">{reply.body}</p>
                             )}
 
                             {canManageReply && !replyEditing && (
@@ -465,7 +465,7 @@ export function CommentsPanel({
                                     setEditById((prev) => ({ ...prev, [reply.id]: reply.body }))
                                     setEditFocusId(reply.id)
                                   }}
-                                  className="rounded border border-pm-border px-2 py-0.5 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                                  className="rounded border border-cz-border px-2 py-0.5 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                                 >
                                   Edit
                                 </button>
@@ -488,9 +488,9 @@ export function CommentsPanel({
                   )}
 
                   {canComment && Object.prototype.hasOwnProperty.call(replyById, comment.id) && (
-                    <div className="mt-2 space-y-2 rounded border border-pm-border bg-pm-surface p-2">
+                    <div className="mt-2 space-y-2 rounded border border-cz-border bg-cz-surface p-2">
                       <textarea
-                        data-pm-comment-input="true"
+                        data-cz-comment-input="true"
                         ref={(node) => {
                           replyInputByIdRef.current[comment.id] = node
                         }}
@@ -507,7 +507,7 @@ export function CommentsPanel({
                             clearReplyDraft(comment.id)
                           }
                         }}
-                        className="h-16 w-full resize-none rounded-md border border-pm-border bg-pm-bg px-2 py-1.5 text-xs text-pm-text outline-none focus:border-pm-accent"
+                        className="h-16 w-full resize-none rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-xs text-cz-text outline-none focus:border-cz-accent"
                         placeholder="Write a reply"
                       />
                       <div className="flex gap-2">
@@ -516,7 +516,7 @@ export function CommentsPanel({
                             void submitReply(comment)
                           }}
                           disabled={busyById[comment.id] || (replyById[comment.id] ?? '').trim().length === 0}
-                          className="rounded-md bg-pm-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
+                          className="rounded-md bg-cz-accent px-2 py-1 text-[11px] text-white disabled:opacity-60"
                         >
                           Reply
                         </button>
@@ -524,7 +524,7 @@ export function CommentsPanel({
                           onClick={() => {
                             clearReplyDraft(comment.id)
                           }}
-                          className="rounded-md border border-pm-border px-2 py-1 text-[11px] text-pm-text-muted hover:bg-pm-surface-hover"
+                          className="rounded-md border border-cz-border px-2 py-1 text-[11px] text-cz-text-muted hover:bg-cz-surface-hover"
                         >
                           Cancel
                         </button>

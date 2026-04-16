@@ -15,7 +15,7 @@ export async function createUser(input: {
 }): Promise<SessionUser | null> {
   const id = createUid()
   const email = input.email.trim().toLowerCase()
-  const displayName = input.displayName.trim() || 'Pressmark User'
+  const displayName = input.displayName.trim() || 'Composure User'
   const explicitRole = input.role === 'admin' ? 'admin' : 'user'
 
   const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users`
@@ -78,7 +78,7 @@ export async function findUserById(id: string): Promise<SessionUser | null> {
 }
 
 export async function updateUserDisplayName(userId: string, displayName: string): Promise<boolean> {
-  const normalized = (displayName.trim() || 'Pressmark User').slice(0, 80)
+  const normalized = (displayName.trim() || 'Composure User').slice(0, 80)
   const result = await sql`UPDATE users SET display_name = ${normalized} WHERE id = ${userId}`
   return result.count > 0
 }

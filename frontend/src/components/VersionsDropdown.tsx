@@ -60,7 +60,7 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
     <div className="relative" ref={containerRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border border-pm-border text-pm-text hover:bg-pm-surface-hover transition-all"
+        className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border border-cz-border text-cz-text hover:bg-cz-surface-hover transition-all"
         title="File version history"
         aria-label="File version history"
       >
@@ -68,17 +68,17 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
         <ChevronDown size={10} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-pm-border bg-pm-surface shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-cz-border bg-cz-surface shadow-xl">
           <div className="max-h-80 overflow-y-auto p-1.5">
             {loading && (
-              <div className="flex items-center gap-2 px-2 py-3 text-xs text-pm-text-muted">
-                <span className="pm-spinner" aria-hidden="true" />
+              <div className="flex items-center gap-2 px-2 py-3 text-xs text-cz-text-muted">
+                <span className="cz-spinner" aria-hidden="true" />
                 Loading...
               </div>
             )}
 
             {!loading && (commits?.length ?? 0) === 0 && (
-              <div className="px-2 py-3 text-xs text-pm-text-muted">
+              <div className="px-2 py-3 text-xs text-cz-text-muted">
                 No versions found for this file.
               </div>
             )}
@@ -87,25 +87,25 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
               <button
                 key={commit.sha}
                 onClick={() => handleSelect(commit.sha)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-pm-surface-hover"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-cz-surface-hover"
               >
                 {commit.tag ? (
-                  <Tag size={12} className="text-pm-accent shrink-0" />
+                  <Tag size={12} className="text-cz-accent shrink-0" />
                 ) : (
                   <div className="w-3 shrink-0" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-pm-text">
+                    <span className="text-xs text-cz-text">
                       {fmtRelativeTime(commit.timestamp)}
                     </span>
                     {commit.tag && (
-                      <span className="truncate text-[10px] font-medium text-pm-accent">
+                      <span className="truncate text-[10px] font-medium text-cz-accent">
                         {commit.tag}
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] font-mono text-pm-text-muted">
+                  <div className="text-[10px] font-mono text-cz-text-muted">
                     {commit.sha.slice(0, 7)}
                   </div>
                 </div>

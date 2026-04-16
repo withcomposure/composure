@@ -79,29 +79,29 @@ export function ShareModal({
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-3xl rounded-xl border border-pm-border bg-pm-surface shadow-xl"
+        className="w-full max-w-3xl rounded-xl border border-cz-border bg-cz-surface shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-pm-border px-5 py-4">
-          <h2 className="text-base font-semibold text-pm-text">Share Project</h2>
+        <div className="flex items-center justify-between border-b border-cz-border px-5 py-4">
+          <h2 className="text-base font-semibold text-cz-text">Share Project</h2>
           <button
             onClick={onClose}
             aria-label="Close share modal"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
           >
             <X size={16} />
           </button>
         </div>
 
         <div className="space-y-5 p-5">
-          <section className="rounded-lg border border-pm-border bg-pm-bg/60 p-4">
-            <div className="mb-2 text-xs uppercase tracking-wider text-pm-text-muted">Invite by Email</div>
+          <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
+            <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Invite by Email</div>
             <div className="flex flex-wrap gap-2">
               <input
                 value={inviteEmail}
                 onChange={(e) => onInviteEmailChange(e.target.value)}
                 disabled={!canManage || inviting}
                 placeholder="person@example.com"
-                className="min-w-[200px] flex-1 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-xs text-pm-text outline-none focus:border-pm-accent disabled:opacity-60"
+                className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-xs text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
               />
               <CustomDropdown
                 value={inviteRole}
@@ -112,29 +112,29 @@ export function ShareModal({
               <button
                 onClick={onInvite}
                 disabled={!canManage || inviting || inviteEmail.trim().length === 0}
-                className="rounded-md bg-pm-accent px-3 py-2 text-xs font-medium text-white hover:bg-pm-accent-hover disabled:opacity-60"
+                className="rounded-md bg-cz-accent px-3 py-2 text-xs font-medium text-white hover:bg-cz-accent-hover disabled:opacity-60"
               >
                 {inviting ? 'Inviting...' : 'Invite'}
               </button>
             </div>
           </section>
 
-          <section className="rounded-lg border border-pm-border bg-pm-bg/60 p-4">
-            <div className="mb-3 text-xs uppercase tracking-wider text-pm-text-muted">People with Access</div>
+          <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
+            <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">People with Access</div>
             <div className="space-y-2">
               {people.map((person) => (
                 <div
                   key={`${person.userId ?? person.email}-${person.status}`}
-                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-pm-border-subtle bg-pm-surface px-3 py-2"
+                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-cz-border-subtle bg-cz-surface px-3 py-2"
                 >
                   <Avatar name={person.displayName} imageUrl={person.profileImageUrl} isGuest={!person.userId} size={32} />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-pm-text">{person.displayName}</div>
-                    {person.email && <div className="truncate text-xs text-pm-text-muted">{person.email}</div>}
+                    <div className="truncate text-sm font-medium text-cz-text">{person.displayName}</div>
+                    {person.email && <div className="truncate text-xs text-cz-text-muted">{person.email}</div>}
                   </div>
-                  <div className="text-xs text-pm-text-muted">{person.status === 'pending' ? 'Pending' : ''}</div>
+                  <div className="text-xs text-cz-text-muted">{person.status === 'pending' ? 'Pending' : ''}</div>
                   {person.isOwner ? (
-                    <span className="rounded-full border border-pm-border px-2 py-1 text-xs text-pm-text">Owner</span>
+                    <span className="rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text">Owner</span>
                   ) : person.userId && canManage ? (
                     <CustomDropdown
                       value={person.role as ShareRole}
@@ -142,17 +142,17 @@ export function ShareModal({
                       onChange={(value) => onMemberRoleChange(person.userId as string, value)}
                     />
                   ) : (
-                    <span className="text-xs text-pm-text-muted">{roleLabel(person.role)}</span>
+                    <span className="text-xs text-cz-text-muted">{roleLabel(person.role)}</span>
                   )}
                 </div>
               ))}
             </div>
           </section>
 
-          <section className="rounded-lg border border-pm-border bg-pm-bg/60 p-4">
-            <div className="mb-3 text-xs uppercase tracking-wider text-pm-text-muted">Link Sharing</div>
+          <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
+            <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">Link Sharing</div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-pm-text-muted">Anyone with this link can</span>
+              <span className="text-sm text-cz-text-muted">Anyone with this link can</span>
               <CustomDropdown
                 value={linkRole}
                 options={shareRoleDropdownOptions}
@@ -175,18 +175,18 @@ export function ShareModal({
                   readOnly
                   aria-label="Share link"
                   value={shareUrl}
-                  className="min-w-[200px] flex-1 rounded-md border border-pm-border bg-pm-surface px-3 py-2 text-xs text-pm-text-muted outline-none"
+                  className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-surface px-3 py-2 text-xs text-cz-text-muted outline-none"
                 />
                 <button
                   onClick={() => navigator.clipboard.writeText(shareUrl)}
-                  className="rounded-md border border-pm-border px-3 py-2 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                  className="rounded-md border border-cz-border px-3 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                 >
                   Copy link
                 </button>
                 {canManage && (
                   <button
                     onClick={onLinkInvalidate}
-                    className="rounded-md border border-pm-border px-3 py-2 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                    className="rounded-md border border-cz-border px-3 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                     title="Generate a new link, invalidating the previous one"
                   >
                     <RefreshCw size={12} className="mr-1 inline" />

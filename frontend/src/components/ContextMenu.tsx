@@ -46,7 +46,7 @@ export function ContextMenu({ open, position, items, onClose }: ContextMenuProps
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-50 min-w-[150px] rounded-md border border-pm-border bg-pm-surface p-1 shadow-lg"
+      className="fixed z-50 min-w-[150px] rounded-md border border-cz-border bg-cz-surface p-1 shadow-lg"
       style={{ left: position.x, top: position.y }}
     >
       {items.map((item) => {
@@ -62,10 +62,10 @@ export function ContextMenu({ open, position, items, onClose }: ContextMenuProps
             }}
             className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
               item.disabled
-                ? 'text-pm-text-muted/40 cursor-not-allowed'
+                ? 'text-cz-text-muted/40 cursor-not-allowed'
                 : item.danger
                   ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
-                  : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+                  : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
             }`}
           >
             <Icon size={12} />

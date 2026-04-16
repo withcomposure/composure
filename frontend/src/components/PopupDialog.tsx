@@ -44,14 +44,14 @@ const PANEL_WIDTH_CLASS: Record<PopupPanelWidth, string> = {
 
 function actionClass(variant: PopupActionVariant): string {
   if (variant === 'danger') {
-    return 'bg-pm-danger text-white hover:brightness-110'
+    return 'bg-cz-danger text-white hover:brightness-110'
   }
 
   if (variant === 'secondary') {
-    return 'border border-pm-border bg-pm-surface text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'
+    return 'border border-cz-border bg-cz-surface text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
   }
 
-  return 'bg-pm-accent text-white hover:bg-pm-accent-hover'
+  return 'bg-cz-accent text-white hover:bg-cz-accent-hover'
 }
 
 export function PopupDialog({
@@ -81,21 +81,21 @@ export function PopupDialog({
         onMouseDown={(event) => {
           event.stopPropagation()
         }}
-        className={`w-full ${PANEL_WIDTH_CLASS[panelWidth]} rounded-xl border border-pm-border bg-pm-surface shadow-2xl ${panelClassName ?? ''}`.trim()}
+        className={`w-full ${PANEL_WIDTH_CLASS[panelWidth]} rounded-xl border border-cz-border bg-cz-surface shadow-2xl ${panelClassName ?? ''}`.trim()}
       >
-        <div className="border-b border-pm-border px-5 py-4">
-          <h2 className="text-base font-semibold text-pm-text">{title}</h2>
-          {message && <p className="mt-1 text-sm text-pm-text-muted">{message}</p>}
+        <div className="border-b border-cz-border px-5 py-4">
+          <h2 className="text-base font-semibold text-cz-text">{title}</h2>
+          {message && <p className="mt-1 text-sm text-cz-text-muted">{message}</p>}
         </div>
 
         {children && <div className="px-5 py-4">{children}</div>}
 
-        <div className="flex items-center justify-end gap-2 border-t border-pm-border px-5 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-cz-border px-5 py-4">
           {dismiss && (
             <button
               onClick={dismiss.onClick}
               disabled={dismiss.disabled}
-              className="rounded-md border border-pm-border bg-pm-surface px-3 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-60"
+              className="rounded-md border border-cz-border bg-cz-surface px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
             >
               {dismiss.label}
             </button>

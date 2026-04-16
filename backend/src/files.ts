@@ -101,7 +101,7 @@ export function extractFilesFromDoc(doc: Y.Doc, projectId: string, dir: string):
   }
 
   // Write type manifest sidecar for git history classification
-  const manifestDir = path.join(dir, '.pressmark')
+  const manifestDir = path.join(dir, '.composure')
   fs.mkdirSync(manifestDir, { recursive: true })
   fs.writeFileSync(path.join(manifestDir, 'types.json'), JSON.stringify(typeManifest), 'utf-8')
 }

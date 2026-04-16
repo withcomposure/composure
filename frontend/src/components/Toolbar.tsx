@@ -94,16 +94,16 @@ function ActiveEditorsStrip({
                 if (!editor.hasCursor) return
                 onFocusCollaborator(editor.clientId)
               }}
-              className={`flex rounded-full outline-2 -outline-offset-1 outline-pm-surface transition-opacity ${editor.hasCursor ? 'cursor-pointer' : 'cursor-default opacity-45 grayscale'}`}
+              className={`flex rounded-full outline-2 -outline-offset-1 outline-cz-surface transition-opacity ${editor.hasCursor ? 'cursor-pointer' : 'cursor-default opacity-45 grayscale'}`}
               title={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
               aria-label={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
             >
               <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={24} />
             </button>
             <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-4 -translate-x-1/2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-              <div className="flex flex-col items-center gap-1.5 rounded-lg border border-pm-border bg-pm-surface p-3 shadow-xl whitespace-nowrap">
+              <div className="flex flex-col items-center gap-1.5 rounded-lg border border-cz-border bg-cz-surface p-3 shadow-xl whitespace-nowrap">
                 <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={40} />
-                <div className="text-xs font-medium text-pm-text">{editor.name}</div>
+                <div className="text-xs font-medium text-cz-text">{editor.name}</div>
               </div>
             </div>
           </div>
@@ -111,14 +111,14 @@ function ActiveEditorsStrip({
         {hasOverflow && (
           <button
             onClick={() => setShowList((prev) => !prev)}
-            className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border border-pm-border bg-pm-surface text-[10px] font-medium text-pm-text-muted ring-2 ring-pm-surface hover:bg-pm-surface-hover"
+            className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border border-cz-border bg-cz-surface text-[10px] font-medium text-cz-text-muted ring-2 ring-cz-surface hover:bg-cz-surface-hover"
           >
             +{editors.length - MAX_VISIBLE_EDITORS}
           </button>
         )}
       </div>
       {showList && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-pm-border bg-pm-surface p-1.5 shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
           {editors.map((editor) => (
             <button
               key={editor.clientId}
@@ -128,13 +128,13 @@ function ActiveEditorsStrip({
                 onFocusCollaborator(editor.clientId)
                 setShowList(false)
               }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${editor.hasCursor ? 'hover:bg-pm-surface-hover' : 'opacity-45 grayscale'}`}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${editor.hasCursor ? 'hover:bg-cz-surface-hover' : 'opacity-45 grayscale'}`}
               title={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
             >
               <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={24} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-xs text-pm-text">{editor.name}</div>
-                <div className="text-[10px] text-pm-text-muted">
+                <div className="truncate text-xs text-cz-text">{editor.name}</div>
+                <div className="text-[10px] text-cz-text-muted">
                   {editor.hasCursor ? (editor.userId ? 'Signed in' : 'Guest') : 'Inactive'}
                 </div>
               </div>
@@ -215,13 +215,13 @@ export function Toolbar({
 
   return (
     <div
-      className="flex items-center justify-between border-b border-pm-border bg-pm-surface px-3"
+      className="flex items-center justify-between border-b border-cz-border bg-cz-surface px-3"
       style={{ height: 'var(--toolbar-height)' }}
     >
       <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="rounded p-1 text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text transition-colors"
+          className="rounded p-1 text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text transition-colors"
           title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
         >
           <PanelLeft size={16} strokeWidth={1.7} />
@@ -230,7 +230,7 @@ export function Toolbar({
         <button
           type="button"
           onClick={onTogglePreview}
-          className="rounded p-1 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text"
+          className="rounded p-1 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
           title={previewOpen ? 'Hide preview' : 'Show preview'}
           aria-label={previewOpen ? 'Hide preview' : 'Show preview'}
         >
@@ -241,13 +241,13 @@ export function Toolbar({
           <div className="flex min-w-0 items-center gap-1.5 text-xs">
           {displayFileName ? displayFileName.split('/').map((segment, i, arr) => (
             <span key={i} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-pm-text-muted opacity-40">/</span>}
-              <span className={i === arr.length - 1 ? 'text-pm-text font-medium' : 'text-pm-text-muted'}>
+              {i > 0 && <span className="text-cz-text-muted opacity-40">/</span>}
+              <span className={i === arr.length - 1 ? 'text-cz-text font-medium' : 'text-cz-text-muted'}>
                 {segment}
               </span>
             </span>
           )) : (
-            <span className="italic text-pm-text-muted">No file selected</span>
+            <span className="italic text-cz-text-muted">No file selected</span>
           )}
           </div>
 
@@ -255,14 +255,14 @@ export function Toolbar({
             <button
               onClick={onSave}
               disabled={saving || !canEdit}
-              className={`inline-flex items-center gap-2 rounded-md px-2 py-2 text-xs text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-60 ${saving ? 'cursor-wait' : ''}`}
+              className={`inline-flex items-center gap-2 rounded-md px-2 py-2 text-xs text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60 ${saving ? 'cursor-wait' : ''}`}
               title={`${connectionLabel}${saving ? '. Saving...' : ''}`}
               aria-label={`${connectionLabel}${saving ? ', saving' : ''}`}
             >
               <span className={`h-2 w-2 rounded-full ${connectionDotClass}`} />
             </button>
             {showConnectionLabel && (
-              <span className="text-xs text-pm-text-muted">{connectionLabel}</span>
+              <span className="text-xs text-cz-text-muted">{connectionLabel}</span>
             )}
           </div>
         </div>
@@ -279,8 +279,8 @@ export function Toolbar({
               disabled={compiling}
               className={`flex items-center gap-1.5 rounded-l-md px-2.5 py-1.5 text-xs font-medium transition-all ${
                 compiling
-                  ? 'bg-pm-accent/40 text-pm-accent cursor-wait'
-                  : 'bg-pm-accent text-white hover:bg-pm-accent-hover shadow-sm shadow-pm-accent/20'
+                  ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
+                  : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
               }`}
               title={compiling ? 'Compiling...' : 'Compile'}
               aria-label={compiling ? 'Compiling...' : 'Compile'}
@@ -297,8 +297,8 @@ export function Toolbar({
               disabled={compiling}
               className={`rounded-r-md border-l border-white/20 px-2 text-xs transition-all ${
                 compiling
-                  ? 'bg-pm-accent/40 text-pm-accent cursor-wait'
-                  : 'bg-pm-accent text-white hover:bg-pm-accent-hover shadow-sm shadow-pm-accent/20'
+                  ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
+                  : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
               }`}
               aria-label="Compile options"
               title="Compile options"
@@ -308,13 +308,13 @@ export function Toolbar({
           </div>
 
           {showCompileMenu && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-pm-border bg-pm-surface p-1.5 shadow-xl">
-              <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-pm-surface-hover">
+            <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
+              <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-cz-surface-hover">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Timer size={14} className="text-pm-text-muted" />
+                  <Timer size={14} className="text-cz-text-muted" />
                   <div className="min-w-0">
-                    <div className="text-xs text-pm-text">Auto-Compile</div>
-                    <div className="text-[10px] text-pm-text-muted">Run after {autoCompileTimeoutSeconds}s of editor inactivity</div>
+                    <div className="text-xs text-cz-text">Auto-Compile</div>
+                    <div className="text-[10px] text-cz-text-muted">Run after {autoCompileTimeoutSeconds}s of editor inactivity</div>
                   </div>
                 </div>
                 <ToggleSwitch
@@ -334,12 +334,12 @@ export function Toolbar({
                   setShowCompileMenu(false)
                 }}
                 disabled={!canClearCompileOutput}
-                className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canClearCompileOutput ? 'text-pm-text hover:bg-pm-surface-hover' : 'cursor-not-allowed text-pm-text-muted opacity-60'}`}
+                className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canClearCompileOutput ? 'text-cz-text hover:bg-cz-surface-hover' : 'cursor-not-allowed text-cz-text-muted opacity-60'}`}
                 title={hasCompiledOutput ? 'Clear compile output' : 'No compile output to clear'}
                 aria-label="Clear compile output"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <Trash2 size={14} className={'text-pm-text-muted'} />
+                  <Trash2 size={14} className={'text-cz-text-muted'} />
                   <span>Clear Compile Output</span>
                 </span>
                 {clearingCompileOutput && (
@@ -356,25 +356,25 @@ export function Toolbar({
 
         <VersionsDropdown projectId={projectId} activeFile={displayFileName} onViewDiff={onViewDiff} />
 
-        <div className="hidden items-center gap-1 rounded-md border border-pm-border bg-pm-bg p-1 md:flex">
+        <div className="hidden items-center gap-1 rounded-md border border-cz-border bg-cz-bg p-1 md:flex">
           <button
             onClick={() => onModeChange('view')}
             disabled={inDiffMode}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-pm-text-muted' : mode === 'view' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'view' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
           >
             View
           </button>
           <button
             onClick={() => onModeChange('comment')}
             disabled={inDiffMode || !canComment}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-pm-text-muted' : mode === 'comment' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'comment' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
           >
             Comment
           </button>
           <button
             onClick={() => onModeChange('edit')}
             disabled={inDiffMode || !canEdit}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-pm-text-muted' : mode === 'edit' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text'}`}
+            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'edit' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
           >
             Edit
           </button>
@@ -382,7 +382,7 @@ export function Toolbar({
 
         <button
           onClick={onOpenShare}
-          className="rounded-md px-2.5 py-1.5 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text transition-colors"
+          className="rounded-md px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text transition-colors"
           title="Share project"
         >
           Share

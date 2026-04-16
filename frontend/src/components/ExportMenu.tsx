@@ -51,8 +51,8 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
         aria-label={exporting ? 'Exporting...' : 'Export'}
         className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
           exporting
-            ? 'bg-pm-surface-hover text-pm-text-muted cursor-wait'
-            : 'border border-pm-border text-pm-text hover:bg-pm-surface-hover'
+            ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
+            : 'border border-cz-border text-cz-text hover:bg-cz-surface-hover'
         }`}
       >
         {exporting ? (
@@ -66,7 +66,7 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
       </button>
 
       {showMenu && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-pm-border bg-pm-surface p-1.5 shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
           {getExportOptions(projectFormat).map((opt) => (
             <button
               key={opt.format}
@@ -76,9 +76,9 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
                 onExport(opt.format)
               }}
               disabled={exporting}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-pm-text hover:bg-pm-surface-hover disabled:opacity-50"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text hover:bg-cz-surface-hover disabled:opacity-50"
             >
-              <opt.icon size={14} className="text-pm-text-muted" />
+              <opt.icon size={14} className="text-cz-text-muted" />
               {opt.label}
             </button>
           ))}

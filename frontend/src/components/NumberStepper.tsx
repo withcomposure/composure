@@ -132,7 +132,7 @@ export function NumberStepper({
 
   return (
     <div
-      className={`${widthClass} flex items-stretch rounded-md border border-pm-border bg-pm-bg text-sm transition-colors focus-within:border-pm-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      className={`${widthClass} flex items-stretch rounded-md border border-cz-border bg-cz-bg text-sm transition-colors focus-within:border-cz-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`}
     >
       <input
         ref={inputRef}
@@ -156,9 +156,9 @@ export function NumberStepper({
         }}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-pm-text outline-none tabular-nums"
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-cz-text outline-none tabular-nums"
       />
-      <div className="flex flex-col border-l border-pm-border">
+      <div className="flex flex-col border-l border-cz-border">
         <button
           type="button"
           tabIndex={-1}
@@ -170,11 +170,11 @@ export function NumberStepper({
           }}
           onPointerUp={stopHold}
           onPointerLeave={stopHold}
-          className="flex flex-1 items-center justify-center px-1.5 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-30"
+          className="flex flex-1 items-center justify-center px-1.5 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-30"
         >
           <ChevronUp size={12} strokeWidth={2} />
         </button>
-        <div className="border-t border-pm-border" />
+        <div className="border-t border-cz-border" />
         <button
           type="button"
           tabIndex={-1}
@@ -186,7 +186,7 @@ export function NumberStepper({
           }}
           onPointerUp={stopHold}
           onPointerLeave={stopHold}
-          className="flex flex-1 items-center justify-center px-1.5 text-pm-text-muted transition-colors hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-30"
+          className="flex flex-1 items-center justify-center px-1.5 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-30"
         >
           <ChevronDown size={12} strokeWidth={2} />
         </button>

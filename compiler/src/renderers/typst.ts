@@ -3,7 +3,7 @@ import fs from 'fs'
 import { spawn } from 'child_process'
 import type { Renderer, CompileContext, CompileOutput } from './types.js'
 
-const TYPST_CACHE = process.env.TYPST_CACHE ?? '/var/pressmark/caches/typst'
+const TYPST_CACHE = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
 
 export const typstRenderer: Renderer = {
   id: 'typst',

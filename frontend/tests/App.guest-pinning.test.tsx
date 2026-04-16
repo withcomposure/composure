@@ -16,7 +16,7 @@ function json(body: unknown, status = 200): Response {
 describe('App guest dashboard pinning', () => {
   beforeEach(() => {
     window.localStorage.clear()
-    window.sessionStorage.setItem('pressmark.auth-entry', 'granted')
+    window.sessionStorage.setItem('composure.auth-entry', 'granted')
     window.history.replaceState(null, '', '/')
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
       matches: false,
@@ -114,7 +114,7 @@ describe('App guest dashboard pinning', () => {
     await user.click(pinButton)
 
     await waitFor(() => {
-      const raw = window.localStorage.getItem('pressmark.dashboard-preferences.v1:guest:guest-1')
+      const raw = window.localStorage.getItem('composure.dashboard-preferences.v1:guest:guest-1')
       expect(raw).not.toBeNull()
       const parsed = JSON.parse(raw as string) as { pinnedProjectIds?: string[] }
       expect(parsed.pinnedProjectIds).toContain(projectId)

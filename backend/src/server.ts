@@ -338,7 +338,7 @@ console.info(`[server] starting port=${PORT} env=${NODE_ENV} dataDir=${process.e
 await app.listen({ port: PORT, host: '0.0.0.0' })
 console.log(`
   ╔══════════════════════════════════════╗
-  ║   Pressmark server running           ║
+  ║   Composure server running           ║
   ║   http://localhost:${String(PORT).padEnd(6)}            ║
   ╚══════════════════════════════════════╝
   `)

@@ -52,7 +52,7 @@ import {
 } from './db/index.js'
 import { isValidEmail, isValidUserId } from './security.js'
 
-const SESSION_COOKIE_NAME = 'pressmark_session'
+const SESSION_COOKIE_NAME = 'composure_session'
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -672,12 +672,12 @@ export async function sendTestEmailRoute(
   try {
     await transporter.sendMail({
       from: smtp.senderAddress
-        ? `${smtp.senderName || 'Pressmark'} <${smtp.senderAddress}>`
+        ? `${smtp.senderName || 'Composure'} <${smtp.senderAddress}>`
         : undefined,
       to,
-      subject: 'Pressmark Test Email',
-      text: 'This is a test email sent from your Pressmark server to verify the SMTP configuration.',
-      html: '<p>This is a test email sent from your <strong>Pressmark</strong> server to verify the SMTP configuration.</p>',
+      subject: 'Composure Test Email',
+      text: 'This is a test email sent from your Composure server to verify the SMTP configuration.',
+      html: '<p>This is a test email sent from your <strong>Composure</strong> server to verify the SMTP configuration.</p>',
     })
     reply.send({ ok: true })
   } catch (err) {

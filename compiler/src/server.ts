@@ -11,10 +11,10 @@ import { pandocRenderer, type PandocCompileContext } from './renderers/pandoc.js
 import { createUid } from './ids.js'
 
 const PORT = Number.parseInt(process.env.PORT ?? '4000', 10)
-const COMPILE_DIR = process.env.COMPILE_DIR ?? '/var/pressmark/compiles'
+const COMPILE_DIR = process.env.COMPILE_DIR ?? '/var/composure/compiles'
 const ASSETS_DIR = process.env.ASSETS_DIR ?? '/app/data/assets'
-const TECTONIC_CACHE = process.env.TECTONIC_CACHE ?? '/var/pressmark/caches/tectonic'
-const TYPST_CACHE = process.env.TYPST_CACHE ?? '/var/pressmark/caches/typst'
+const TECTONIC_CACHE = process.env.TECTONIC_CACHE ?? '/var/composure/caches/tectonic'
+const TYPST_CACHE = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
 const DEFAULT_DOCUMENT_UPDATE_BASE64 = process.env.DEFAULT_DOCUMENT_UPDATE_BASE64 ?? ''
 const COMPILE_TIMEOUT_MS = Number.parseInt(process.env.COMPILE_TIMEOUT_MS ?? '60000', 10)
 const MAX_CONCURRENT_PROJECTS = Math.max(

@@ -6,23 +6,23 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=pressmark
+      - POSTGRES_DB=composure
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     networks:
-      - pressmark-internal
+      - composure-internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 5s
-  pressmark:
+  composure:
     extends:
       file: docker-compose.nodb.yml
-      service: pressmark
+      service: composure
     depends_on:
       db:
         condition: service_healthy
@@ -31,7 +31,7 @@ services:
       compiler-2:
         condition: service_healthy
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/pressmark}
+      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/composure}
   compiler-1:
     extends:
       file: docker-compose.nodb.yml
@@ -41,7 +41,7 @@ services:
       file: docker-compose.nodb.yml
       service: compiler-2
 networks:
-  pressmark-internal:
+  composure-internal:
     driver: bridge
 volumes:
   pgdata:

@@ -5,7 +5,7 @@ import { FileTabs } from '../src/components/FileTabs'
 import {
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,
-  writePressmarkDragPayload,
+  writeComposureDragPayload,
 } from '../src/shared/drag-data'
 
 describe('FileTabs', () => {
@@ -308,7 +308,7 @@ describe('FileTabs', () => {
     Object.defineProperty(dragOverEvent, 'dataTransfer', {
       value: {
         getData: (type: string) => {
-          if (type === 'text/x-pressmark-paths') {
+          if (type === 'text/x-composure-paths') {
             return JSON.stringify(['main.tex', 'chapters/intro.tex'])
           }
           return ''
@@ -323,7 +323,7 @@ describe('FileTabs', () => {
     Object.defineProperty(dropEvent, 'dataTransfer', {
       value: {
         getData: (type: string) => {
-          if (type === 'text/x-pressmark-paths') {
+          if (type === 'text/x-composure-paths') {
             return JSON.stringify(['main.tex', 'chapters/intro.tex'])
           }
           return ''
@@ -394,7 +394,7 @@ describe('FileTabs', () => {
       },
     }
 
-    writePressmarkDragPayload(fallbackCarrier as unknown as DataTransfer, {
+    writeComposureDragPayload(fallbackCarrier as unknown as DataTransfer, {
       [TAB_SINGLE_PATH_MIME]: 'chapters/intro.tex',
       [TAB_SOURCE_PANE_MIME]: 'pane-1',
     })
@@ -501,10 +501,10 @@ describe('FileTabs', () => {
     Object.defineProperty(dragOverEvent, 'dataTransfer', {
       value: {
         getData: (type: string) => {
-          if (type === 'text/x-pressmark-tab-path') {
+          if (type === 'text/x-composure-tab-path') {
             return 'a.tex'
           }
-          if (type === 'text/x-pressmark-tab-source-bar') {
+          if (type === 'text/x-composure-tab-source-bar') {
             return 'different-bar'
           }
           return ''
@@ -519,10 +519,10 @@ describe('FileTabs', () => {
     Object.defineProperty(dropEvent, 'dataTransfer', {
       value: {
         getData: (type: string) => {
-          if (type === 'text/x-pressmark-tab-path') {
+          if (type === 'text/x-composure-tab-path') {
             return 'a.tex'
           }
-          if (type === 'text/x-pressmark-tab-source-bar') {
+          if (type === 'text/x-composure-tab-source-bar') {
             return 'different-bar'
           }
           return ''

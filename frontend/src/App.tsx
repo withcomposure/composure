@@ -38,7 +38,7 @@ export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [session, setSession] = useState<AuthSession | null>(null)
   const [authEntryGranted, setAuthEntryGranted] = useState<boolean>(
-    () => window.sessionStorage.getItem('pressmark.auth-entry') === 'granted',
+    () => window.sessionStorage.getItem('composure.auth-entry') === 'granted',
   )
   const [authEntryMode, setAuthEntryMode] = useState<'login' | 'signup'>('login')
   const [authEntryBusy, setAuthEntryBusy] = useState(false)
@@ -85,12 +85,12 @@ export default function App() {
   const wasAuthenticatedRef = useRef(false)
 
   const grantAuthEntry = useCallback(() => {
-    window.sessionStorage.setItem('pressmark.auth-entry', 'granted')
+    window.sessionStorage.setItem('composure.auth-entry', 'granted')
     setAuthEntryGranted(true)
   }, [])
 
   const revokeAuthEntry = useCallback(() => {
-    window.sessionStorage.removeItem('pressmark.auth-entry')
+    window.sessionStorage.removeItem('composure.auth-entry')
     setAuthEntryGranted(false)
   }, [])
 
@@ -727,7 +727,7 @@ export default function App() {
 
   if (sessionLoading) {
     content = (
-      <div className="flex h-screen w-screen items-center justify-center bg-pm-bg text-sm text-pm-text-muted">
+      <div className="flex h-screen w-screen items-center justify-center bg-cz-bg text-sm text-cz-text-muted">
         Initializing workspace...
       </div>
     )
@@ -929,7 +929,7 @@ export default function App() {
             }}
             disabled={popupBusy}
             autoFocus
-            className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent disabled:opacity-60"
+            className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
           />
         )}
       </PopupDialog>

@@ -8,7 +8,7 @@ import { isPrivateOrLocalHostname, isValidProjectId } from './security.js'
 import { dispatchExport } from './compile.dispatch.js'
 import { extractFiles } from './files.js'
 
-const EXPORT_ROOT = '/tmp/pressmark-export'
+const EXPORT_ROOT = '/tmp/composure-export'
 
 function validateGitRemote(remote: string): boolean {
   try {
@@ -24,7 +24,7 @@ function validateGitRemote(remote: string): boolean {
 /**
  * POST /api/export/:projectId
  * Handles:
- *   - { format: "git", remote: "https://github.com/...", branch: "pressmark" }
+ *   - { format: "git", remote: "https://github.com/...", branch: "composure" }
  *   - { format: "docx" | "html" }
  */
 interface ExportParams {
@@ -63,7 +63,7 @@ export async function exportRoute(
     fs.mkdirSync(exportDir, { recursive: true })
     try {
       await extractFiles(projectId, exportDir)
-      await handleGitExport(exportDir, remote, branch ?? 'pressmark', reply)
+      await handleGitExport(exportDir, remote, branch ?? 'composure', reply)
     } catch (err: unknown) {
       reply.status(500).send({ error: err instanceof Error ? err.message : 'Export failed' })
     } finally {
@@ -121,16 +121,16 @@ async function handleGitExport(
   }
 
   await git.init({ fs, dir })
-  await git.setConfig({ fs, dir, path: 'user.email', value: 'pressmark@local' })
-  await git.setConfig({ fs, dir, path: 'user.name', value: 'Pressmark Export' })
+  await git.setConfig({ fs, dir, path: 'user.email', value: 'composure@local' })
+  await git.setConfig({ fs, dir, path: 'user.name', value: 'Composure Export' })
   for (const filepath of listFiles(dir)) {
     await git.add({ fs, dir, filepath })
   }
   await git.commit({
     fs,
     dir,
-    author: { name: 'Pressmark Export', email: 'pressmark@local' },
-    message: `Pressmark snapshot — ${new Date().toISOString()}`,
+    author: { name: 'Composure Export', email: 'composure@local' },
+    message: `Composure snapshot — ${new Date().toISOString()}`,
   })
   await git.addRemote({ fs, dir, remote: 'origin', url: remote })
   await git.push({ fs, dir, http, remote: 'origin', remoteRef: branch, force: true })

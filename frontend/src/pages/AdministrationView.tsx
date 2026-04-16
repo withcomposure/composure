@@ -749,20 +749,20 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   }, [])
 
   return (
-    <div className="flex h-screen bg-pm-bg text-pm-text">
-      <aside className="hidden w-72 flex-col border-r border-pm-border bg-pm-surface lg:flex">
-        <div className="border-b border-pm-border p-4">
+    <div className="flex h-screen bg-cz-bg text-cz-text">
+      <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
+        <div className="border-b border-cz-border p-4">
           <button
             onClick={navigateToProjects}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
           >
             <ChevronLeft size={14} />
             Back to projects
           </button>
         </div>
         <div className="flex-1 p-4">
-          <div className="mb-4 text-xs uppercase tracking-wider text-pm-text-muted">Administration</div>
-          <div className="relative ml-2 space-y-4 border-l border-pm-border pl-4">
+          <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Administration</div>
+          <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
             {[
               { id: 'users', label: 'User Management', icon: Users },
               { id: 'server', label: 'Server Settings', icon: Settings },
@@ -778,10 +778,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   onClick={() =>
                     sectionRefs.current[item.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }
-                  className={`relative flex items-center gap-2 text-sm ${active ? 'text-pm-text' : 'text-pm-text-muted hover:text-pm-text'}`}
+                  className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
                 >
                   <span
-                    className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-pm-accent bg-pm-accent' : 'border-pm-border bg-pm-surface'}`}
+                    className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-surface'}`}
                   />
                   <Icon size={14} />
                   {item.label}
@@ -790,10 +790,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             })}
           </div>
         </div>
-        <div className="border-t border-pm-border p-4">
+        <div className="border-t border-cz-border p-4">
           <button
             onClick={navigateToSettings}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
           >
             <Settings size={14} />
             Settings
@@ -803,24 +803,24 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
       <main id="admin-main-scroll" className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-5xl space-y-6">
-          <section id="admin-section-users" ref={(node) => { sectionRefs.current.users = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+          <section id="admin-section-users" ref={(node) => { sectionRefs.current.users = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium">
               <Users size={14} /> User Management
             </div>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="relative w-full max-w-md">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-pm-text-muted" />
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cz-text-muted" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search by name or email"
-                  className="w-full rounded-md border border-pm-border bg-pm-bg py-2 pl-9 pr-3 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg py-2 pl-9 pr-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover"
+                className="inline-flex items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover"
               >
                 <UserPlus size={14} />
                 Add User
@@ -829,8 +829,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
             {usersError && <div className="mb-3 text-sm text-red-300">{usersError}</div>}
 
-            <div className="overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
-              <div className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+            <div className="overflow-x-auto rounded-xl border border-cz-border bg-cz-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] gap-3 border-b border-cz-border px-3 py-2 text-xs uppercase tracking-wider text-cz-text-muted min-w-full">
                 <div>Name</div>
                 <div>Email</div>
                 <div>Role</div>
@@ -841,29 +841,29 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
 
               {loadingUsers ? (
-                <div className="px-3 py-4 text-sm text-pm-text-muted">Loading users...</div>
+                <div className="px-3 py-4 text-sm text-cz-text-muted">Loading users...</div>
               ) : users.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-pm-text-muted">No users found.</div>
+                <div className="px-3 py-4 text-sm text-cz-text-muted">No users found.</div>
               ) : (
                 users.map((user) => (
                   <div
                     key={user.id}
                     onClick={() => beginEditUser(user)}
-                    className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-pm-border px-3 py-3 text-sm last:border-b-0 hover:bg-pm-surface-hover min-w-full"
+                    className="inline-grid grid-cols-[minmax(80px,1.2fr)_minmax(100px,1.3fr)_minmax(70px,0.9fr)_minmax(80px,1fr)_minmax(120px,1.5fr)_minmax(120px,1.5fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-cz-border px-3 py-3 text-sm last:border-b-0 hover:bg-cz-surface-hover min-w-full"
                   >
-                    <div className="truncate text-left text-pm-text">
+                    <div className="truncate text-left text-cz-text">
                       {user.displayName}
                       {user.id === currentUserId && (
-                        <span className="ml-2 rounded-full border border-pm-border bg-pm-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-pm-text-muted">
+                        <span className="ml-2 rounded-full border border-cz-border bg-cz-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-cz-text-muted">
                           You
                         </span>
                       )}
                     </div>
-                    <div className="truncate text-left text-pm-text-muted">{user.email}</div>
-                    <div className="text-pm-text">{user.role === 'admin' ? 'Admin' : 'User'}</div>
+                    <div className="truncate text-left text-cz-text-muted">{user.email}</div>
+                    <div className="text-cz-text">{user.role === 'admin' ? 'Admin' : 'User'}</div>
                     <div className={user.status === 'active' ? 'text-emerald-300' : 'text-amber-300'}>{user.status}</div>
-                    <div className="text-pm-text-muted">{user.lastLoginAt ? fmtTime(user.lastLoginAt) : 'Never'}</div>
-                    <div className="text-pm-text-muted">{fmtTime(user.createdAt)}</div>
+                    <div className="text-cz-text-muted">{user.lastLoginAt ? fmtTime(user.lastLoginAt) : 'Never'}</div>
+                    <div className="text-cz-text-muted">{fmtTime(user.createdAt)}</div>
                     <div className="flex justify-end">
                       <ActionMenu
                         ariaLabel={`Actions for ${user.email}`}
@@ -896,7 +896,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             </div>
           </section>
 
-          <section id="admin-section-server" ref={(node) => { sectionRefs.current.server = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+          <section id="admin-section-server" ref={(node) => { sectionRefs.current.server = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Settings size={14} /> Server Settings
@@ -907,19 +907,19 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 disabled={settingsBusy || !serverSettingsDirty}
                 className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
                   serverSettingsDirty
-                    ? 'border-transparent bg-pm-accent text-white hover:bg-pm-accent-hover'
-                    : 'border-pm-border bg-pm-bg text-pm-text-muted'
+                    ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
+                    : 'border-cz-border bg-cz-bg text-cz-text-muted'
                 }`}
               >
                 {!serverSettingsDirty && <Check size={12} />}
                 {settingsBusy ? 'Applying...' : serverSettingsDirty ? 'Apply Settings' : 'Saved'}
               </button>
             </div>
-            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/50">
+            <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/50">
               <div className="flex items-center justify-between gap-3 px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Signup mode</div>
-                  <div className="text-xs text-pm-text-muted">Open signups lets anyone create an account. Invite only requires a valid invite link.</div>
+                  <div className="text-sm text-cz-text">Signup mode</div>
+                  <div className="text-xs text-cz-text-muted">Open signups lets anyone create an account. Invite only requires a valid invite link.</div>
                 </div>
                 <SegmentedControl
                   value={signupMode}
@@ -932,10 +932,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Guest access</div>
-                  <div className="text-xs text-pm-text-muted">Allow new visitors to continue as guest. Existing guests keep access when disabled.</div>
+                  <div className="text-sm text-cz-text">Guest access</div>
+                  <div className="text-xs text-cz-text-muted">Allow new visitors to continue as guest. Existing guests keep access when disabled.</div>
                 </div>
                 <ToggleSwitch
                   checked={guestSignupsEnabled}
@@ -944,10 +944,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Invite link expiry (hours)</div>
-                  <div className="text-xs text-pm-text-muted">Default expiry for newly generated invite links. Default: 72.</div>
+                  <div className="text-sm text-cz-text">Invite link expiry (hours)</div>
+                  <div className="text-xs text-cz-text-muted">Default expiry for newly generated invite links. Default: 72.</div>
                 </div>
                 <NumberStepper
                   value={inviteExpiryHours}
@@ -959,10 +959,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Default project limits</div>
-                  <div className="text-xs text-pm-text-muted">Maximum projects a user can create. Can be overridden per-user. Applies to authenticated users only.</div>
+                  <div className="text-sm text-cz-text">Default project limits</div>
+                  <div className="text-xs text-cz-text-muted">Maximum projects a user can create. Can be overridden per-user. Applies to authenticated users only.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {defaultProjectLimitMode === 'on' && (
@@ -983,10 +983,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Password reset token expiry (hours)</div>
-                  <div className="text-xs text-pm-text-muted">Default is 24 hours. Range: 0.08 to 168 hours.</div>
+                  <div className="text-sm text-cz-text">Password reset token expiry (hours)</div>
+                  <div className="text-xs text-cz-text-muted">Default is 24 hours. Range: 0.08 to 168 hours.</div>
                 </div>
                 <NumberStepper
                   value={passwordResetExpiryHours}
@@ -1000,10 +1000,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Maximum concurrent jobs per compiler</div>
-                  <div className="text-xs text-pm-text-muted">How many compile jobs can run simultaneously on each compiler. Default: 3.</div>
+                  <div className="text-sm text-cz-text">Maximum concurrent jobs per compiler</div>
+                  <div className="text-xs text-cz-text-muted">How many compile jobs can run simultaneously on each compiler. Default: 3.</div>
                 </div>
                 <NumberStepper
                   value={maxConcurrentJobs}
@@ -1014,10 +1014,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Maximum upload file size (MB)</div>
-                  <div className="text-xs text-pm-text-muted">Limit for individual uploaded asset files. Default: 50 MB.</div>
+                  <div className="text-sm text-cz-text">Maximum upload file size (MB)</div>
+                  <div className="text-xs text-cz-text-muted">Limit for individual uploaded asset files. Default: 50 MB.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {maxUploadMode === 'on' && (
@@ -1039,10 +1039,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Maximum text file size (MB)</div>
-                  <div className="text-xs text-pm-text-muted">Limit for individual text files in the editor. Default: 5 MB.</div>
+                  <div className="text-sm text-cz-text">Maximum text file size (MB)</div>
+                  <div className="text-xs text-cz-text-muted">Limit for individual text files in the editor. Default: 5 MB.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {maxTextMode === 'on' && (
@@ -1064,10 +1064,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Maximum files per project</div>
-                  <div className="text-xs text-pm-text-muted">Limit on total files (text + assets) in a project. Default: 200.</div>
+                  <div className="text-sm text-cz-text">Maximum files per project</div>
+                  <div className="text-xs text-cz-text-muted">Limit on total files (text + assets) in a project. Default: 200.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {maxFilesMode === 'on' && (
@@ -1087,10 +1087,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Trash retention (days)</div>
-                  <div className="text-xs text-pm-text-muted">Deleted projects are permanently purged after this many days. Default: 30.</div>
+                  <div className="text-sm text-cz-text">Trash retention (days)</div>
+                  <div className="text-xs text-cz-text-muted">Deleted projects are permanently purged after this many days. Default: 30.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <NumberStepper
@@ -1102,10 +1102,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-pm-text">Large file mode threshold (K chars)</div>
-                  <div className="text-xs text-pm-text-muted">Files above this character count open in lightweight mode with reduced editor features. Default: 500K.</div>
+                  <div className="text-sm text-cz-text">Large file mode threshold (K chars)</div>
+                  <div className="text-xs text-cz-text-muted">Files above this character count open in lightweight mode with reduced editor features. Default: 500K.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <NumberStepper
@@ -1123,7 +1123,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             {settingsError && <div className="mt-2 text-sm text-red-300">{settingsError}</div>}
           </section>
 
-          <section id="admin-section-invitations" ref={(node) => { sectionRefs.current.invitations = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+          <section id="admin-section-invitations" ref={(node) => { sectionRefs.current.invitations = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium">
               <UserPlus size={14} /> Invitations
             </div>
@@ -1132,14 +1132,14 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}
                 placeholder="Restrict to email (optional)"
-                className="min-w-0 w-1/4 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                className="min-w-0 w-1/4 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
               />
               <input
                 ref={generatedInviteRef}
                 value={generatedInviteUrl}
                 readOnly
                 placeholder="New invite links will appear here"
-                className="min-w-0 flex-1 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text-muted"
+                className="min-w-0 flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text-muted"
               />
               {generatedInviteUrl && (
                 <button
@@ -1147,7 +1147,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   onClick={() => {
                     void navigator.clipboard.writeText(generatedInviteUrl)
                   }}
-                  className="inline-flex items-center gap-1 shrink-0 rounded-md border border-pm-border px-3 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                  className="inline-flex items-center gap-1 shrink-0 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                 >
                   <Copy size={14} />
                   Copy
@@ -1159,7 +1159,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   void createNewInvite()
                 }}
                 disabled={invitesBusy}
-                className="inline-flex items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
               >
                 <UserPlus size={14} />
                 New Invite
@@ -1168,8 +1168,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
             {invitesError && <div className="mb-3 text-sm text-red-300">{invitesError}</div>}
 
-            <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
-              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+            <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-xl border border-cz-border bg-cz-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] gap-3 border-b border-cz-border px-3 py-2 text-xs uppercase tracking-wider text-cz-text-muted min-w-full">
                 <div>Token</div>
                 <div>Created</div>
                 <div>Expires</div>
@@ -1178,18 +1178,18 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 <div className="text-right">Actions</div>
               </div>
               {invites.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-pm-text-muted">No invite tokens.</div>
+                <div className="px-3 py-4 text-sm text-cz-text-muted">No invite tokens.</div>
               ) : (
                 invites.map((invite) => (
                   <div
                     key={invite.token}
-                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-pm-border px-3 py-3 text-sm last:border-b-0 min-w-full"
+                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(100px,1.3fr)_minmax(80px,1fr)_minmax(100px,1.3fr)_minmax(60px,0.8fr)] items-center gap-3 border-b border-cz-border px-3 py-3 text-sm last:border-b-0 min-w-full"
                   >
-                    <div className="truncate font-mono text-pm-text-muted">{invite.tokenPreview}</div>
-                    <div className="text-pm-text-muted">{fmtTime(invite.createdAt)}</div>
-                    <div className="text-pm-text-muted">{fmtTime(invite.expiresAt)}</div>
-                    <div className="text-pm-text-muted">{invite.usedAt ? fmtTime(invite.usedAt) : 'Unused'}</div>
-                    <div className="truncate text-pm-text-muted">{invite.email || '—'}</div>
+                    <div className="truncate font-mono text-cz-text-muted">{invite.tokenPreview}</div>
+                    <div className="text-cz-text-muted">{fmtTime(invite.createdAt)}</div>
+                    <div className="text-cz-text-muted">{fmtTime(invite.expiresAt)}</div>
+                    <div className="text-cz-text-muted">{invite.usedAt ? fmtTime(invite.usedAt) : 'Unused'}</div>
+                    <div className="truncate text-cz-text-muted">{invite.email || '—'}</div>
                     <div className="flex justify-end gap-1">
                       {!invite.usedAt && (
                         <>
@@ -1199,7 +1199,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                               const url = `${window.location.origin}/#/invite?token=${encodeURIComponent(invite.token)}`
                               void navigator.clipboard.writeText(url)
                             }}
-                            className="rounded-md border border-pm-border px-2 py-1 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                            className="rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                           >
                             Copy
                           </button>
@@ -1222,7 +1222,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             </div>
           </section>
 
-          <section id="admin-section-email" ref={(node) => { sectionRefs.current.email = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+          <section id="admin-section-email" ref={(node) => { sectionRefs.current.email = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Mail size={14} /> Email (SMTP)
@@ -1233,8 +1233,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 disabled={smtpBusy || !smtpDirty}
                 className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
                   smtpDirty
-                    ? 'border-transparent bg-pm-accent text-white hover:bg-pm-accent-hover'
-                    : 'border-pm-border bg-pm-bg text-pm-text-muted'
+                    ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
+                    : 'border-cz-border bg-cz-bg text-cz-text-muted'
                 }`}
               >
                 {!smtpDirty && <Check size={12} />}
@@ -1242,19 +1242,19 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </button>
             </div>
 
-            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/50">
+            <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/50">
               {/* Host + Port */}
               <div className="flex items-center gap-3 px-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-pm-text">Host</div>
-                  <div className="text-xs text-pm-text-muted">SMTP server hostname</div>
+                  <div className="text-xs font-medium text-cz-text">Host</div>
+                  <div className="text-xs text-cz-text-muted">SMTP server hostname</div>
                 </div>
                 <input
                   type="text"
                   value={smtpHost}
                   onChange={(e) => setSmtpHost(e.target.value)}
                   placeholder="smtp.example.com"
-                  className="w-42 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-42 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <NumberStepper
                   value={smtpPort}
@@ -1266,10 +1266,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
 
               {/* Encryption */}
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-medium text-pm-text">Encryption</div>
-                  <div className="text-xs text-pm-text-muted">
+                  <div className="text-xs font-medium text-cz-text">Encryption</div>
+                  <div className="text-xs text-cz-text-muted">
                     It is recommended to use the best encryption method supported by your SMTP server.{' '}
                     <strong>STARTTLS</strong> (e.g., port 587) upgrades to TLS after connecting.{' '}
                     <strong>TLS/SSL</strong> (e.g., port 465) is encrypted from the start.
@@ -1279,25 +1279,25 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
 
               {/* Username */}
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-medium text-pm-text">Username</div>
-                  <div className="text-xs text-pm-text-muted">Authentication username (often your email)</div>
+                  <div className="text-xs font-medium text-cz-text">Username</div>
+                  <div className="text-xs text-cz-text-muted">Authentication username (often your email)</div>
                 </div>
                 <input
                   type="text"
                   value={smtpUsername}
                   onChange={(e) => setSmtpUsername(e.target.value)}
                   placeholder="user@example.com"
-                  className="w-69 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-69 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
 
               {/* Password */}
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-medium text-pm-text">Password</div>
-                  <div className="text-xs text-pm-text-muted">
+                  <div className="text-xs font-medium text-cz-text">Password</div>
+                  <div className="text-xs text-cz-text-muted">
                     {smtpHasPassword ? 'A password is saved. Leave blank to keep it unchanged.' : 'No password set.'}
                   </div>
                 </div>
@@ -1307,12 +1307,12 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                     value={smtpPassword}
                     onChange={(e) => setSmtpPassword(e.target.value)}
                     placeholder={smtpHasPassword ? '••••••••' : 'Enter password'}
-                    className="w-69 rounded-md border border-pm-border bg-pm-bg px-3 py-2 pr-9 text-sm text-pm-text outline-none focus:border-pm-accent"
+                    className="w-69 rounded-md border border-cz-border bg-cz-bg px-3 py-2 pr-9 text-sm text-cz-text outline-none focus:border-cz-accent"
                   />
                   <button
                     type="button"
                     onClick={() => setSmtpShowPassword((prev) => !prev)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-pm-text-muted hover:text-pm-text"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-cz-text-muted hover:text-cz-text"
                     tabIndex={-1}
                   >
                     {smtpShowPassword ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -1321,45 +1321,45 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
 
               {/* Sender Name + Sender Address */}
-              <div className="flex items-center gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-pm-text">Sender Name &amp; Address</div>
-                  <div className="text-xs text-pm-text-muted">Display name for outgoing emails</div>
+                  <div className="text-xs font-medium text-cz-text">Sender Name &amp; Address</div>
+                  <div className="text-xs text-cz-text-muted">Display name for outgoing emails</div>
                 </div>
                 <input
                   type="text"
                   value={smtpSenderName}
                   onChange={(e) => setSmtpSenderName(e.target.value)}
-                  placeholder="Pressmark"
-                  className="w-28 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  placeholder="Composure"
+                  className="w-28 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <input
                   type="text"
                   value={smtpSenderAddress}
                   onChange={(e) => setSmtpSenderAddress(e.target.value)}
                   placeholder="noreply@example.com"
-                  className="w-48 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
 
               {/* Test Email */}
-              <div className="flex items-center gap-3 border-t border-pm-border px-3 py-3">
+              <div className="flex items-center gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-pm-text">Test Email</div>
-                  <div className="text-xs text-pm-text-muted">Once you've saved your settings, you can send a test email.</div>
+                  <div className="text-xs font-medium text-cz-text">Test Email</div>
+                  <div className="text-xs text-cz-text-muted">Once you've saved your settings, you can send a test email.</div>
                 </div>
                 <input
                   type="text"
                   value={testEmailTo}
                   onChange={(e) => setTestEmailTo(e.target.value)}
                   placeholder="recipient@example.com"
-                  className="w-48 shrink-0 rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <button
                   type="button"
                   onClick={() => { void sendTestEmail() }}
                   disabled={testEmailBusy || !testEmailTo.trim() || smtpDirty || !smtpAllFilled}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-md bg-pm-accent px-3 py-2 text-sm text-white hover:bg-pm-accent-hover disabled:opacity-60"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
                 >
                   <Send size={14} />
                   {testEmailBusy ? 'Sending...' : 'Send'}
@@ -1375,7 +1375,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             )}
           </section>
 
-          <section id="admin-section-monitoring" ref={(node) => { sectionRefs.current.monitoring = node }} className="scroll-mt-6 rounded-xl border border-pm-border bg-pm-surface p-5">
+          <section id="admin-section-monitoring" ref={(node) => { sectionRefs.current.monitoring = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
@@ -1407,7 +1407,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   type="button"
                   onClick={() => { void loadMonitoringData(jobsTimeframe) }}
                   disabled={monitoringBusy}
-                  className="inline-flex items-center gap-2 rounded-md border border-pm-border bg-pm-bg px-3 py-1.5 text-xs text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-md border border-cz-border bg-cz-bg px-3 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
                 >
                   <RefreshCw size={14} className={monitoringBusy ? 'animate-spin' : ''} />
                   Refresh
@@ -1420,25 +1420,25 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             {/* Summary Cards */}
             {jobSummary && (
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
-                  <div className="text-xs text-pm-text-muted">Active / Queued</div>
-                  <div className="mt-1 text-lg font-semibold text-pm-text">
+                <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
+                  <div className="text-xs text-cz-text-muted">Active / Queued</div>
+                  <div className="mt-1 text-lg font-semibold text-cz-text">
                     {jobSummary.runningCount}{' / '}{jobSummary.waitingCount}
                   </div>
                 </div>
-                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
-                  <div className="text-xs text-pm-text-muted">Last Completed</div>
-                  <div className="mt-1 text-sm text-pm-text">
+                <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
+                  <div className="text-xs text-cz-text-muted">Last Completed</div>
+                  <div className="mt-1 text-sm text-cz-text">
                     {jobSummary.lastCompletedAt ? fmtRelativeTime(jobSummary.lastCompletedAt) : 'None'}
                   </div>
                 </div>
-                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
-                  <div className="text-xs text-pm-text-muted">Last Failed</div>
-                  <div className="mt-1 text-sm text-pm-text">
+                <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
+                  <div className="text-xs text-cz-text-muted">Last Failed</div>
+                  <div className="mt-1 text-sm text-cz-text">
                     {jobSummary.lastFailedJob ? (
                       <span>
                         <span className="text-red-300">{jobSummary.lastFailedJob.type}</span>{' '}
-                        <span className="text-pm-text-muted">{fmtRelativeTime(jobSummary.lastFailedJob.finishedAt)}</span>
+                        <span className="text-cz-text-muted">{fmtRelativeTime(jobSummary.lastFailedJob.finishedAt)}</span>
                         {jobSummary.lastFailedJob.error && (
                           <div className="mt-0.5 truncate text-xs text-red-300/80">{jobSummary.lastFailedJob.error}</div>
                         )}
@@ -1446,9 +1446,9 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                     ) : 'None'}
                   </div>
                 </div>
-                <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
-                  <div className="text-xs text-pm-text-muted">Last {JOB_TIMEFRAME_OPTIONS.find((o) => o.value === jobsTimeframe)?.label ?? '24h'}</div>
-                  <div className="mt-1 text-sm text-pm-text">
+                <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
+                  <div className="text-xs text-cz-text-muted">Last {JOB_TIMEFRAME_OPTIONS.find((o) => o.value === jobsTimeframe)?.label ?? '24h'}</div>
+                  <div className="mt-1 text-sm text-cz-text">
                     <span className="text-green-400">{jobSummary.totalDone} done</span>
                     {' / '}
                     <span className="text-red-300">{jobSummary.totalFailed} failed</span>
@@ -1470,9 +1470,9 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             )}
 
             {/* Jobs table */}
-            <div className="text-xs font-medium text-pm-text mb-2">Jobs</div>
-            <div className="max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-pm-border bg-pm-bg/40">
-              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-pm-border px-3 py-2 text-xs uppercase tracking-wider text-pm-text-muted min-w-full">
+            <div className="text-xs font-medium text-cz-text mb-2">Jobs</div>
+            <div className="max-h-96 overflow-y-auto overflow-x-auto rounded-xl border border-cz-border bg-cz-bg/40">
+              <div className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-cz-border px-3 py-2 text-xs uppercase tracking-wider text-cz-text-muted min-w-full">
                 <span>User</span>
                 <span>Project</span>
                 <span>Type</span>
@@ -1482,12 +1482,12 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 <span>Finished</span>
               </div>
               {recentJobs.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-pm-text-muted">No jobs in this timeframe.</div>
+                <div className="px-3 py-4 text-sm text-cz-text-muted">No jobs in this timeframe.</div>
               ) : (
                 recentJobs.map((job) => (
                   <div
                     key={job.id}
-                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-pm-border px-3 py-2 text-sm text-pm-text min-w-full last:border-b-0"
+                    className="inline-grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(70px,0.8fr)_minmax(60px,0.7fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 border-b border-cz-border px-3 py-2 text-sm text-cz-text min-w-full last:border-b-0"
                   >
                     <span className="truncate text-xs" title={job.userEmail ?? job.userId ?? 'unknown'}>
                       {job.userDisplayName ?? job.userEmail ?? (job.userId ? `User ${job.userId.slice(0, 8)}` : '—')}
@@ -1503,7 +1503,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                       job.status === 'invalid' ? 'text-yellow-400' :
                       job.status === 'stalled' ? 'text-orange-400' :
                       job.status === 'waiting' ? 'text-sky-300' :
-                      'text-pm-text-muted'
+                      'text-cz-text-muted'
                     }`}>
                       {job.status}
                       {job.status === 'failed' && job.error && (
@@ -1516,9 +1516,9 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                         <span className="block truncate font-normal text-orange-400/70" title={job.error}>{job.error}</span>
                       )}
                     </span>
-                    <span className="text-xs text-pm-text-muted">{fmtTime(job.createdAt)}</span>
-                    <span className="text-xs text-pm-text-muted">{job.startedAt ? fmtTime(job.startedAt) : '—'}</span>
-                    <span className="text-xs text-pm-text-muted">{job.finishedAt ? fmtTime(job.finishedAt) : '—'}</span>
+                    <span className="text-xs text-cz-text-muted">{fmtTime(job.createdAt)}</span>
+                    <span className="text-xs text-cz-text-muted">{job.startedAt ? fmtTime(job.startedAt) : '—'}</span>
+                    <span className="text-xs text-cz-text-muted">{job.finishedAt ? fmtTime(job.finishedAt) : '—'}</span>
                   </div>
                 ))
               )}
@@ -1553,44 +1553,44 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       >
         <div className="space-y-4">
           <div>
-            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Email</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-cz-text-muted">Email</div>
             <input
               value={createEmail}
               onChange={(event) => setCreateEmail(event.target.value)}
-              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
               placeholder="new.user@example.com"
             />
           </div>
           <div>
-            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Display name</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-cz-text-muted">Display name</div>
             <input
               value={createDisplayName}
               onChange={(event) => setCreateDisplayName(event.target.value)}
-              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
-              placeholder="Pressmark User"
+              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+              placeholder="Composure User"
             />
           </div>
           <div>
-            <div className="mb-1 text-xs uppercase tracking-wider text-pm-text-muted">Temporary password</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-cz-text-muted">Temporary password</div>
             <input
               type="password"
               value={createPassword}
               onChange={(event) => setCreatePassword(event.target.value)}
-              className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
             />
           </div>
-          <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/30">
+          <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/30">
             <div className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
-                <div className="text-sm text-pm-text">Role</div>
-                <div className="text-xs text-pm-text-muted">Controls administration permissions for this user.</div>
+                <div className="text-sm text-cz-text">Role</div>
+                <div className="text-xs text-cz-text-muted">Controls administration permissions for this user.</div>
               </div>
               <CustomDropdown value={createRole} options={roleOptions} onChange={setCreateRole} />
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+            <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-2">
               <div className="min-w-0">
-                <div className="text-sm text-pm-text">Project limit</div>
-                <div className="text-xs text-pm-text-muted">
+                <div className="text-sm text-cz-text">Project limit</div>
+                <div className="text-xs text-cz-text-muted">
                   {createMaxProjectsMode === 'inherit'
                     ? `Inherits server default (${defaultProjectLimitMode === 'unlimited' ? 'unlimited' : defaultProjectLimitValue}).`
                     : createMaxProjectsMode === 'unlimited'
@@ -1648,26 +1648,26 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       >
         {editingUser && (
           <div className="space-y-2">
-            <div className="text-xs uppercase tracking-wider text-pm-text-muted">Profile</div>
-            <div className="overflow-hidden rounded-md border border-pm-border bg-pm-bg/30">
+            <div className="text-xs uppercase tracking-wider text-cz-text-muted">Profile</div>
+            <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/30">
               <div className="grid gap-3 px-3 py-3 md:grid-cols-2">
                 <input
                   value={editDisplayName}
                   onChange={(event) => setEditDisplayName(event.target.value)}
-                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                   placeholder="Display name"
                 />
                 <input
                   value={editingUser.email}
                   disabled
-                  className="w-full rounded-md border border-pm-border bg-pm-bg/70 px-3 py-2 text-sm text-pm-text-muted"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg/70 px-3 py-2 text-sm text-cz-text-muted"
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-2">
                 <div>
-                  <div className="text-sm text-pm-text">Role</div>
-                  <div className="text-xs text-pm-text-muted">
+                  <div className="text-sm text-cz-text">Role</div>
+                  <div className="text-xs text-cz-text-muted">
                     {isSelfEditing
                       ? 'Controls administration permissions. You cannot demote your own account.'
                       : 'Controls administration permissions for this user.'}
@@ -1681,10 +1681,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-2">
                 <div>
-                  <div className="text-sm text-pm-text">Project limit</div>
-                  <div className="text-xs text-pm-text-muted">
+                  <div className="text-sm text-cz-text">Project limit</div>
+                  <div className="text-xs text-cz-text-muted">
                     {editMaxProjectsMode === 'inherit'
                       ? `Inherits server default (${defaultProjectLimitMode === 'unlimited' ? 'unlimited' : defaultProjectLimitValue}).`
                       : editMaxProjectsMode === 'unlimited'
@@ -1712,10 +1712,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-pm-border px-3 py-2">
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-2">
                 <div>
-                  <div className="text-sm text-pm-text">Suspended</div>
-                  <div className="text-xs text-pm-text-muted">
+                  <div className="text-sm text-cz-text">Suspended</div>
+                  <div className="text-xs text-cz-text-muted">
                     {isSelfEditing
                       ? 'Suspended users cannot log in. You cannot suspend your own account.'
                       : 'Suspended users cannot log in.'}
@@ -1733,21 +1733,21 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
             </div>
 
-            <div className="mt-4 text-xs uppercase tracking-wider text-pm-text-muted">Change Password</div>
-            <div className="rounded-md border border-pm-border bg-pm-bg/50 p-3">
+            <div className="mt-4 text-xs uppercase tracking-wider text-cz-text-muted">Change Password</div>
+            <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
               <div className="grid gap-2 md:grid-cols-2">
                 <input
                   type="password"
                   value={editNewPassword}
                   onChange={(event) => setEditNewPassword(event.target.value)}
-                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                   placeholder="New password"
                 />
                 <input
                   type="password"
                   value={editConfirmPassword}
                   onChange={(event) => setEditConfirmPassword(event.target.value)}
-                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none focus:border-pm-accent"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                   placeholder="Confirm password"
                 />
               </div>
@@ -1783,7 +1783,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       >
         <div className="space-y-4">
           {resetBusy ? (
-            <div className="text-sm text-pm-text-muted">Generating password reset link...</div>
+            <div className="text-sm text-cz-text-muted">Generating password reset link...</div>
           ) : resetError ? (
             <div className="text-sm text-red-300">{resetError}</div>
           ) : (
@@ -1792,28 +1792,28 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 <input
                   value={generatedResetUrl}
                   readOnly
-                  className="w-full rounded-md border border-pm-border bg-pm-bg px-3 py-2 text-sm text-pm-text-muted"
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text-muted"
                 />
                 <button
                   type="button"
                   onClick={() => {
                     void navigator.clipboard.writeText(generatedResetUrl)
                   }}
-                  className="shrink-0 rounded-md border border-pm-border px-3 py-2 text-sm text-pm-text-muted hover:bg-pm-surface-hover hover:text-pm-text"
+                  className="shrink-0 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                 >
                   Copy link
                 </button>
               </div>
 
-              <div className="max-h-64 overflow-y-auto overflow-x-hidden rounded-md border border-pm-border">
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] gap-2 border-b border-pm-border bg-pm-surface px-3 py-2 text-[11px] uppercase tracking-wider text-pm-text-muted">
+              <div className="max-h-64 overflow-y-auto overflow-x-hidden rounded-md border border-cz-border">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] gap-2 border-b border-cz-border bg-cz-surface px-3 py-2 text-[11px] uppercase tracking-wider text-cz-text-muted">
                   <div>Token</div>
                   <div>Created</div>
                   <div>Used</div>
                   <div className="text-right">Actions</div>
                 </div>
                 {existingResetLinks.length === 0 && (
-                  <div className="px-3 py-3 text-xs text-pm-text-muted">No links yet.</div>
+                  <div className="px-3 py-3 text-xs text-cz-text-muted">No links yet.</div>
                 )}
                 {existingResetLinks.map((link) => {
                   const now = Math.floor(Date.now() / 1000)
@@ -1822,11 +1822,11 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   return (
                     <div
                       key={link.token}
-                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] items-center gap-2 border-b border-pm-border px-3 py-2 text-xs last:border-b-0"
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,1.35fr)] items-center gap-2 border-b border-cz-border px-3 py-2 text-xs last:border-b-0"
                     >
-                      <div className="truncate font-mono text-pm-text-muted">{link.tokenPreview}</div>
-                      <div className="text-pm-text-muted">{fmtTime(link.createdAt)}</div>
-                      <div className="text-pm-text-muted">{link.usedAt ? fmtTime(link.usedAt) : 'Unused'}</div>
+                      <div className="truncate font-mono text-cz-text-muted">{link.tokenPreview}</div>
+                      <div className="text-cz-text-muted">{fmtTime(link.createdAt)}</div>
+                      <div className="text-cz-text-muted">{link.usedAt ? fmtTime(link.usedAt) : 'Unused'}</div>
                       <div className="text-right">
                         {isExpireable ? (
                           <button
@@ -1839,11 +1839,11 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                             Expire
                           </button>
                         ) : link.expiredEarlyAt != null ? (
-                          <span className="text-pm-text-muted">{fmtTime(link.expiredEarlyAt)}</span>
+                          <span className="text-cz-text-muted">{fmtTime(link.expiredEarlyAt)}</span>
                         ) : autoExpired ? (
-                          <span className="text-pm-text-muted">{fmtTime(link.expiresAt)}</span>
+                          <span className="text-cz-text-muted">{fmtTime(link.expiresAt)}</span>
                         ) : (
-                          <span className="text-pm-text-muted">Used</span>
+                          <span className="text-cz-text-muted">Used</span>
                         )}
                       </div>
                     </div>
@@ -1882,14 +1882,14 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       >
         <div className="space-y-3">
           {deleteTarget && (
-            <div className="text-xs text-pm-text-muted">
-              Confirm email: <span className="text-pm-text">{deleteTarget.email}</span>
+            <div className="text-xs text-cz-text-muted">
+              Confirm email: <span className="text-cz-text">{deleteTarget.email}</span>
             </div>
           )}
           <input
             value={deleteConfirmEmail}
             onChange={(event) => setDeleteConfirmEmail(event.target.value)}
-            className="w-full rounded-md border border-red-500/40 bg-pm-bg px-3 py-2 text-sm text-pm-text outline-none"
+            className="w-full rounded-md border border-red-500/40 bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none"
             placeholder="Enter email to confirm"
           />
           {deleteError && <div className="text-sm text-red-300">{deleteError}</div>}

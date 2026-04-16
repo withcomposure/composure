@@ -136,8 +136,8 @@ export function DiffView({
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="flex items-center gap-3 text-sm text-pm-text-muted">
-          <span className="pm-spinner" aria-hidden="true" />
+        <div className="flex items-center gap-3 text-sm text-cz-text-muted">
+          <span className="cz-spinner" aria-hidden="true" />
           Loading diff...
         </div>
       </div>
@@ -154,7 +154,7 @@ export function DiffView({
 
   if (!diff) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-pm-text-muted">
+      <div className="flex h-full items-center justify-center text-sm text-cz-text-muted">
         <div className="flex flex-col items-center gap-2">
           <GitCompareArrows size={32} className="opacity-30" />
           <span>No diff available</span>
@@ -165,11 +165,11 @@ export function DiffView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-pm-border px-3 py-1.5">
+      <div className="flex items-center justify-between border-b border-cz-border px-3 py-1.5">
         <div className="flex items-center gap-3">
           <button
             onClick={onExitHistory}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-pm-accent hover:bg-pm-accent-muted"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-cz-accent hover:bg-cz-accent-muted"
           >
             <ArrowLeft size={12} />
             Exit diff
@@ -180,39 +180,39 @@ export function DiffView({
               : diff.changeType === 'deleted'
                 ? 'text-red-400'
                 : diff.changeType === 'unchanged'
-                  ? 'text-pm-text-muted'
+                  ? 'text-cz-text-muted'
                   : 'text-amber-400'
           }`}>
             {diff.changeType}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-md border border-pm-border bg-pm-bg p-0.5">
+          <div className="flex items-center rounded-md border border-cz-border bg-cz-bg p-0.5">
             <button
               onClick={() => setDiffBase('parent')}
-              className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'parent' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:text-pm-text'}`}
+              className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'parent' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
               title="Compare against preceding commit"
             >
               Preceding
             </button>
             <button
               onClick={() => setDiffBase('current')}
-              className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'current' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:text-pm-text'}`}
+              className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'current' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
               title="Compare against current version"
             >
               Current
             </button>
           </div>
-          <div className="flex items-center rounded-md border border-pm-border bg-pm-bg p-0.5">
+          <div className="flex items-center rounded-md border border-cz-border bg-cz-bg p-0.5">
             <button
               onClick={() => onDiffModeChange('side-by-side')}
-              className={`rounded px-2 py-0.5 text-[10px] ${diffMode === 'side-by-side' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:text-pm-text'}`}
+              className={`rounded px-2 py-0.5 text-[10px] ${diffMode === 'side-by-side' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
             >
               Side by side
             </button>
             <button
               onClick={() => onDiffModeChange('inline')}
-              className={`rounded px-2 py-0.5 text-[10px] ${diffMode === 'inline' ? 'bg-pm-accent text-white' : 'text-pm-text-muted hover:text-pm-text'}`}
+              className={`rounded px-2 py-0.5 text-[10px] ${diffMode === 'inline' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
             >
               Inline
             </button>
@@ -221,7 +221,7 @@ export function DiffView({
             <button
               onClick={() => void handleRestore()}
               disabled={restoring}
-              className="flex items-center gap-1 rounded-md border border-pm-accent/40 bg-pm-accent/10 px-2 py-1 text-[11px] text-pm-accent hover:bg-pm-accent/20 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-md border border-cz-accent/40 bg-cz-accent/10 px-2 py-1 text-[11px] text-cz-accent hover:bg-cz-accent/20 disabled:opacity-50"
             >
               <RotateCcw size={11} />
               {restoring ? 'Restoring...' : 'Restore this file'}
@@ -230,7 +230,7 @@ export function DiffView({
         </div>
       </div>
       {diff.isBinary ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-pm-text-muted">
+        <div className="flex flex-1 items-center justify-center text-sm text-cz-text-muted">
           <div className="flex flex-col items-center gap-2">
             <FileX2 size={32} className="opacity-30" />
             <span>Binary file — no text diff available</span>

@@ -1,7 +1,7 @@
 import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/pressmark'
+const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
 const TEST_DATABASE_NAME_PATTERN = /(^|[_-])test([_-]|$)/i
 
 export let sql: postgres.Sql
@@ -345,7 +345,7 @@ export async function initDatabase(): Promise<void> {
 export async function initTestDatabase(): Promise<postgres.Sql> {
   const testUrl = process.env.TEST_DATABASE_URL
     ?? process.env.DATABASE_URL
-    ?? 'postgres://postgres:postgres@localhost:5433/pressmark_test'
+    ?? 'postgres://postgres:postgres@localhost:5433/composure_test'
 
   assertSafeTestDatabaseReset(testUrl)
 
