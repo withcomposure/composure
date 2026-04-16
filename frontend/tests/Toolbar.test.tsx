@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { Toolbar } from '../src/components/Toolbar'
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { Toolbar } from "../src/components/Toolbar";
 
 const defaults = {
   sidebarOpen: true,
@@ -8,13 +8,13 @@ const defaults = {
   onOpenSettings: () => {},
   onLogout: () => {},
   onLogin: () => {},
-  accountLabel: 'Test User',
-  accountEmail: 'test@test.com',
+  accountLabel: "Test User",
+  accountEmail: "test@test.com",
   accountImageUrl: null,
   accountIsGuest: false,
   canEdit: true,
   canComment: true,
-  mode: 'edit' as const,
+  mode: "edit" as const,
   onModeChange: () => {},
   onOpenShare: () => {},
   onCompile: () => {},
@@ -26,54 +26,56 @@ const defaults = {
   onAutoCompileChange: () => {},
   onSave: () => {},
   saving: false,
-  connectionState: 'connected' as const,
+  connectionState: "connected" as const,
   compiling: false,
-  activeFile: '',
+  activeFile: "",
   activeEditors: [],
   onFocusCollaborator: () => {},
-  projectFormat: 'latex' as const,
+  projectFormat: "latex" as const,
   onExport: () => {},
   exporting: false,
   previewOpen: true,
   onTogglePreview: () => {},
-  projectId: 'test-project',
+  projectId: "test-project",
   onViewDiff: () => {},
   historyState: null,
-}
+};
 
-describe('Toolbar', () => {
-  it('shows placeholder when no file is selected', () => {
-    render(<Toolbar {...defaults} activeFile="" />)
-    const placeholder = screen.getByText('No file selected')
-    expect(placeholder).toBeInTheDocument()
-    expect(placeholder.tagName).toBe('SPAN')
-    expect(placeholder.className).toContain('italic')
-  })
+describe("Toolbar", () => {
+  it("shows placeholder when no file is selected", () => {
+    render(<Toolbar {...defaults} activeFile="" />);
+    const placeholder = screen.getByText("No file selected");
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder.tagName).toBe("SPAN");
+    expect(placeholder.className).toContain("italic");
+  });
 
-  it('shows breadcrumbs when a file is selected', () => {
-    render(<Toolbar {...defaults} activeFile="src/main.tex" />)
-    expect(screen.queryByText('No file selected')).toBeNull()
-    expect(screen.getByText('src')).toBeInTheDocument()
-    expect(screen.getByText('main.tex')).toBeInTheDocument()
-  })
+  it("shows breadcrumbs when a file is selected", () => {
+    render(<Toolbar {...defaults} activeFile="src/main.tex" />);
+    expect(screen.queryByText("No file selected")).toBeNull();
+    expect(screen.getByText("src")).toBeInTheDocument();
+    expect(screen.getByText("main.tex")).toBeInTheDocument();
+  });
 
-  it('shows single segment for root-level file', () => {
-    render(<Toolbar {...defaults} activeFile="main.tex" />)
-    expect(screen.queryByText('No file selected')).toBeNull()
-    expect(screen.getByText('main.tex')).toBeInTheDocument()
-  })
+  it("shows single segment for root-level file", () => {
+    render(<Toolbar {...defaults} activeFile="main.tex" />);
+    expect(screen.queryByText("No file selected")).toBeNull();
+    expect(screen.getByText("main.tex")).toBeInTheDocument();
+  });
 
-  it('renders clear output action in compile menu and disables it without compiled output', () => {
-    render(<Toolbar {...defaults} hasCompiledOutput={false} />)
+  it("renders clear output action in compile menu and disables it without compiled output", () => {
+    render(<Toolbar {...defaults} hasCompiledOutput={false} />);
 
-    fireEvent.click(screen.getByLabelText('Compile options'))
+    fireEvent.click(screen.getByLabelText("Compile options"));
 
-    const clearButton = screen.getByRole('button', { name: 'Clear compiled output' })
-    expect(clearButton).toBeDisabled()
-  })
+    const clearButton = screen.getByRole("button", {
+      name: "Clear compile output",
+    });
+    expect(clearButton).toBeDisabled();
+  });
 
-  it('invokes clear output action when clicked with compiled output present', () => {
-    const onClearCompileOutput = vi.fn<() => void>()
+  it("invokes clear output action when clicked with compiled output present", () => {
+    const onClearCompileOutput = vi.fn<() => void>();
 
     render(
       <Toolbar
@@ -81,11 +83,13 @@ describe('Toolbar', () => {
         hasCompiledOutput={true}
         onClearCompileOutput={onClearCompileOutput}
       />,
-    )
+    );
 
-    fireEvent.click(screen.getByLabelText('Compile options'))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear compiled output' }))
+    fireEvent.click(screen.getByLabelText("Compile options"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear compile output" }),
+    );
 
-    expect(onClearCompileOutput).toHaveBeenCalledTimes(1)
-  })
-})
+    expect(onClearCompileOutput).toHaveBeenCalledTimes(1);
+  });
+});
