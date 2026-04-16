@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Download, FileText, FileType, Globe, LetterText } from 'lucide-react'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useMenuPosition } from '../hooks/useMenuPosition'
 
 type ProjectFormat = 'latex' | 'typst' | 'markdown' | 'asciidoc'
 
@@ -31,21 +33,31 @@ function getExportOptions(projectFormat: ProjectFormat): ExportOption[] {
 
 export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuProps) {
   const [showMenu, setShowMenu] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const closeMenu = useCallback(() => {
     setShowMenu(false)
   }, [])
+  const menuPosition = useMenuPosition(buttonRef, menuRef, {
+    enabled: showMenu,
+    fallbackWidth: 192,
+  })
 
-  useClickOutside([menuRef], closeMenu, showMenu)
+  useClickOutside([rootRef, menuRef], closeMenu, showMenu)
   useEscapeKey(closeMenu, showMenu)
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="inline-flex" ref={rootRef}>
       <button
+        ref={buttonRef}
+        type="button"
         onClick={() => setShowMenu((prev) => !prev)}
         disabled={exporting}
         title={exporting ? 'Exporting...' : 'Export'}
         aria-label={exporting ? 'Exporting...' : 'Export'}
+        aria-haspopup="menu"
+        aria-expanded={showMenu}
         className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
           exporting
             ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
@@ -62,12 +74,18 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
         )}
       </button>
 
-      {showMenu && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
+      {showMenu && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="fixed z-[100] w-48 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl"
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+        >
           {getExportOptions(projectFormat).map((opt) => (
             <button
               key={opt.format}
               type="button"
+              role="menuitem"
               onClick={() => {
                 closeMenu()
                 onExport(opt.format)
@@ -79,7 +97,8 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
               {opt.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

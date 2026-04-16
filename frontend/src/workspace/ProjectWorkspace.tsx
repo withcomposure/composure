@@ -66,9 +66,9 @@ import {
 } from "../editor/workspace-state";
 import {
   hasAwarenessCursor,
-  restoreVersion,
   uint8ArrayToBase64,
 } from "../utils/page-utils";
+import { restoreVersion } from "../sidebar/history-api";
 import { getErrorMessage } from "../utils/fetch";
 import { makeProjectUrl, navigateToProjects, navigateToSettings } from "../utils/route";
 import {

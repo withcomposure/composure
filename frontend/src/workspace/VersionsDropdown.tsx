@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, History, Tag } from 'lucide-react'
 import type { CommitEntry } from '../types'
-import { fetchHistory } from '../utils/page-utils'
+import { fetchHistory } from '../sidebar/history-api'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useMenuPosition } from '../hooks/useMenuPosition'
 import { fmtRelativeTime } from '../utils/format-time'
 
 interface VersionsDropdownProps {
@@ -15,13 +17,19 @@ interface VersionsDropdownProps {
 export function VersionsDropdown({ projectId, activeFile, onViewDiff }: VersionsDropdownProps) {
   const [open, setOpen] = useState(false)
   const [commitsByTarget, setCommitsByTarget] = useState<Record<string, CommitEntry[]>>({})
-  const containerRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const targetKey = activeFile ? `${projectId}:${activeFile}` : null
   const commits = targetKey ? commitsByTarget[targetKey] : undefined
   const loading = open && targetKey != null && commits == null
   const closeDropdown = useCallback(() => {
     setOpen(false)
   }, [])
+  const menuPosition = useMenuPosition(buttonRef, menuRef, {
+    enabled: open,
+    fallbackWidth: 288,
+  })
 
   useEffect(() => {
     if (!open || !activeFile || !targetKey || commits != null) return
@@ -44,7 +52,7 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
     }
   }, [open, projectId, activeFile, targetKey, commits])
 
-  useClickOutside([containerRef], closeDropdown, open)
+  useClickOutside([rootRef, menuRef], closeDropdown, open)
   useEscapeKey(closeDropdown, open)
 
   const handleSelect = useCallback((sha: string) => {
@@ -55,18 +63,28 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
   if (!activeFile) return null
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="inline-flex" ref={rootRef}>
       <button
+        ref={buttonRef}
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border border-cz-border text-cz-text hover:bg-cz-surface-hover transition-all"
         title="File version history"
         aria-label="File version history"
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         <History size={12} />
         <ChevronDown size={10} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-cz-border bg-cz-surface shadow-xl">
+      {open &&
+        createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="fixed z-[100] w-72 rounded-lg border border-cz-border bg-cz-surface shadow-xl"
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+        >
           <div className="max-h-80 overflow-y-auto p-1.5">
             {loading && (
               <div className="flex items-center gap-2 px-2 py-3 text-xs text-cz-text-muted">
@@ -84,6 +102,7 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
             {!loading && (commits ?? []).map((commit) => (
               <button
                 key={commit.sha}
+                type="button"
                 onClick={() => handleSelect(commit.sha)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-cz-surface-hover"
               >
@@ -110,7 +129,8 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

@@ -6,7 +6,7 @@ import {
   createSnapshotApi,
   fetchChangedFiles,
   fetchHistory,
-} from '../utils/page-utils'
+} from './history-api'
 import { getErrorMessage } from '../utils/fetch'
 import { fmtRelativeTime } from '../utils/format-time'
 

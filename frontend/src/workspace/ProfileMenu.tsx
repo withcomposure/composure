@@ -1,8 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LogIn, LogOut, User } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useMenuPosition } from '../hooks/useMenuPosition'
 
 interface ProfileMenuProps {
   name: string
@@ -25,11 +27,17 @@ export function ProfileMenu({
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const closeMenu = useCallback(() => {
     setOpen(false)
   }, [])
+  const menuPosition = useMenuPosition(buttonRef, menuRef, {
+    enabled: open,
+    fallbackWidth: 256,
+  })
 
-  useClickOutside([rootRef], closeMenu, open)
+  useClickOutside([rootRef, menuRef], closeMenu, open)
   useEscapeKey(closeMenu, open)
 
   if (isGuest) {
@@ -46,18 +54,27 @@ export function ProfileMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="inline-flex">
       <button
+        ref={buttonRef}
+        type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="rounded-full p-0.5 transition-colors hover:bg-cz-surface-hover"
         title={`Open account menu for ${name}`}
         aria-label="Open account menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         <Avatar name={name} imageUrl={imageUrl} size={30} />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-cz-border bg-cz-surface p-4 shadow-2xl">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="fixed z-[100] w-64 rounded-xl border border-cz-border bg-cz-surface p-4 shadow-2xl"
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+        >
           <div className="mb-4 flex flex-col items-center">
             <Avatar name={name} imageUrl={imageUrl} size={52} />
             <div className="mt-2 text-sm font-medium text-cz-text text-center">{name}</div>
@@ -66,6 +83,7 @@ export function ProfileMenu({
 
           <div className="space-y-1">
             <button
+              type="button"
               onClick={() => {
                 closeMenu()
                 onOpenSettings?.()
@@ -76,6 +94,7 @@ export function ProfileMenu({
               Profile
             </button>
             <button
+              type="button"
               onClick={() => {
                 closeMenu()
                 onLogout?.()
@@ -86,7 +105,8 @@ export function ProfileMenu({
               Log out
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
