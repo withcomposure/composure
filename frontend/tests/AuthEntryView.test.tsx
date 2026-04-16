@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AuthEntryView } from '../src/pages/AuthEntryView'
+import { AuthEntryView } from '../src/auth/AuthEntryView'
 
 const defaults = {
   busy: false,

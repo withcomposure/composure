@@ -19,10 +19,11 @@ import {
   Settings,
   Share2,
   Shield,
+  TextCursor,
   Trash2,
 } from "lucide-react";
 import { CustomDropdown } from "../components/CustomDropdown";
-import { ProfileMenu } from "../components/ProfileMenu";
+import { ProfileMenu } from "../workspace/ProfileMenu";
 import { ProjectCard } from "../dashboard/ProjectCard";
 import { ProjectListItem } from "../dashboard/ProjectListItem";
 import type {
@@ -33,7 +34,7 @@ import type {
   SortBy,
   TrashedProjectSummary,
 } from "../types";
-import { guestIdLabel, guestLabel } from "./utils";
+import { guestIdLabel, guestLabel } from "../utils/page-utils";
 import { fmtRelativeTime } from "../utils/format-time";
 
 interface DashboardViewProps {

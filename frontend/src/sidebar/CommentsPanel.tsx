@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import { Avatar } from './Avatar'
+import { Avatar } from '../components/Avatar'
 import type { ProjectComment } from '../types'
 import { fmtTime } from '../utils/format-time'
 

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Tag, Plus, MoreHorizontal, RotateCcw } from 'lucide-react'
 import type { ChangedFile, CommitEntry } from '../types'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
 import {
   createSnapshotApi,
   fetchChangedFiles,
   fetchHistory,
-} from '../pages/utils'
+} from '../utils/page-utils'
 import { getErrorMessage } from '../utils/fetch'
 import { fmtRelativeTime } from '../utils/format-time'
 

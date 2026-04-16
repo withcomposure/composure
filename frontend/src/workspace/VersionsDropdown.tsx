@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, History, Tag } from 'lucide-react'
 import type { CommitEntry } from '../types'
-import { fetchHistory } from '../pages/utils'
+import { fetchHistory } from '../utils/page-utils'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { fmtRelativeTime } from '../utils/format-time'

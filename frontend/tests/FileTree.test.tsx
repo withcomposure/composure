@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as Y from 'yjs'
-import { FileTree } from '../src/components/FileTree'
+import { FileTree } from '../src/sidebar/FileTree'
 
 const realXMLHttpRequest = globalThis.XMLHttpRequest
 

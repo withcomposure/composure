@@ -14,20 +14,20 @@ import Asciidoctor from "@asciidoctor/core";
 import {
   CommentsPanel,
   type CommentLineNumbers,
-} from "../components/CommentsPanel";
-import { FileTree } from "../components/FileTree";
-import { type FileTabsDropPayload } from "../components/FileTabs";
+} from "../sidebar/CommentsPanel";
+import { FileTree } from "../sidebar/FileTree";
+import { type FileTabsDropPayload } from "../editor/FileTabs";
 
-import { HistoryPanel } from "../components/HistoryPanel";
-import { HtmlPreview } from "../components/HtmlPreview";
-import { CompilePreview } from "../components/MediaViewer";
+import { HistoryPanel } from "../sidebar/HistoryPanel";
+import { HtmlPreview } from "../preview/HtmlPreview";
+import { CompilePreview } from "../preview/MediaViewer";
 import { ResizeHandle } from "../components/ResizeHandle";
 import {
   ShareModal,
   type AccessPerson,
   type ShareRole,
-} from "../components/ShareModal";
-import { Toolbar } from "../components/Toolbar";
+} from "./ShareModal";
+import { Toolbar } from "./Toolbar";
 import { EditorPane } from "../editor/EditorPane";
 import { PaneLayout } from "../editor/PaneLayout";
 import { useResizeDrag } from "../hooks/useResizeDrag";
@@ -63,18 +63,18 @@ import {
   type EditorLayoutNode,
   type EditorPaneState,
   type SplitOrientation,
-} from "./workspace-state";
+} from "../editor/workspace-state";
 import {
   hasAwarenessCursor,
   restoreVersion,
   uint8ArrayToBase64,
-} from "./utils";
+} from "../utils/page-utils";
 import { getErrorMessage } from "../utils/fetch";
 import { makeProjectUrl, navigateToProjects, navigateToSettings } from "../utils/route";
 import {
   applyDroppedPathsToPaneState,
   removeDroppedTabPathsFromSource,
-} from "./tab-drop-state";
+} from "../editor/tab-drop-state";
 import { evaluateUtf8Limit, formatBinarySize } from "../utils/text-size";
 import {
   buildSplitGeometry,

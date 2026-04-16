@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyDroppedPathsToPaneState,
-} from '../src/pages/tab-drop-state'
-import type { EditorPaneState } from '../src/pages/workspace-state'
+} from '../src/editor/tab-drop-state'
+import type { EditorPaneState } from '../src/editor/workspace-state'
 
 function pane(tabs: string[], activePath?: string): EditorPaneState {
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { ShareModal } from '../src/components/ShareModal'
+import { ShareModal } from '../src/workspace/ShareModal'
 
 function baseProps() {
   return {

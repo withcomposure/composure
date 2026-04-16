@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, PanelLeft, PanelRightClose, PanelRightOpen, Play, Timer, Trash2 } from 'lucide-react'
-import { ExportMenu } from './ExportMenu'
+import { ExportMenu } from '../sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
-import { Avatar } from './Avatar'
-import { ToggleSwitch } from './ToggleSwitch'
+import { Avatar } from '../components/Avatar'
+import { ToggleSwitch } from '../components/ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
 import type { HistoryState } from '../types'
 

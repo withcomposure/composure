@@ -17,8 +17,8 @@ import {
   Upload,
   type LucideIcon,
 } from 'lucide-react'
-import { PopupDialog } from './PopupDialog'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { PopupDialog } from '../components/PopupDialog'
+import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
 import {
   normalizeWorkspacePath,
   parseFileMetadata,

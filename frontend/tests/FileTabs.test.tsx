@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { FileTabs } from '../src/components/FileTabs'
+import { FileTabs } from '../src/editor/FileTabs'
 import {
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,

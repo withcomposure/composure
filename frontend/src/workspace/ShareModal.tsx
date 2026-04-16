@@ -1,8 +1,8 @@
-import { Avatar } from './Avatar'
+import { Avatar } from '../components/Avatar'
 import { X } from 'lucide-react'
 import { Eye, MessageSquare, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react'
-import { ToggleSwitch } from './ToggleSwitch'
-import { CustomDropdown } from './CustomDropdown'
+import { ToggleSwitch } from '../components/ToggleSwitch'
+import { CustomDropdown } from '../components/CustomDropdown'
 
 export type ShareRole = 'view' | 'comment' | 'edit'
 

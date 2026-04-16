@@ -7,7 +7,7 @@ import {
   getNextSplitIdCounter,
   parsePersistedWorkspaceState,
   type PersistedWorkspaceState,
-} from '../src/pages/workspace-state'
+} from '../src/editor/workspace-state'
 
 describe('workspace-state parsing', () => {
   it('normalizes widths, tabs, and active pane references', () => {

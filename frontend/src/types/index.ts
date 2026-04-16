@@ -1,4 +1,4 @@
-import type { AccessPerson, ShareRole } from '../components/ShareModal'
+import type { AccessPerson, ShareRole } from '../workspace/ShareModal'
 
 export interface ProjectSummary {
   id: string

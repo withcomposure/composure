@@ -1,12 +1,12 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { TemplateGallery } from './components/TemplateGallery'
+import { TemplateGallery } from './dashboard/TemplateGallery'
 import { PopupDialog } from './components/PopupDialog'
-import { AuthEntryView } from './pages/AuthEntryView'
-import { AdministrationView } from './pages/AdministrationView'
-import { DashboardView } from './pages/DashboardView'
-import { ProjectWorkspace } from './pages/ProjectWorkspace'
-import { SettingsView } from './pages/SettingsView'
-import { StatusPage } from './pages/StatusPage'
+import { AuthEntryView } from './auth/AuthEntryView'
+import { AdministrationView } from './admin/AdministrationView'
+import { DashboardView } from './dashboard/DashboardView'
+import { ProjectWorkspace } from './workspace/ProjectWorkspace'
+import { SettingsView } from './settings/SettingsView'
+import { StatusPage } from './auth/StatusPage'
 import type {
   AppPopupState,
   AuthSession,
@@ -23,7 +23,7 @@ import type {
 import {
   guestIdLabel,
   guestLabel,
-} from './pages/utils'
+} from './utils/page-utils'
 import { fetchJson, getErrorMessage } from './utils/fetch'
 import {
   navigateToProject,

@@ -11,7 +11,7 @@ import { fmtTime } from '../utils/format-time'
 import { navigateToAdmin, navigateToProjects } from '../utils/route'
 import {
   buildAvatarDataUrl,
-} from './utils'
+} from '../utils/page-utils'
 
 interface SettingsViewProps {
   session: AuthSession | null

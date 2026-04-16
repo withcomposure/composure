@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expandTemplate } from '../src/components/snippets/engine'
-import { getAdapter } from '../src/components/snippets/adapters/registry'
-import { FormatToolbar } from '../src/components/FormatToolbar'
+import { expandTemplate } from '../src/editor/snippets/engine'
+import { getAdapter } from '../src/editor/snippets/adapters/registry'
+import { FormatToolbar } from '../src/editor/FormatToolbar'
 
 // ── Snippet engine ───────────────────────────────────────────────────────────
 

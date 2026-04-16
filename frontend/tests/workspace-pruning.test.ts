@@ -3,7 +3,7 @@ import {
   shouldEnableWorkspaceStatePersistence,
   shouldReconcileWorkspaceFromFileMap,
   shouldResetWorkspaceForProjectChange,
-} from '../src/pages/workspace-state'
+} from '../src/editor/workspace-state'
 
 describe('workspace pruning guards', () => {
   it('only resets workspace defaults on true project changes', () => {

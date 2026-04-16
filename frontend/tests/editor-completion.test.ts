@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { suggestLatexFilePaths } from '../src/components/editor-completion'
+import { suggestLatexFilePaths } from '../src/editor/editor-completion'
 
 describe('suggestLatexFilePaths', () => {
   it('filters includegraphics paths to image-like extensions', () => {

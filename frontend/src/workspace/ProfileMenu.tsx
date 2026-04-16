@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { LogIn, LogOut, User } from 'lucide-react'
-import { Avatar } from './Avatar'
+import { Avatar } from '../components/Avatar'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 

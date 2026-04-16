@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Toolbar } from "../src/components/Toolbar";
+import { Toolbar } from "../src/workspace/Toolbar";
 
 const defaults = {
   sidebarOpen: true,

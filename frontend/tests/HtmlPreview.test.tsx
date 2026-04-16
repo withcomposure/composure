@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { HtmlPreview } from '../src/components/HtmlPreview'
+import { HtmlPreview } from '../src/preview/HtmlPreview'
 
 describe('HtmlPreview', () => {
   const createObjectUrlMock = vi.fn<(obj: Blob | MediaSource) => string>(() => 'blob:preview-test-url')
