@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { TemplateGallery, type ProjectTemplate } from './components/TemplateGallery'
+import { TemplateGallery } from './components/TemplateGallery'
 import { PopupDialog } from './components/PopupDialog'
 import { AuthEntryView } from './pages/AuthEntryView'
 import { AdministrationView } from './pages/AdministrationView'
@@ -11,6 +11,7 @@ import type {
   AppPopupState,
   AuthSession,
   DashboardLayout,
+  ProjectTemplate,
   ProjectSummary,
   RecentProjectSummary,
   RouteState,
@@ -18,21 +19,24 @@ import type {
   SortBy,
   TrashedProjectSummary,
   UserPreferences,
-} from './pages/types'
+} from './types'
 import {
-  fetchJson,
-  getDashboardPrincipalKey,
-  getErrorMessage,
   guestIdLabel,
   guestLabel,
-  loadDashboardPreferences,
+} from './pages/utils'
+import { fetchJson, getErrorMessage } from './utils/fetch'
+import {
   navigateToProject,
   navigateToProjects,
   navigateToAdmin,
   navigateToSettings,
   parseRoute,
+} from './utils/route'
+import {
+  getDashboardPrincipalKey,
+  loadDashboardPreferences,
   saveDashboardPreferences,
-} from './pages/utils'
+} from './dashboard/dashboard-prefs'
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())

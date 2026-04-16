@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChevronDown, Download, FileText, FileType, Globe, LetterText } from 'lucide-react'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 type ProjectFormat = 'latex' | 'typst' | 'markdown' | 'asciidoc'
 
@@ -30,17 +32,12 @@ function getExportOptions(projectFormat: ProjectFormat): ExportOption[] {
 export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuProps) {
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const closeMenu = useCallback(() => {
+    setShowMenu(false)
+  }, [])
 
-  useEffect(() => {
-    if (!showMenu) return
-    const handle = (e: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-    window.addEventListener('pointerdown', handle, true)
-    return () => window.removeEventListener('pointerdown', handle, true)
-  }, [showMenu])
+  useClickOutside([menuRef], closeMenu, showMenu)
+  useEscapeKey(closeMenu, showMenu)
 
   return (
     <div className="relative" ref={menuRef}>
@@ -72,7 +69,7 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
               key={opt.format}
               type="button"
               onClick={() => {
-                setShowMenu(false)
+                closeMenu()
                 onExport(opt.format)
               }}
               disabled={exporting}

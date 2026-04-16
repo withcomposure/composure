@@ -26,14 +26,14 @@ import {
   withFileId,
   type FileMetadata,
   type NodeType,
-} from '../shared/file-metadata'
+} from '../utils/file-metadata'
 import {
   hasDataTransferType,
   readComposureDragData,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
   writeComposureDragPayload,
-} from '../shared/drag-data'
+} from '../utils/drag-data'
 
 // ---------------------------------------------------------------------------
 // Types

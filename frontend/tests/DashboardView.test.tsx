@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DashboardView } from '../src/pages/DashboardView'
-import type { AuthSession, ProjectSummary, RecentProjectSummary } from '../src/pages/types'
+import type { AuthSession, ProjectSummary, RecentProjectSummary } from '../src/types'
 
 const now = Math.floor(Date.now() / 1000)
 

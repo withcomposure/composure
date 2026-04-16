@@ -169,3 +169,35 @@ export interface HistoryState {
   filePath: string
   diffMode: 'side-by-side' | 'inline'
 }
+
+export interface ProjectComment {
+  id: string
+  projectId: string
+  filePath: string
+  startLine: number | null
+  endLine: number | null
+  parentCommentId: string | null
+  body: string
+  authorUserId: string | null
+  authorGuestId: string | null
+  authorDisplayName: string
+  authorProfileImageUrl: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface WorkspaceTab {
+  path: string
+  isEphemeral: boolean
+}
+
+export interface ProjectTemplate {
+  id: string
+  name: string
+  description: string
+  engine: 'typst' | 'latex' | 'markdown' | 'asciidoc'
+  category: string
+  tags: string[]
+  entrypoint: string
+  isBlank: boolean
+}

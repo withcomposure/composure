@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, History, Tag } from 'lucide-react'
-import type { CommitEntry } from '../pages/types'
-import { fetchHistory, fmtRelativeTime } from '../pages/utils'
+import type { CommitEntry } from '../types'
+import { fetchHistory } from '../pages/utils'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { fmtRelativeTime } from '../utils/format-time'
 
 interface VersionsDropdownProps {
   projectId: string
@@ -16,6 +19,9 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
   const targetKey = activeFile ? `${projectId}:${activeFile}` : null
   const commits = targetKey ? commitsByTarget[targetKey] : undefined
   const loading = open && targetKey != null && commits == null
+  const closeDropdown = useCallback(() => {
+    setOpen(false)
+  }, [])
 
   useEffect(() => {
     if (!open || !activeFile || !targetKey || commits != null) return
@@ -38,21 +44,13 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
     }
   }, [open, projectId, activeFile, targetKey, commits])
 
-  useEffect(() => {
-    if (!open) return
-    const handle = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    window.addEventListener('pointerdown', handle, true)
-    return () => window.removeEventListener('pointerdown', handle, true)
-  }, [open])
+  useClickOutside([containerRef], closeDropdown, open)
+  useEscapeKey(closeDropdown, open)
 
   const handleSelect = useCallback((sha: string) => {
-    setOpen(false)
+    closeDropdown()
     onViewDiff(sha, activeFile)
-  }, [activeFile, onViewDiff])
+  }, [activeFile, closeDropdown, onViewDiff])
 
   if (!activeFile) return null
 

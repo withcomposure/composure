@@ -5,7 +5,7 @@ import { ProfileMenu } from './ProfileMenu'
 import { Avatar } from './Avatar'
 import { ToggleSwitch } from './ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
-import type { HistoryState } from '../pages/types'
+import type { HistoryState } from '../types'
 
 export interface ActiveEditor {
   clientId: number

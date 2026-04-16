@@ -4,14 +4,13 @@ import { Avatar } from '../components/Avatar'
 import { NumberStepper } from '../components/NumberStepper'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import type { AuthSession, SessionSummary, UserPreferences } from './types'
+import { useSectionObserver } from '../hooks/useSectionObserver'
+import type { AuthSession, SessionSummary, UserPreferences } from '../types'
+import { fetchJson, getErrorMessage } from '../utils/fetch'
+import { fmtTime } from '../utils/format-time'
+import { navigateToAdmin, navigateToProjects } from '../utils/route'
 import {
   buildAvatarDataUrl,
-  fetchJson,
-  fmtTime,
-  getErrorMessage,
-  navigateToAdmin,
-  navigateToProjects,
 } from './utils'
 
 interface SettingsViewProps {
@@ -61,24 +60,7 @@ export function SettingsView({
     danger: null,
   })
 
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
-      if (visible[0]) {
-        setActiveSection(
-          visible[0].target.id as 'profile' | 'security' | 'appearance' | 'typesetting' | 'history' | 'danger',
-        )
-      }
-    }, { rootMargin: '-20% 0px -60% 0px', threshold: [0.2, 0.6] })
-
-    Object.values(sectionRefs.current).forEach((node) => {
-      if (node) observer.observe(node)
-    })
-
-    return () => observer.disconnect()
-  }, [])
+  useSectionObserver(sectionRefs, setActiveSection)
 
   useEffect(() => {
     setProfileName(session?.user?.displayName ?? '')

@@ -20,7 +20,6 @@ import Asciidoctor from "@asciidoctor/core";
 import {
   CommentsPanel,
   type CommentLineNumbers,
-  type ProjectComment,
 } from "../components/CommentsPanel";
 import { DiffView } from "../components/DiffView";
 import { Editor } from "../components/Editor";
@@ -28,7 +27,6 @@ import { FileTree } from "../components/FileTree";
 import {
   FileTabs,
   type FileTabsDropPayload,
-  type WorkspaceTab,
 } from "../components/FileTabs";
 
 import { HistoryPanel } from "../components/HistoryPanel";
@@ -45,23 +43,26 @@ import {
   type ShareRole,
 } from "../components/ShareModal";
 import { Toolbar } from "../components/Toolbar";
+import { useResizeDrag } from "../hooks/useResizeDrag";
 import type {
   ActiveCollaborator,
   ConnectionState,
   EditorMode,
   HistoryState,
+  ProjectComment,
   ProjectAccessResponse,
   SessionUser,
-} from "./types";
+  WorkspaceTab,
+} from "../types";
 import {
   parseFileMetadata,
   withFileId,
   type FileMetadata,
-} from "../shared/file-metadata";
+} from "../utils/file-metadata";
 import {
   detectProjectFormatFromFilename,
   type ProjectFormat,
-} from "../shared/project-format";
+} from "../utils/project-format";
 import {
   ROOT_PANE_ID,
   buildPersistedWorkspaceState,
@@ -77,26 +78,24 @@ import {
   type SplitOrientation,
 } from "./workspace-state";
 import {
-  getErrorMessage,
   hasAwarenessCursor,
-  makeProjectUrl,
-  navigateToProjects,
-  navigateToSettings,
   restoreVersion,
   uint8ArrayToBase64,
 } from "./utils";
+import { getErrorMessage } from "../utils/fetch";
+import { makeProjectUrl, navigateToProjects, navigateToSettings } from "../utils/route";
 import {
   applyDroppedPathsToPaneState,
   removeDroppedTabPathsFromSource,
 } from "./tab-drop-state";
-import { evaluateUtf8Limit, formatBinarySize } from "../shared/text-size";
+import { evaluateUtf8Limit, formatBinarySize } from "../utils/text-size";
 import {
   readComposureDragData,
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
-} from "../shared/drag-data";
+} from "../utils/drag-data";
 
 interface ProjectWorkspaceProps {
   projectId: string;
@@ -2745,70 +2744,54 @@ export function ProjectWorkspace({
     setLinkToken(body.token);
   }, [projectId, shareHeaders, onPopupAlert]);
 
+  const startResizeDrag = useResizeDrag();
+
   const resizeSidebar = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
       const startX = event.clientX;
       const startWidth = sidebarWidthRef.current;
-      setIsResizingSidebar(true);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-
-      const onMove = (moveEvent: MouseEvent) => {
-        const delta = moveEvent.clientX - startX;
-        const nextWidth = Math.min(420, Math.max(180, startWidth + delta));
-        if (nextWidth !== sidebarWidthRef.current) {
-          sidebarWidthRef.current = nextWidth;
-          setSidebarWidth(nextWidth);
-        }
-      };
-
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        window.removeEventListener("blur", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        setIsResizingSidebar(false);
-      };
-
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("blur", onUp);
+      startResizeDrag(event, {
+        cursor: "col-resize",
+        onStart: () => {
+          setIsResizingSidebar(true);
+        },
+        onMove: (moveEvent) => {
+          const delta = moveEvent.clientX - startX;
+          const nextWidth = Math.min(420, Math.max(180, startWidth + delta));
+          if (nextWidth !== sidebarWidthRef.current) {
+            sidebarWidthRef.current = nextWidth;
+            setSidebarWidth(nextWidth);
+          }
+        },
+        onEnd: () => {
+          setIsResizingSidebar(false);
+        },
+      });
     },
-    [],
+    [startResizeDrag],
   );
 
   const resizePreview = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
       const startX = event.clientX;
       const startWidth = previewWidth;
-      setIsResizingPreview(true);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-
-      const onMove = (moveEvent: MouseEvent) => {
-        const delta = startX - moveEvent.clientX;
-        const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
-        const maxWidth = Math.max(380, layoutWidth - 380);
-        setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)));
-      };
-
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        window.removeEventListener("blur", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        setIsResizingPreview(false);
-      };
-
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("blur", onUp);
+      startResizeDrag(event, {
+        cursor: "col-resize",
+        onStart: () => {
+          setIsResizingPreview(true);
+        },
+        onMove: (moveEvent) => {
+          const delta = startX - moveEvent.clientX;
+          const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
+          const maxWidth = Math.max(380, layoutWidth - 380);
+          setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)));
+        },
+        onEnd: () => {
+          setIsResizingPreview(false);
+        },
+      });
     },
-    [previewWidth],
+    [previewWidth, startResizeDrag],
   );
 
   const resizeEditorSplit = useCallback(
@@ -2817,7 +2800,6 @@ export function ProjectWorkspace({
       splitId: string,
       orientation: SplitOrientation,
     ) => {
-      event.preventDefault();
       event.stopPropagation();
       const container = event.currentTarget.parentElement;
       if (!container) {
@@ -2832,43 +2814,29 @@ export function ProjectWorkspace({
 
       const startX = event.clientX;
       const startY = event.clientY;
-      document.body.style.cursor =
-        orientation === "horizontal" ? "col-resize" : "row-resize";
-      document.body.style.userSelect = "none";
-
-      const onMove = (moveEvent: MouseEvent) => {
-        const axisSize =
-          orientation === "horizontal"
-            ? Math.max(1, containerRect.width)
-            : Math.max(1, containerRect.height);
-        const delta =
-          orientation === "horizontal"
-            ? moveEvent.clientX - startX
-            : moveEvent.clientY - startY;
-        const nextRatio = clampSplitRatio(
-          (startRatio * axisSize + delta) / axisSize,
-        );
-        setEditorLayout((prev) => updateSplitRatio(prev, splitId, nextRatio));
-      };
-
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        window.removeEventListener("blur", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("blur", onUp);
+      startResizeDrag(event, {
+        cursor: orientation === "horizontal" ? "col-resize" : "row-resize",
+        onMove: (moveEvent) => {
+          const axisSize =
+            orientation === "horizontal"
+              ? Math.max(1, containerRect.width)
+              : Math.max(1, containerRect.height);
+          const delta =
+            orientation === "horizontal"
+              ? moveEvent.clientX - startX
+              : moveEvent.clientY - startY;
+          const nextRatio = clampSplitRatio(
+            (startRatio * axisSize + delta) / axisSize,
+          );
+          setEditorLayout((prev) => updateSplitRatio(prev, splitId, nextRatio));
+        },
+      });
     },
-    [editorLayout],
+    [editorLayout, startResizeDrag],
   );
 
   const resizeEditorCorner = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, corner: SplitCornerTarget) => {
-      event.preventDefault();
       event.stopPropagation();
 
       const xSplitGeometry = splitGeometry.byId[corner.xSplitId];
@@ -2888,39 +2856,31 @@ export function ProjectWorkspace({
       const xAxisSize = Math.max(1, xSplitGeometry.rect.width);
       const yAxisSize = Math.max(1, ySplitGeometry.rect.height);
 
-      setHoveredCornerKey(corner.key);
-      setDraggingCornerSplitIds([corner.xSplitId, corner.ySplitId]);
-      document.body.style.cursor = "move";
-      document.body.style.userSelect = "none";
+      startResizeDrag(event, {
+        cursor: "move",
+        onStart: () => {
+          setHoveredCornerKey(corner.key);
+          setDraggingCornerSplitIds([corner.xSplitId, corner.ySplitId]);
+        },
+        onMove: (moveEvent) => {
+          const nextXRatio = clampSplitRatio(
+            (startXRatio * xAxisSize + (moveEvent.clientX - startX)) / xAxisSize,
+          );
+          const nextYRatio = clampSplitRatio(
+            (startYRatio * yAxisSize + (moveEvent.clientY - startY)) / yAxisSize,
+          );
 
-      const onMove = (moveEvent: MouseEvent) => {
-        const nextXRatio = clampSplitRatio(
-          (startXRatio * xAxisSize + (moveEvent.clientX - startX)) / xAxisSize,
-        );
-        const nextYRatio = clampSplitRatio(
-          (startYRatio * yAxisSize + (moveEvent.clientY - startY)) / yAxisSize,
-        );
-
-        setEditorLayout((prev) => {
-          const withX = updateSplitRatio(prev, corner.xSplitId, nextXRatio);
-          return updateSplitRatio(withX, corner.ySplitId, nextYRatio);
-        });
-      };
-
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        window.removeEventListener("blur", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        setDraggingCornerSplitIds(null);
-      };
-
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("blur", onUp);
+          setEditorLayout((prev) => {
+            const withX = updateSplitRatio(prev, corner.xSplitId, nextXRatio);
+            return updateSplitRatio(withX, corner.ySplitId, nextYRatio);
+          });
+        },
+        onEnd: () => {
+          setDraggingCornerSplitIds(null);
+        },
+      });
     },
-    [editorLayout, splitGeometry.byId],
+    [editorLayout, splitGeometry.byId, startResizeDrag],
   );
 
   const openDroppedPathsInPane = useCallback(

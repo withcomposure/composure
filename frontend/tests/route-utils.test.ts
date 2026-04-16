@@ -10,7 +10,7 @@ function setLocation(pathname: string, search = '') {
 
 // We dynamically import the function after setting window.location
 async function getParser() {
-  const mod = await import('../src/pages/utils')
+  const mod = await import('../src/utils/route')
   return mod.parseRoute
 }
 
@@ -100,24 +100,24 @@ describe('parseRoute', () => {
 
 describe('isValidProjectId', () => {
   it('accepts valid 32-char hex ID', async () => {
-    const { isValidProjectId } = await import('../src/pages/utils')
+    const { isValidProjectId } = await import('../src/utils/route')
     expect(isValidProjectId('11a0ec5340b04612b57194f60da95db7')).toBe(true)
   })
 
   it('rejects short strings', async () => {
-    const { isValidProjectId } = await import('../src/pages/utils')
+    const { isValidProjectId } = await import('../src/utils/route')
     expect(isValidProjectId('short')).toBe(false)
   })
 
   it('rejects strings with invalid characters', async () => {
-    const { isValidProjectId } = await import('../src/pages/utils')
+    const { isValidProjectId } = await import('../src/utils/route')
     expect(isValidProjectId('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ')).toBe(false)
   })
 })
 
 describe('fmtRelativeTime', () => {
   it('returns "Less than 1m ago" for timestamps within the last 60 seconds', async () => {
-    const { fmtRelativeTime } = await import('../src/pages/utils')
+    const { fmtRelativeTime } = await import('../src/utils/format-time')
     const now = Math.floor(Date.now() / 1000)
     expect(fmtRelativeTime(now)).toBe('Less than 1m ago')
     expect(fmtRelativeTime(now - 30)).toBe('Less than 1m ago')
@@ -125,21 +125,21 @@ describe('fmtRelativeTime', () => {
   })
 
   it('returns minutes for 60-3599 seconds ago', async () => {
-    const { fmtRelativeTime } = await import('../src/pages/utils')
+    const { fmtRelativeTime } = await import('../src/utils/format-time')
     const now = Math.floor(Date.now() / 1000)
     expect(fmtRelativeTime(now - 60)).toBe('1m ago')
     expect(fmtRelativeTime(now - 300)).toBe('5m ago')
   })
 
   it('returns hours for timestamps hours ago', async () => {
-    const { fmtRelativeTime } = await import('../src/pages/utils')
+    const { fmtRelativeTime } = await import('../src/utils/format-time')
     const now = Math.floor(Date.now() / 1000)
     expect(fmtRelativeTime(now - 3600)).toBe('1h ago')
     expect(fmtRelativeTime(now - 7200)).toBe('2h ago')
   })
 
   it('returns days for timestamps days ago', async () => {
-    const { fmtRelativeTime } = await import('../src/pages/utils')
+    const { fmtRelativeTime } = await import('../src/utils/format-time')
     const now = Math.floor(Date.now() / 1000)
     expect(fmtRelativeTime(now - 86400)).toBe('1d ago')
     expect(fmtRelativeTime(now - 172800)).toBe('2d ago')

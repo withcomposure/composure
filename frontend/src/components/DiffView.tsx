@@ -4,8 +4,9 @@ import { EditorState } from '@codemirror/state'
 import { EditorView, lineNumbers } from '@codemirror/view'
 import { MergeView } from '@codemirror/merge'
 import { unifiedMergeView } from '@codemirror/merge'
-import type { FileDiff } from '../pages/types'
-import { fetchFileDiff, getErrorMessage, restoreFile } from '../pages/utils'
+import type { FileDiff } from '../types'
+import { fetchFileDiff, restoreFile } from '../pages/utils'
+import { getErrorMessage } from '../utils/fetch'
 
 interface DiffViewProps {
   projectId: string

@@ -1,17 +1,7 @@
 import { useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { projectFormatLabel } from '../shared/project-format'
-
-export interface ProjectTemplate {
-  id: string
-  name: string
-  description: string
-  engine: 'typst' | 'latex' | 'markdown' | 'asciidoc'
-  category: string
-  tags: string[]
-  entrypoint: string
-  isBlank: boolean
-}
+import { projectFormatLabel } from '../utils/project-format'
+import type { ProjectTemplate } from '../types'
 
 interface TemplateGalleryProps {
   templates: ProjectTemplate[]

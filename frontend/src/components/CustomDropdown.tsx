@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, type LucideIcon } from 'lucide-react'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useMenuPosition } from '../hooks/useMenuPosition'
 
 interface DropdownOption<T extends string> {
   value: T
@@ -27,53 +30,18 @@ export function CustomDropdown<T extends string>({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+  }, [])
+  const menuPosition = useMenuPosition(buttonRef, menuRef, {
+    enabled: open,
+    fallbackWidth: 176,
+  })
 
   const selected = options.find((option) => option.value === value) ?? options[0]
 
-  useEffect(() => {
-    if (!open) return
-
-    const updatePosition = () => {
-      if (!buttonRef.current) return
-      const rect = buttonRef.current.getBoundingClientRect()
-      const viewportPadding = 8
-      const fallbackWidth = 176
-      const menuWidth = menuRef.current?.offsetWidth ?? fallbackWidth
-      let left = rect.right - menuWidth
-      left = Math.max(viewportPadding, Math.min(left, window.innerWidth - menuWidth - viewportPadding))
-      let top = rect.bottom + 4
-      const maxTop = window.innerHeight - viewportPadding
-      if (top > maxTop) top = maxTop
-      setMenuPosition({ top, left })
-    }
-
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      const clickedInside = rootRef.current?.contains(target)
-      const clickedMenu = menuRef.current?.contains(target)
-      if (!clickedInside && !clickedMenu) {
-        setOpen(false)
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown, true)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true)
-    }
-  }, [open])
+  useClickOutside([rootRef, menuRef], closeMenu, open)
+  useEscapeKey(closeMenu, open)
 
   if (!selected) return null
 
@@ -113,7 +81,7 @@ export function CustomDropdown<T extends string>({
                   aria-selected={active}
                   onClick={() => {
                     onChange(option.value)
-                    setOpen(false)
+                    closeMenu()
                   }}
                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
                     active ? 'bg-cz-accent-muted text-cz-text' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateUtf8Limit, formatBinarySize, utf8ByteLength } from '../src/shared/text-size'
+import { evaluateUtf8Limit, formatBinarySize, utf8ByteLength } from '../src/utils/text-size'
 
 describe('text-size helpers', () => {
   it('calculates UTF-8 byte length', () => {

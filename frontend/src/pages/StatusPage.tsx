@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
-import { navigateToProjects } from './utils'
+import { navigateToProjects } from '../utils/route'
 
 interface StatusPageProps {
   code: 403 | 404

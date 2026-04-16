@@ -8,12 +8,8 @@ import {
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
   writeComposureDragPayload,
-} from '../shared/drag-data'
-
-export interface WorkspaceTab {
-  path: string
-  isEphemeral: boolean
-}
+} from '../utils/drag-data'
+import type { WorkspaceTab } from '../types'
 
 export interface FileTabsDropPayload {
   paths: string[]

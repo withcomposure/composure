@@ -27,7 +27,10 @@ import { NumberStepper } from '../components/NumberStepper'
 import { PopupDialog } from '../components/PopupDialog'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import { fmtTime, fmtRelativeTime, fetchJson, getErrorMessage, navigateToProjects, navigateToSettings } from './utils'
+import { useSectionObserver } from '../hooks/useSectionObserver'
+import { fetchJson, getErrorMessage } from '../utils/fetch'
+import { fmtTime, fmtRelativeTime } from '../utils/format-time'
+import { navigateToProjects, navigateToSettings } from '../utils/route'
 
 interface AdminUser {
   id: string
@@ -132,6 +135,7 @@ interface AdministrationViewProps {
 }
 
 type RoleOption = 'user' | 'admin'
+type AdminSectionId = 'users' | 'server' | 'invitations' | 'email' | 'monitoring'
 
 const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof User }> = [
   { value: 'user', label: 'User', icon: User },
@@ -225,7 +229,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
 
-  const [activeSection, setActiveSection] = useState<'users' | 'server' | 'invitations' | 'email' | 'monitoring'>('users')
+  const [activeSection, setActiveSection] = useState<AdminSectionId>('users')
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState('')
@@ -720,7 +724,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
   const isSelfEditing = editingUser?.id === currentUserId
 
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({
+  const sectionRefs = useRef<Record<AdminSectionId, HTMLElement | null>>({
     users: null,
     server: null,
     invitations: null,
@@ -728,25 +732,13 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     monitoring: null,
   })
 
-  useEffect(() => {
-    const mainEl = document.getElementById('admin-main-scroll')
-    if (!mainEl) return
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
-      if (visible[0]) {
-        const id = visible[0].target.id.replace('admin-section-', '')
-        setActiveSection(id as typeof activeSection)
-      }
-    }, { root: mainEl, rootMargin: '-20% 0px -60% 0px', threshold: [0.2, 0.6] })
-
-    Object.values(sectionRefs.current).forEach((node) => {
-      if (node) observer.observe(node)
-    })
-
-    return () => observer.disconnect()
-  }, [])
+  useSectionObserver(sectionRefs, setActiveSection, {
+    rootId: 'admin-main-scroll',
+    getSectionId: (entry) => {
+      const normalizedId = entry.target.id.replace('admin-section-', '')
+      return normalizedId as AdminSectionId
+    },
+  })
 
   return (
     <div className="flex h-screen bg-cz-bg text-cz-text">
@@ -776,7 +768,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 <button
                   key={item.id}
                   onClick={() =>
-                    sectionRefs.current[item.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    sectionRefs.current[item.id as AdminSectionId]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }
                   className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
                 >

@@ -1,22 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Avatar } from './Avatar'
-
-export interface ProjectComment {
-  id: string
-  projectId: string
-  filePath: string
-  startLine: number | null
-  endLine: number | null
-  parentCommentId: string | null
-  body: string
-  authorUserId: string | null
-  authorGuestId: string | null
-  authorDisplayName: string
-  authorProfileImageUrl: string | null
-  createdAt: number
-  updatedAt: number
-}
+import type { ProjectComment } from '../types'
+import { fmtTime } from '../utils/format-time'
 
 export interface CommentLineNumbers {
   startLine: number | null
@@ -43,16 +29,6 @@ interface CommentsPanelProps {
   }) => Promise<void>
   onEditComment: (commentId: string, body: string) => Promise<void>
   onDeleteComment: (commentId: string) => Promise<void>
-}
-
-function fmtTime(epochSeconds: number): string {
-  return new Date(epochSeconds * 1000).toLocaleString(undefined, {
-    "year": "numeric",
-    "month": "numeric",
-    "day": "numeric",
-    "hour": "numeric",
-    "minute": "numeric"
-  })
 }
 
 function getEffectiveCommentLines(

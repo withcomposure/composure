@@ -53,8 +53,9 @@ import {
 import { oneDark } from './editor-theme'
 import { detectEditorLanguage, languageAwareCompletion } from './editor-completion'
 import { FormatToolbar } from './FormatToolbar'
-import type { ProjectComment } from './CommentsPanel'
-import { evaluateUtf8Limit } from '../shared/text-size'
+import type { ProjectComment } from '../types'
+import { evaluateUtf8Limit } from '../utils/text-size'
+import { fmtTime } from '../utils/format-time'
 
 interface EditorProps {
   ydoc: Y.Doc
@@ -1012,10 +1013,6 @@ class ComposureSearchPanel implements Panel {
 
 function createComposureSearchPanel(view: EditorView): Panel {
   return new ComposureSearchPanel(view)
-}
-
-function fmtTime(epochSeconds: number): string {
-  return new Date(epochSeconds * 1000).toLocaleString()
 }
 
 export function Editor({

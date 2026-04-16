@@ -6,7 +6,7 @@ import {
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,
   writeComposureDragPayload,
-} from '../src/shared/drag-data'
+} from '../src/utils/drag-data'
 
 describe('FileTabs', () => {
   it('renders and handles snippet toolbar toggle button', async () => {

@@ -32,9 +32,10 @@ import type {
   RecentProjectSummary,
   SortBy,
   TrashedProjectSummary,
-} from "./types";
-import { fmtRelativeTime, guestIdLabel, guestLabel } from "./utils";
-import { projectTypeLabelFromRootFile } from "../shared/project-format";
+} from "../types";
+import { guestIdLabel, guestLabel } from "./utils";
+import { fmtRelativeTime } from "../utils/format-time";
+import { projectTypeLabelFromRootFile } from "../utils/project-format";
 
 interface DashboardViewProps {
   projects: ProjectSummary[];

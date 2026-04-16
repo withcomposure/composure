@@ -1,14 +1,10 @@
 import type {
-  AuthSession,
   ChangedFile,
   CommitEntry,
-  DashboardLayout,
-  DashboardPreferencesState,
   FileDiff,
-  RouteState,
   SnapshotEntry,
-  SortBy,
-} from './types'
+} from '../types'
+import { fetchJson } from '../utils/fetch'
 
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = ''
@@ -20,121 +16,11 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-export function isValidProjectId(id: string): boolean {
-  return /^[a-f0-9]{32}$/.test(id)
-}
-
 export function hasAwarenessCursor(cursor: unknown): cursor is { anchor: unknown; head: unknown } {
   if (!cursor || typeof cursor !== 'object') return false
   const maybeCursor = cursor as { anchor?: unknown; head?: unknown }
   return maybeCursor.anchor != null && maybeCursor.head != null
 }
-
-export function parseRoute(): RouteState {
-  const pathname = window.location.pathname || '/'
-  const query = new URLSearchParams(window.location.search)
-
-  if (pathname === '/' || pathname === '/index.html' || pathname === '/projects') {
-    return { kind: 'projects' }
-  }
-
-  if (pathname === '/settings' || pathname === '/account') {
-    return { kind: 'settings' }
-  }
-
-  if (pathname === '/admin') {
-    return { kind: 'admin' }
-  }
-
-  if (pathname === '/reset-password') {
-    const token = query.get('token') ?? undefined
-    if (token) return { kind: 'reset-password', token }
-  }
-
-  if (pathname === '/invite') {
-    const token = query.get('token') ?? undefined
-    if (token) return { kind: 'invite', token }
-  }
-
-  const projectMatch = pathname.match(/^\/project\/([a-f0-9]{32})$/)
-  if (projectMatch) {
-    const shareToken = query.get('share') ?? undefined
-    return { kind: 'project', projectId: projectMatch[1], shareToken }
-  }
-
-  return { kind: 'not-found', path: pathname }
-}
-
-function dispatchRouteChange(): void {
-  window.dispatchEvent(new PopStateEvent('popstate'))
-}
-
-export function navigateToProjects(): void {
-  history.pushState(null, '', '/')
-  dispatchRouteChange()
-}
-
-export function navigateToSettings(): void {
-  history.pushState(null, '', '/settings')
-  dispatchRouteChange()
-}
-
-export function navigateToAdmin(): void {
-  history.pushState(null, '', '/admin')
-  dispatchRouteChange()
-}
-
-export function navigateToProject(projectId: string, shareToken?: string): void {
-  history.pushState(null, '', makeProjectUrl(projectId, shareToken))
-  dispatchRouteChange()
-}
-
-export function makeProjectUrl(projectId: string, shareToken?: string): string {
-  if (!shareToken) {
-    return `/project/${projectId}`
-  }
-  return `/project/${projectId}?share=${encodeURIComponent(shareToken)}`
-}
-
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    credentials: 'same-origin',
-    ...init,
-  })
-
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({ error: 'Request failed' }))) as {
-      error?: string
-    }
-    throw new Error(String(body.error ?? 'Request failed'))
-  }
-
-  return (await res.json()) as T
-}
-
-export function fmtTime(epochSeconds: number): string {
-  return new Date(epochSeconds * 1000).toLocaleString()
-}
-
-export function fmtRelativeTime(epochSeconds: number): string {
-  const seconds = Math.max(1, Math.floor(Date.now() / 1000) - epochSeconds)
-  if (seconds < 60) return 'Less than 1m ago'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
-}
-
-export function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
-}
-
-export const DASHBOARD_PREFS_STORAGE_KEY = 'composure.dashboard-preferences.v1'
 export const AVATAR_MAX_BYTES = 256 * 1024
 
 export function dataUrlPayloadBytes(dataUrl: string): number {
@@ -144,61 +30,6 @@ export function dataUrlPayloadBytes(dataUrl: string): number {
   const paddingMatch = payload.match(/=+$/)
   const padding = paddingMatch ? paddingMatch[0].length : 0
   return Math.max(0, Math.floor((payload.length * 3) / 4) - padding)
-}
-
-export function validateSortBy(input: unknown): SortBy {
-  return input === 'created' || input === 'title' || input === 'last-active'
-    ? input
-    : 'last-active'
-}
-
-export function validateLayout(input: unknown): DashboardLayout {
-  return input === 'list' || input === 'grid' ? input : 'grid'
-}
-
-export function loadDashboardPreferences(principalKey: string): DashboardPreferencesState {
-  const defaults: DashboardPreferencesState = {
-    sortBy: 'last-active',
-    layout: 'grid',
-    pinnedProjectIds: [],
-  }
-
-  try {
-    const raw = window.localStorage.getItem(`${DASHBOARD_PREFS_STORAGE_KEY}:${principalKey}`)
-    if (!raw) return defaults
-    const parsed = JSON.parse(raw) as Partial<DashboardPreferencesState>
-    const pinned = Array.isArray(parsed.pinnedProjectIds)
-      ? parsed.pinnedProjectIds.filter(
-          (id): id is string => typeof id === 'string' && id.trim().length > 0,
-        )
-      : []
-    return {
-      sortBy: validateSortBy(parsed.sortBy),
-      layout: validateLayout(parsed.layout),
-      pinnedProjectIds: pinned,
-    }
-  } catch {
-    return defaults
-  }
-}
-
-export function saveDashboardPreferences(
-  principalKey: string,
-  preferences: DashboardPreferencesState,
-): void {
-  window.localStorage.setItem(
-    `${DASHBOARD_PREFS_STORAGE_KEY}:${principalKey}`,
-    JSON.stringify(preferences),
-  )
-}
-
-export function getDashboardPrincipalKey(session: AuthSession | null): string {
-  if (session?.authenticated && session.user?.id) {
-    return `user:${session.user.id}`
-  }
-
-  const guestId = session?.principal.guestId
-  return guestId ? `guest:${guestId}` : 'guest:anonymous'
 }
 
 export async function loadImageElement(file: File): Promise<HTMLImageElement> {

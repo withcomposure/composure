@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeWorkspacePath } from '../src/shared/file-metadata'
+import { normalizeWorkspacePath } from '../src/utils/file-metadata'
 
 describe('normalizeWorkspacePath', () => {
   it('returns simple name unchanged', () => {

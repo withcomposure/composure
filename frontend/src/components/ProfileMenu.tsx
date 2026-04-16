@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { LogIn, LogOut, User } from 'lucide-react'
 import { Avatar } from './Avatar'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface ProfileMenuProps {
   name: string
@@ -23,21 +25,12 @@ export function ProfileMenu({
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+  }, [])
 
-  useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown, true)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true)
-    }
-  }, [open])
+  useClickOutside([rootRef], closeMenu, open)
+  useEscapeKey(closeMenu, open)
 
   if (isGuest) {
     return (
@@ -74,7 +67,7 @@ export function ProfileMenu({
           <div className="space-y-1">
             <button
               onClick={() => {
-                setOpen(false)
+                closeMenu()
                 onOpenSettings?.()
               }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
@@ -84,7 +77,7 @@ export function ProfileMenu({
             </button>
             <button
               onClick={() => {
-                setOpen(false)
+                closeMenu()
                 onLogout?.()
               }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-red-300 hover:bg-red-500/10"
