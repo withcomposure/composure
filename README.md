@@ -47,6 +47,137 @@ For split mode, copy `.env.split.example` to `.env.split` and set at least:
 
 Requires Node 24.
 
+## Caddyfile Deployment Examples
+
+The examples below use Caddy environment placeholders (for example `{$COMPOSURE_DOMAIN}`) so you can avoid hard-coded domains, ports, and upstream URLs.
+
+### Shared Notes
+
+- Caddy auto-handles websocket upgrades when using `reverse_proxy`, so no extra websocket directives are needed for collaboration.
+- PostgreSQL is not HTTP and should not be proxied through Caddy. Keep it on a private network and expose only backend/frontend HTTP services.
+- Keep `API_BASE_PATH` (backend) and `VITE_API_URL` (frontend) aligned.
+
+### 1) Host Frontend + Backend + DB (single host, backend serves frontend)
+
+Use this with:
+- `docker compose -f docker-compose.yml -f docker-compose.db.yml up --build`
+- `SERVE_FRONTEND=true`
+
+```caddyfile
+{
+   email {$ACME_EMAIL}
+}
+
+{$COMPOSURE_DOMAIN} {
+   encode zstd gzip
+   reverse_proxy {$COMPOSURE_BACKEND_UPSTREAM}
+}
+```
+
+Typical env values:
+- `COMPOSURE_BACKEND_UPSTREAM=127.0.0.1:8080` (or `composure:8080` if Caddy is in the same Docker network)
+- `API_BASE_PATH=/api` (default) or `/`
+
+### 2) Host Frontend + Backend on Separate Subdomains
+
+Use this when frontend and backend are separate services:
+- app on `app.example.com`
+- API on `api.example.com`
+
+```caddyfile
+{
+   email {$ACME_EMAIL}
+}
+
+{$COMPOSURE_APP_DOMAIN} {
+   encode zstd gzip
+   reverse_proxy {$COMPOSURE_FRONTEND_UPSTREAM}
+}
+
+{$COMPOSURE_API_DOMAIN} {
+   encode zstd gzip
+   reverse_proxy {$COMPOSURE_BACKEND_UPSTREAM}
+}
+```
+
+Recommended app env alignment:
+- Backend: `SERVE_FRONTEND=false`
+- Backend: `CORS_ORIGIN=https://${COMPOSURE_APP_DOMAIN}`
+- Backend: `API_BASE_PATH=/` (or `/api`, but then include that in `VITE_API_URL`)
+- Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}` when `API_BASE_PATH=/`
+- Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}/api` when `API_BASE_PATH=/api`
+
+### 3) Host Frontend + Backend on One Domain (Path-Based Routing)
+
+Use this when frontend and backend are separate upstreams but share one public domain.
+
+```caddyfile
+{
+   email {$ACME_EMAIL}
+}
+
+{$COMPOSURE_DOMAIN} {
+   encode zstd gzip
+
+   @backend path /health /assets/* /api/* /v1/*
+   handle @backend {
+      reverse_proxy {$COMPOSURE_BACKEND_UPSTREAM}
+   }
+
+   handle {
+      reverse_proxy {$COMPOSURE_FRONTEND_UPSTREAM}
+   }
+}
+```
+
+Notes:
+- `/api/*` covers default `API_BASE_PATH=/api`.
+- `/v1/*` covers `API_BASE_PATH=/`.
+- If you use a custom API prefix like `/my/api`, add `/my/api/*` to `@backend` and set `VITE_API_URL=/my/api`.
+
+### 4) Host Backend Only (API Edge, Frontend Hosted Elsewhere)
+
+Useful for split deployments where frontend is on Cloudflare Pages, Vercel, Netlify, etc.
+
+```caddyfile
+{
+   email {$ACME_EMAIL}
+}
+
+{$COMPOSURE_API_DOMAIN} {
+   encode zstd gzip
+
+   @allowed path /health /assets/* /api/* /v1/*
+   handle @allowed {
+      reverse_proxy {$COMPOSURE_BACKEND_UPSTREAM}
+   }
+
+   respond 404
+}
+```
+
+Recommended backend env alignment:
+- `SERVE_FRONTEND=false`
+- `CORS_ORIGIN=https://${COMPOSURE_FRONTEND_ORIGIN}`
+- `API_BASE_PATH=/` (common for split mode) or `/api`
+
+### 5) Private LAN / Homelab with Internal TLS
+
+For non-public DNS labs where you still want HTTPS, Caddy can issue internal certs.
+
+```caddyfile
+{$COMPOSURE_LAN_DOMAIN} {
+   tls internal
+   reverse_proxy {$COMPOSURE_BACKEND_UPSTREAM}
+}
+```
+
+Example:
+- `COMPOSURE_LAN_DOMAIN=composure.home.arpa`
+- `COMPOSURE_BACKEND_UPSTREAM=127.0.0.1:8080`
+
+If you later move to public DNS, remove `tls internal` and set `ACME_EMAIL` to use public ACME certificates.
+
 
 ## Features & Roadmap
 
