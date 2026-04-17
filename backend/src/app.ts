@@ -1,6 +1,7 @@
 import path from 'path'
 import { readFile } from 'node:fs/promises'
 import Fastify, { type FastifyInstance, type FastifyRequest, type preHandlerHookHandler } from 'fastify'
+import fastifyCors from '@fastify/cors'
 import fastifyCookie from '@fastify/cookie'
 import fastifyMultipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
@@ -88,7 +89,7 @@ import {
   patchProjectMemberRoute,
   sharedWithMeRoute,
 } from './sharing.js'
-import { isProductionEnv } from './env.js'
+import { isProductionEnv, normalizeOriginHeader, parseTrustedOrigins } from './env.js'
 import { isValidProjectId, normalizeRelativePath } from './security.js'
 import {
   commitSnapshot,
@@ -161,10 +162,24 @@ export interface BuildAppOptions {
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const { hocuspocus = null, isProduction = isProductionEnv(process.env.NODE_ENV), resetAutoCommitTimer } = options
+  const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
 
   const app = Fastify({
     logger: false,
     bodyLimit: 10 * 1024 * 1024,
+  })
+
+  await app.register(fastifyCors, {
+    credentials: true,
+    origin: (origin, callback) => {
+      if (origin == null) {
+        callback(null, true)
+        return
+      }
+
+      const normalizedOrigin = normalizeOriginHeader(origin)
+      callback(null, normalizedOrigin != null && trustedOrigins.has(normalizedOrigin))
+    },
   })
 
   await app.register(fastifyCookie)

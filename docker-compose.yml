@@ -32,6 +32,7 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/composure}
+      - CORS_ORIGIN=${CORS_ORIGIN:-}
   compiler-1:
     extends:
       file: docker-compose.nodb.yml

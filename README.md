@@ -127,6 +127,10 @@ Requires Node 24.
 - [ ] Code contribution guidelines
 - [ ] Visual demo or walkthrough
 
+### Hosting
+
+- [x] Configurable CORS origins (auth/session cookies may fail if frontend/backend are truly cross-origin, see `fetch.ts` and `auth.ts`, maybe add a warning or flag?)
+
 ## Contributing
 
 Contributions are welcome! Whether it's a bug report, feature suggestion, or pull 

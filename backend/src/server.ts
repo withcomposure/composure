@@ -14,7 +14,13 @@ import {
 import { getUserPreferences } from './db/preferences.js'
 import { resolvePrincipalFromCookieHeader } from './auth.js'
 import { setMaxConcurrentPerCompiler } from './compile-dispatch.js'
-import { isProductionEnv, parseNodeEnv } from './env.js'
+import {
+  isProductionEnv,
+  isTrustedRequestOrigin,
+  normalizeOriginHeader,
+  parseNodeEnv,
+  parseTrustedOrigins,
+} from './env.js'
 import { isValidProjectId } from './security.js'
 import { buildApp } from './app.js'
 import { commitSnapshot } from './history.js'
@@ -312,6 +318,13 @@ const hocuspocus = new Hocuspocus({
 await initDatabase()
 
 const app = await buildApp({ hocuspocus, isProduction: isProd, resetAutoCommitTimer: (projectId) => { lastAutoCommitTimestamp.set(projectId, Date.now()) } })
+const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
+
+if (trustedOrigins.size > 0) {
+  console.info(`[server] trusted-origins=${[...trustedOrigins].join(',')}`)
+} else {
+  console.info('[server] trusted-origins=none (cross-origin browser requests are blocked)')
+}
 
 const wsMaxPayloadBytes = await resolveWsMaxPayloadBytes()
 console.info(`[ws] max-payload-bytes=${wsMaxPayloadBytes}`)
@@ -321,6 +334,21 @@ const wss = new WebSocketServer({
   maxPayload: wsMaxPayloadBytes,
 })
 app.server.on('upgrade', (request, socket, head) => {
+  const allowed = isTrustedRequestOrigin({
+    originHeader: request.headers.origin,
+    hostHeader: request.headers.host,
+    forwardedProtoHeader: request.headers['x-forwarded-proto'],
+    trustedOrigins,
+  })
+
+  if (!allowed) {
+    const origin = normalizeOriginHeader(request.headers.origin) ?? String(request.headers.origin ?? 'missing')
+    console.warn(`[ws] upgrade-denied origin=${origin} host=${request.headers.host ?? 'none'} url=${request.url ?? 'n/a'}`)
+    socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+    socket.destroy()
+    return
+  }
+
   console.info(`[ws] upgrade url=${request.url ?? 'n/a'}`)
   wss.handleUpgrade(request, socket, head, (ws) => {
     ws.on('error', (error) => {
