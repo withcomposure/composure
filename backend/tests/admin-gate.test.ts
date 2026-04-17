@@ -9,6 +9,28 @@ beforeEach(async () => {
 })
 
 describe('admin gate', () => {
+  it('allows CORS preflight for PATCH admin settings from trusted origin', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/admin/server-settings',
+      headers: {
+        origin: 'http://localhost:5173',
+        'access-control-request-method': 'PATCH',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+
+    expect([200, 204]).toContain(res.statusCode)
+
+    const allowMethodsHeader = res.headers['access-control-allow-methods']
+    const allowMethods = Array.isArray(allowMethodsHeader)
+      ? allowMethodsHeader.join(',')
+      : String(allowMethodsHeader ?? '')
+
+    expect(allowMethods.toUpperCase()).toContain('PATCH')
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173')
+  })
+
   it('unauthenticated request to /api/v1/admin/* returns 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/admin/users' })
     expect(res.statusCode).toBe(401)

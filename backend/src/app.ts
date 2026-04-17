@@ -170,6 +170,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const { hocuspocus = null, isProduction = isProductionEnv(process.env.NODE_ENV), resetAutoCommitTimer } = options
   const shouldServeFrontend = parseBooleanEnv(process.env.SERVE_FRONTEND, isProduction)
   const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
+  const corsMethods = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   const apiRouting = resolveApiRouting(process.env)
   const apiPath = apiRouting.apiPath
 
@@ -180,6 +181,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(fastifyCors, {
     credentials: true,
+    methods: corsMethods,
     origin: (origin, callback) => {
       if (origin == null) {
         callback(null, true)
