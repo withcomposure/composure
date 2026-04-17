@@ -19,7 +19,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   delete process.env.COMPILERS
-  await app.close()
+  await app?.close()
 })
 
 describe('DELETE /api/v1/projects/:projectId/preview.pdf', () => {

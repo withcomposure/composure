@@ -7,7 +7,9 @@ export default defineConfig({
     globals: true,
     env: {
       NODE_ENV: 'test',
+      TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure_test',
     },
+    setupFiles: ['tests/helpers/test-env.ts'],
     include: ['tests/**/*.test.ts'],
   },
   resolve: {

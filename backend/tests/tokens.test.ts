@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { initTestDatabase, sql } from '../src/db/connection.js'
+import { sql } from '../src/db/connection.js'
 import {
   createInviteToken,
   getInviteTokenState,
@@ -9,10 +9,10 @@ import {
   getPasswordResetTokenState,
   markPasswordResetTokenUsed,
 } from '../src/db/admin.js'
-import { createTestUser } from './helpers/setup.js'
+import { createTestUser, resetTestDatabase } from './helpers/setup.js'
 
 beforeEach(async () => {
-  await initTestDatabase()
+  await resetTestDatabase()
 })
 
 describe('invite token lifecycle', () => {

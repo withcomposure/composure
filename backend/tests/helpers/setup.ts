@@ -1,16 +1,51 @@
 import crypto from 'crypto'
 import type { FastifyInstance } from 'fastify'
-import { initTestDatabase, sql } from '../../src/db/connection.js'
+import { connectDatabase, applySchema, sql } from '../../src/db/connection.js'
 import { buildApp } from '../../src/app.js'
 import { createToken, createUid } from '../../src/ids.js'
 import type { SessionUser } from '../../src/db/types.js'
 
+const TEST_DB_NAME_PATTERN = /(^|[_-])test([_-]|$)/i
+
 /**
- * Initialize a fresh in-memory database and build a Fastify app for testing.
+ * Guard: ensure DATABASE_URL points to a test-like database.
+ * This is a last-resort safety net — the vitest setup file should have
+ * already validated and swapped TEST_DATABASE_URL into DATABASE_URL.
+ */
+function assertTestDatabase(): void {
+  const url = process.env.DATABASE_URL ?? ''
+  let dbName: string | null = null
+  try {
+    const parsed = new URL(url)
+    const path = parsed.pathname.replace(/^\/+/, '')
+    if (path) dbName = decodeURIComponent(path.split('/')[0] ?? '')
+  } catch { /* ignore */ }
+
+  if (!dbName || !TEST_DB_NAME_PATTERN.test(dbName)) {
+    throw new Error(
+      `[test] DATABASE_URL database "${dbName ?? '<unknown>'}" does not look like a test database ` +
+      `(must match ${TEST_DB_NAME_PATTERN}). Refusing destructive reset.`,
+    )
+  }
+}
+
+/**
+ * Reset the database to a clean state for testing.
+ * Drops and recreates the public schema, then applies the full app schema.
+ */
+export async function resetTestDatabase(): Promise<void> {
+  assertTestDatabase()
+  connectDatabase({ max: 5 })
+  await sql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
+  await applySchema(sql)
+}
+
+/**
+ * Initialize a fresh database and build a Fastify app for testing.
  * Returns the app instance (use `app.inject()` to make requests).
  */
 export async function createTestApp(): Promise<FastifyInstance> {
-  await initTestDatabase()
+  await resetTestDatabase()
   const app = await buildApp({ hocuspocus: null, isProduction: false })
   return app
 }

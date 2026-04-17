@@ -2,7 +2,6 @@ import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
 
 const databaseUrl = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
-const testDatabaseNamePattern = /(^|[_-])test([_-]|$)/i
 
 export let sql: postgres.Sql
 
@@ -10,29 +9,12 @@ function maskDatabaseUrl(databaseUrl: string): string {
   return databaseUrl.replace(/\/\/.*@/, '//<credentials>@')
 }
 
-function extractDatabaseName(databaseUrl: string): string | null {
-  try {
-    const parsed = new URL(databaseUrl)
-    const path = parsed.pathname.replace(/^\/+/, '')
-    if (!path) return null
-    return decodeURIComponent(path.split('/')[0] ?? '')
-  } catch {
-    return null
+/** Create (or replace) the module-level `sql` connection from DATABASE_URL. */
+export function connectDatabase(options?: { max?: number }): void {
+  if (sql) {
+    sql.end({ timeout: 1 }).catch(() => {})
   }
-}
-
-function assertSafeTestDatabaseReset(databaseUrl: string): void {
-  const nodeEnv = process.env.NODE_ENV ?? ''
-  const dbName = extractDatabaseName(databaseUrl)
-  const hasTestLikeName = dbName != null && testDatabaseNamePattern.test(dbName)
-
-  if (nodeEnv === 'test' && hasTestLikeName) {
-    return
-  }
-
-  throw new Error(
-    `[db] refusing destructive test reset; requires NODE_ENV=test and test-like db name (pattern ${testDatabaseNamePattern}). NODE_ENV=${nodeEnv || '<unset>'} dbName=${dbName ?? '<unknown>'} url=${maskDatabaseUrl(databaseUrl)}`,
-  )
+  sql = postgres(databaseUrl, { ...(options?.max != null && { max: options.max }), transform: { undefined: null } })
 }
 
 /** Apply the full schema to a postgres instance */
@@ -316,7 +298,7 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
 export async function initDatabase(): Promise<void> {
   console.info(`[db] init url=${maskDatabaseUrl(databaseUrl)}`)
 
-  sql = postgres(databaseUrl, { transform: { undefined: null } })
+  connectDatabase()
 
   await applySchema(sql)
 
@@ -339,29 +321,4 @@ export async function initDatabase(): Promise<void> {
 
   scheduleCleanupTasks(sql)
   console.info('[db] schema-ready and cleanup tasks scheduled')
-}
-
-/** Initialize a test PostgreSQL database. No cleanup timers are scheduled. */
-export async function initTestDatabase(): Promise<postgres.Sql> {
-  const testUrl = process.env.TEST_DATABASE_URL
-    ?? 'postgres://postgres:postgres@localhost:5433/composure_test'
-
-  assertSafeTestDatabaseReset(testUrl)
-
-  if (sql) {
-    try {
-      await sql.end({ timeout: 1 })
-    } catch (error) {
-      console.warn(`[db] failed to close previous sql pool before test reset: ${String(error)}`)
-    }
-  }
-
-  const testSql = postgres(testUrl, { max: 5, transform: { undefined: null } })
-
-  // Clean slate
-  await testSql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
-  await applySchema(testSql)
-
-  sql = testSql
-  return testSql
 }

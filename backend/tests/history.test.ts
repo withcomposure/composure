@@ -10,15 +10,15 @@ process.env.DATA_DIR = tmpBase
 
 // Must import after setting DATA_DIR so module-level const picks it up
 const history = await import('../src/history.js')
-const { initTestDatabase } = await import('../src/db/connection.js')
 const { storeDocument } = await import('../src/db/documents.js')
+const { resetTestDatabase } = await import('./helpers/setup.js')
 
 describe('history', () => {
   const projectId = 'a'.repeat(32)
   const assetsDir = path.join(tmpBase, 'assets', projectId)
 
   beforeEach(async () => {
-    await initTestDatabase()
+    await resetTestDatabase()
     // Clean repos and assets between tests
     const reposDir = path.join(tmpBase, 'repos')
     if (fs.existsSync(reposDir)) fs.rmSync(reposDir, { recursive: true })

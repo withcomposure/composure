@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { afterEach, describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp, createTestUser, createTestSession, sessionCookie } from './helpers/setup.js'
 
@@ -6,6 +6,10 @@ let app: FastifyInstance
 
 beforeEach(async () => {
   app = await createTestApp()
+})
+
+afterEach(async () => {
+  await app?.close()
 })
 
 describe('admin gate', () => {

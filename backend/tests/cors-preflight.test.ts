@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp } from './helpers/setup.js'
 
@@ -6,6 +6,10 @@ let app: FastifyInstance
 
 beforeEach(async () => {
   app = await createTestApp()
+})
+
+afterEach(async () => {
+  await app?.close()
 })
 
 describe('cors preflight', () => {
@@ -37,5 +41,35 @@ describe('cors preflight', () => {
 
     expect(allowMethods.toUpperCase()).toContain(method)
     expect(res.headers['access-control-allow-origin']).toBe(origin)
+  })
+
+  it('includes credentials and max-age in preflight response', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/compile',
+      headers: {
+        origin,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+
+    expect([200, 204]).toContain(res.statusCode)
+    expect(res.headers['access-control-allow-credentials']).toBe('true')
+    expect(res.headers['access-control-max-age']).toBe('600')
+  })
+
+  it('rejects preflight from untrusted origin', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/compile',
+      headers: {
+        origin: 'https://evil.example.com',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+
+    expect(res.headers['access-control-allow-origin']).not.toBe('https://evil.example.com')
   })
 })

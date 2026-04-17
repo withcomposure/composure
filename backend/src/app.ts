@@ -182,6 +182,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(fastifyCors, {
     credentials: true,
     methods: corsMethods,
+    exposedHeaders: ['X-Compile-Id', 'Content-Disposition'],
+    maxAge: 600,
     origin: (origin, callback) => {
       if (origin == null) {
         callback(null, true)

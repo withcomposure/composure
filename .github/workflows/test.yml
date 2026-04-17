@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/composure_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/composure_test
     services:
       postgres:
         image: postgres:17

@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { initTestDatabase, sql } from '../src/db/connection.js'
+import { sql } from '../src/db/connection.js'
 import { canAccessProjectWithRole, getProjectRoleForPrincipal, ensureProjectAccess } from '../src/db/access.js'
 import { setLinkSharingState } from '../src/db/sharing.js'
 import type { Principal } from '../src/db/types.js'
-import { createTestUser, createTestProject } from './helpers/setup.js'
+import { createTestUser, createTestProject, resetTestDatabase } from './helpers/setup.js'
 
 beforeEach(async () => {
-  await initTestDatabase()
+  await resetTestDatabase()
 })
 
 describe('canAccessProjectWithRole', () => {
