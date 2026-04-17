@@ -1,26 +1,26 @@
-# ─── Stage 1: Build frontend ───
-FROM node:22-alpine AS frontend-build
+# Shared metadata for workspace installs
+FROM node:22-alpine AS workspace-meta
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY frontend/package.json frontend/
+COPY backend/package.json backend/
+
+# Frontend builder
+FROM workspace-meta AS frontend-builder
 RUN npm install --workspace=frontend --ignore-scripts
 COPY frontend/ frontend/
 RUN npm run build --workspace=frontend
 
-# ─── Stage 2: Build backend ───
-FROM node:22-alpine AS backend-build
-WORKDIR /app
-COPY package.json package-lock.json* ./
-COPY backend/package.json backend/
+# Backend builder
+FROM workspace-meta AS backend-builder
 RUN apk add --no-cache python3 make g++
 RUN npm install --workspace=backend
 COPY backend/ backend/
 RUN npm run build --workspace=backend
 
-# ─── Stage 3: Runtime ───
-FROM node:22-alpine AS runtime
+# Shared runtime base for both deployment modes
+FROM node:22-alpine AS runtime-base
 
-# Install tectonic (LaTeX) and pandoc
 RUN apk add --no-cache \
     tectonic \
     pandoc \
@@ -29,22 +29,12 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy backend build + node_modules
-COPY --from=backend-build /app/backend/dist ./backend/dist
-COPY --from=backend-build /app/backend/package.json ./backend/
-COPY --from=backend-build /app/node_modules ./node_modules
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/package.json ./backend/
+COPY --from=backend-builder /app/node_modules ./node_modules
 COPY package.json ./
-
-# Copy frontend build
-COPY --from=frontend-build /app/frontend/dist ./frontend/dist
-
-# Copy baked-in project templates
 COPY templates ./templates
 
-# Serve the frontend statically from the Express server in production
-# This is handled in server.ts via express.static
-
-# Data directory
 RUN mkdir -p /app/data
 VOLUME /app/data
 
@@ -58,3 +48,12 @@ HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget -qO- http://localhost:8080/health || exit 1
 
 CMD ["node", "backend/dist/server.js"]
+
+# API-only target for split frontend deployments
+FROM runtime-base AS api-only
+ENV SERVE_FRONTEND=false
+
+# Default all-in-one target for self-hosted deployments
+FROM runtime-base AS all-in-one
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+ENV SERVE_FRONTEND=true

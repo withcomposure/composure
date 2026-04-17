@@ -1,15 +1,16 @@
-.PHONY: dev build deploy up down logs db-reset db-reset-test db-nuke test
-
-dev:
-	npm run dev
+.PHONY: deploy deploy-split deploy-full up down logs
 
 deploy:
 	git pull
 	docker compose up -d --build --remove-orphans
 
-deploy-nodb:
+deploy-split:
 	git pull
-	docker compose -f docker-compose.nodb.yml up -d --build --remove-orphans
+	docker compose -f docker-compose.yml -f docker-compose.split.yml up -d --build --remove-orphans
+
+deploy-full:
+	git pull
+	docker compose -f docker-compose.yml -f docker-compose.db.yml up -d --build --remove-orphans
 
 up:
 	docker compose up -d --remove-orphans
@@ -19,18 +20,3 @@ down:
 
 logs:
 	docker compose logs -f composure
-
-db-reset:
-	npm run db:reset
-
-db-reset-test:
-	npm run db:reset:test
-
-db-nuke:
-	npm run db:nuke
-
-test:
-	npm test
-
-check:
-	npm run check

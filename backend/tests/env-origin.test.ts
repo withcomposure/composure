@@ -2,8 +2,32 @@ import { describe, expect, it } from 'vitest'
 import {
   isTrustedRequestOrigin,
   normalizeOriginHeader,
+  parseBooleanEnv,
   parseTrustedOrigins,
 } from '../src/env.js'
+
+describe('parseBooleanEnv', () => {
+  it('returns default for missing values', () => {
+    expect(parseBooleanEnv(undefined, true)).toBe(true)
+    expect(parseBooleanEnv('', false)).toBe(false)
+  })
+
+  it('parses truthy and falsy values', () => {
+    expect(parseBooleanEnv('true', false)).toBe(true)
+    expect(parseBooleanEnv('1', false)).toBe(true)
+    expect(parseBooleanEnv('yes', false)).toBe(true)
+    expect(parseBooleanEnv('on', false)).toBe(true)
+
+    expect(parseBooleanEnv('false', true)).toBe(false)
+    expect(parseBooleanEnv('0', true)).toBe(false)
+    expect(parseBooleanEnv('no', true)).toBe(false)
+    expect(parseBooleanEnv('off', true)).toBe(false)
+  })
+
+  it('throws on invalid values', () => {
+    expect(() => parseBooleanEnv('sometimes', true)).toThrow('Invalid boolean env value')
+  })
+})
 
 describe('parseTrustedOrigins', () => {
   it('includes local vite defaults in non-production environments', () => {

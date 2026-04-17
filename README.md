@@ -15,8 +15,34 @@ Full self-hosting docs are coming soon. In the meantime:
 ```bash
 git clone https://github.com/withcomposure/composure
 cd composure
+docker compose -f docker-compose.yml -f docker-compose.db.yml up --build
+```
+
+### Deployment Modes
+
+Composure supports three deployment styles:
+
+1. Hetzner + external PostgreSQL (Neon, RDS, etc.)
+   - Base compose file only.
+```bash
 docker compose up --build
 ```
+
+2. Hetzner + external PostgreSQL + Cloudflare Pages frontend
+   - Use the split override to build the API-only backend image target.
+```bash
+docker compose --env-file .env.split -f docker-compose.yml -f docker-compose.split.yml up --build
+```
+
+3. Self-host everything (local PostgreSQL + backend + frontend)
+   - Add the DB overlay.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.db.yml up --build
+```
+
+For split mode, copy `.env.split.example` to `.env.split` and set at least:
+- `CORS_ORIGIN=https://your-app.pages.dev`
+- `SERVE_FRONTEND=false`
 
 Requires Node 24.
 

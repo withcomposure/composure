@@ -1,5 +1,6 @@
 import path from 'path'
-import { readFile } from 'node:fs/promises'
+import { constants as fsConstants } from 'node:fs'
+import { access, readFile } from 'node:fs/promises'
 import Fastify, { type FastifyInstance, type FastifyRequest, type preHandlerHookHandler } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyCookie from '@fastify/cookie'
@@ -89,7 +90,7 @@ import {
   patchProjectMemberRoute,
   sharedWithMeRoute,
 } from './sharing.js'
-import { isProductionEnv, normalizeOriginHeader, parseTrustedOrigins } from './env.js'
+import { isProductionEnv, normalizeOriginHeader, parseBooleanEnv, parseTrustedOrigins } from './env.js'
 import { isValidProjectId, normalizeRelativePath } from './security.js'
 import {
   commitSnapshot,
@@ -162,6 +163,7 @@ export interface BuildAppOptions {
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const { hocuspocus = null, isProduction = isProductionEnv(process.env.NODE_ENV), resetAutoCommitTimer } = options
+  const shouldServeFrontend = parseBooleanEnv(process.env.SERVE_FRONTEND, isProduction)
   const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
 
   const app = Fastify({
@@ -1058,9 +1060,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ ok: true })
   })
 
-  if (isProduction) {
+  if (shouldServeFrontend) {
     const frontendDist = path.resolve(import.meta.dirname, '../../frontend/dist')
     const frontendIndexPath = path.join(frontendDist, 'index.html')
+
+    try {
+      await access(frontendIndexPath, fsConstants.R_OK)
+    } catch {
+      console.warn(
+        `[server] frontend static serving enabled, but no readable ${frontendIndexPath}. Set SERVE_FRONTEND=false for API-only deployments.`,
+      )
+      return app
+    }
+
     await app.register(fastifyStatic, {
       root: frontendDist,
       prefix: '/',

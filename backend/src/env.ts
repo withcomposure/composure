@@ -19,6 +19,25 @@ export function isProductionEnv(value: string | undefined): boolean {
   return parseNodeEnv(value) === 'production'
 }
 
+export function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
+  if (value == null || value.trim() === '') {
+    return defaultValue
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+    return true
+  }
+
+  if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+    return false
+  }
+
+  throw new Error(
+    `Invalid boolean env value: "${value}". Expected one of: 1, 0, true, false, yes, no, on, off.`,
+  )
+}
+
 function normalizeOrigin(raw: string): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return null

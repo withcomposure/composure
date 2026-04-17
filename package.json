@@ -4,8 +4,8 @@
   "private": true,
   "description": "An open-source, self-hostable collaborative document editor for researchers and technical writers.",
   "scripts": {
-    "db:up": "docker compose up -d --wait db",
-    "db:down": "docker compose down",
+    "db:up": "docker compose -f docker-compose.yml -f docker-compose.db.yml up -d --wait db",
+    "db:down": "docker compose -f docker-compose.yml -f docker-compose.db.yml down",
     "db:reset": "bash scripts/psql.sh \"DROP DATABASE IF EXISTS composure WITH (FORCE);\" && bash scripts/psql.sh \"CREATE DATABASE composure;\"",
     "db:reset:test": "bash scripts/psql.sh \"DROP DATABASE IF EXISTS composure_test WITH (FORCE);\" && bash scripts/psql.sh \"CREATE DATABASE composure_test;\"",
     "db:nuke": "npm run db:down && docker volume rm composure_pgdata",
