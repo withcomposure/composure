@@ -344,7 +344,6 @@ export async function initDatabase(): Promise<void> {
 /** Initialize a test PostgreSQL database. No cleanup timers are scheduled. */
 export async function initTestDatabase(): Promise<postgres.Sql> {
   const testUrl = process.env.TEST_DATABASE_URL
-    ?? process.env.DATABASE_URL
     ?? 'postgres://postgres:postgres@localhost:5433/composure_test'
 
   assertSafeTestDatabaseReset(testUrl)
