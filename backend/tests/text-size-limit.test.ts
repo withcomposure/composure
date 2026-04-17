@@ -52,7 +52,7 @@ describe('text size validator', () => {
 })
 
 describe('text size API enforcement', () => {
-  it('rejects oversized /api/save payloads with 413', async () => {
+  it('rejects oversized /api/v1/save payloads with 413', async () => {
     const user = await createTestUser()
     const sessionId = await createTestSession(user.id)
     const projectId = await createTestProject(user.id)
@@ -62,7 +62,7 @@ describe('text size API enforcement', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: `/api/save/${projectId}`,
+      url: `/api/v1/save/${projectId}`,
       headers: {
         cookie: sessionCookie(sessionId),
       },
@@ -77,7 +77,7 @@ describe('text size API enforcement', () => {
     expect(await loadDocument(projectId)).toBeNull()
   })
 
-  it('rejects oversized /api/compile document snapshots with 413', async () => {
+  it('rejects oversized /api/v1/compile document snapshots with 413', async () => {
     const user = await createTestUser()
     const sessionId = await createTestSession(user.id)
     const projectId = await createTestProject(user.id)
@@ -87,7 +87,7 @@ describe('text size API enforcement', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: '/api/compile',
+      url: '/api/v1/compile',
       headers: {
         cookie: sessionCookie(sessionId),
       },

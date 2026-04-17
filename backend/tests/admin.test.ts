@@ -17,7 +17,7 @@ describe('admin — user management', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -31,7 +31,7 @@ describe('admin — user management', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       headers: { cookie: sessionCookie(sessionId) },
       payload: {
         email: 'newuser@test.com',
@@ -52,7 +52,7 @@ describe('admin — user management', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       headers: { cookie: sessionCookie(sessionId) },
       payload: {
         email: 'existing@test.com',
@@ -72,7 +72,7 @@ describe('admin — user management', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/admin/users/${user.id}`,
+      url: `/api/v1/admin/users/${user.id}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { role: 'admin' },
     })
@@ -86,7 +86,7 @@ describe('admin — user management', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/admin/users/${admin.id}`,
+      url: `/api/v1/admin/users/${admin.id}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { role: 'user' },
     })
@@ -102,7 +102,7 @@ describe('admin — server settings', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/admin/server-settings',
+      url: '/api/v1/admin/server-settings',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -118,7 +118,7 @@ describe('admin — server settings', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: '/api/admin/server-settings',
+      url: '/api/v1/admin/server-settings',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { signupMode: 'invite-only' },
     })
@@ -132,7 +132,7 @@ describe('admin — server settings', () => {
 
     const off = await app.inject({
       method: 'PATCH',
-      url: '/api/admin/server-settings',
+      url: '/api/v1/admin/server-settings',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { guestSignupsEnabled: false },
     })
@@ -142,7 +142,7 @@ describe('admin — server settings', () => {
 
     const on = await app.inject({
       method: 'PATCH',
-      url: '/api/admin/server-settings',
+      url: '/api/v1/admin/server-settings',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { guestSignupsEnabled: true },
     })
@@ -159,7 +159,7 @@ describe('admin — invite tokens', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/admin/invites',
+      url: '/api/v1/admin/invites',
       headers: { cookie: sessionCookie(sessionId) },
       payload: {},
     })
@@ -174,7 +174,7 @@ describe('admin — invite tokens', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/admin/invites',
+      url: '/api/v1/admin/invites',
       headers: { cookie: sessionCookie(sessionId) },
     })
 

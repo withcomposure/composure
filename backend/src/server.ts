@@ -25,11 +25,13 @@ import { isValidProjectId } from './security.js'
 import { buildApp } from './app.js'
 import { commitSnapshot } from './history.js'
 import { findTextSizeViolation, textSizeViolationMessage } from './text-size-limit.js'
+import { pathnameFromRawUrl, resolveApiRouting } from './routing.js'
 
 const port = Number.parseInt(process.env.PORT ?? '8080', 10)
 const nodeEnv = parseNodeEnv(process.env.NODE_ENV)
 const isProd = isProductionEnv(process.env.NODE_ENV)
 const defaultWsMaxPayloadBytes = 100 * 1024 * 1024
+const apiRouting = resolveApiRouting(process.env)
 
 async function resolveWsMaxPayloadBytes(): Promise<number> {
   const maxTextSize = await getMaxTextFileSize()
@@ -320,6 +322,8 @@ await initDatabase()
 const app = await buildApp({ hocuspocus, isProduction: isProd, resetAutoCommitTimer: (projectId) => { lastAutoCommitTimestamp.set(projectId, Date.now()) } })
 const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
 
+console.info(`[server] api-root=${apiRouting.apiRootPath} ws-collaboration=${apiRouting.wsCollaborationPath}`)
+
 if (trustedOrigins.size > 0) {
   console.info(`[server] trusted-origins=${[...trustedOrigins].join(',')}`)
 } else {
@@ -328,12 +332,21 @@ if (trustedOrigins.size > 0) {
 
 const wsMaxPayloadBytes = await resolveWsMaxPayloadBytes()
 console.info(`[ws] max-payload-bytes=${wsMaxPayloadBytes}`)
+const collaborationWsPath = apiRouting.wsPath('collaborate')
 
 const wss = new WebSocketServer({
   noServer: true,
   maxPayload: wsMaxPayloadBytes,
 })
 app.server.on('upgrade', (request, socket, head) => {
+  const requestPathname = pathnameFromRawUrl(request.url)
+  if (requestPathname !== collaborationWsPath) {
+    console.warn(`[ws] upgrade-rejected-path path=${requestPathname} expected=${collaborationWsPath}`)
+    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
+    socket.destroy()
+    return
+  }
+
   const allowed = isTrustedRequestOrigin({
     originHeader: request.headers.origin,
     hostHeader: request.headers.host,

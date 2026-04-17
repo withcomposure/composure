@@ -16,7 +16,7 @@ export async function fetchHistory(
   if (opts.before) params.set('before', opts.before)
   const qs = params.toString()
   const body = await fetchJson<{ commits: CommitEntry[] }>(
-    `/api/projects/${projectId}/history${qs ? `?${qs}` : ''}`,
+    `/projects/${projectId}/history${qs ? `?${qs}` : ''}`,
   )
   return body.commits
 }
@@ -26,7 +26,7 @@ export async function fetchChangedFiles(
   sha: string,
 ): Promise<ChangedFile[]> {
   const body = await fetchJson<{ files: ChangedFile[] }>(
-    `/api/projects/${projectId}/history/${sha}/files`,
+    `/projects/${projectId}/history/${sha}/files`,
   )
   return body.files
 }
@@ -39,7 +39,7 @@ export async function fetchFileDiff(
 ): Promise<FileDiff> {
   const params = new URLSearchParams({ file: filePath, base })
   return fetchJson<FileDiff>(
-    `/api/projects/${projectId}/history/${sha}/diff?${params.toString()}`,
+    `/projects/${projectId}/history/${sha}/diff?${params.toString()}`,
   )
 }
 
@@ -48,7 +48,7 @@ export async function createSnapshotApi(
   name: string,
 ): Promise<SnapshotEntry> {
   const body = await fetchJson<{ snapshot: SnapshotEntry }>(
-    `/api/projects/${projectId}/history/snapshot`,
+    `/projects/${projectId}/history/snapshot`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,7 +60,7 @@ export async function createSnapshotApi(
 
 export async function fetchSnapshots(projectId: string): Promise<SnapshotEntry[]> {
   const body = await fetchJson<{ snapshots: SnapshotEntry[] }>(
-    `/api/projects/${projectId}/history/snapshots`,
+    `/projects/${projectId}/history/snapshots`,
   )
   return body.snapshots
 }
@@ -70,7 +70,7 @@ export async function restoreVersion(
   commitSha: string,
 ): Promise<CommitEntry> {
   const body = await fetchJson<{ commit: CommitEntry }>(
-    `/api/projects/${projectId}/history/restore`,
+    `/projects/${projectId}/history/restore`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -86,7 +86,7 @@ export async function restoreFile(
   filePath: string,
 ): Promise<void> {
   await fetchJson<{ ok: boolean }>(
-    `/api/projects/${projectId}/history/restore-file`,
+    `/projects/${projectId}/history/restore-file`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

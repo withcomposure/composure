@@ -17,7 +17,7 @@ describe('project sharing — invite member', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { email: 'newmember@test.com', role: 'edit' },
     })
@@ -37,7 +37,7 @@ describe('project sharing — invite member', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { email: 'member@test.com', role: 'edit' },
     })
@@ -62,7 +62,7 @@ describe('project sharing — invite member', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(viewerSession) },
       payload: { email: 'someone@test.com', role: 'view' },
     })
@@ -77,7 +77,7 @@ describe('project sharing — invite member', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { email: 'not-an-email', role: 'view' },
     })
@@ -98,7 +98,7 @@ describe('project sharing — update/remove member', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/members/${member.id}`,
+      url: `/api/v1/projects/${projectId}/members/${member.id}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { role: 'edit' },
     })
@@ -117,7 +117,7 @@ describe('project sharing — update/remove member', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/members/${member.id}`,
+      url: `/api/v1/projects/${projectId}/members/${member.id}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { remove: true },
     })
@@ -134,7 +134,7 @@ describe('project sharing — link sharing', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { enabled: true, role: 'view' },
     })
@@ -153,7 +153,7 @@ describe('project sharing — link sharing', () => {
     // Enable first
     await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { enabled: true, role: 'view' },
     })
@@ -161,7 +161,7 @@ describe('project sharing — link sharing', () => {
     // Then disable
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { enabled: false },
     })
@@ -178,7 +178,7 @@ describe('project sharing — link sharing', () => {
     // Enable first
     await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { enabled: true, role: 'view' },
     })
@@ -186,7 +186,7 @@ describe('project sharing — link sharing', () => {
     // PATCH only the role (no `enabled` field) should not disable sharing
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { role: 'edit' },
     })
@@ -211,7 +211,7 @@ describe('shared-with-me', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/projects/shared-with-me',
+      url: '/api/v1/projects/shared-with-me',
       headers: { cookie: sessionCookie(memberSession) },
     })
 
@@ -235,7 +235,7 @@ describe('shared-with-me', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/projects/shared-with-me',
+      url: '/api/v1/projects/shared-with-me',
       headers: { cookie: sessionCookie(memberSession) },
     })
 
@@ -264,7 +264,7 @@ describe('shared-with-me', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/projects/shared-with-me',
+      url: '/api/v1/projects/shared-with-me',
       headers: { cookie: sessionCookie(memberSession) },
     })
 
@@ -284,7 +284,7 @@ describe('shared-with-me', () => {
 
     const enableFirst = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'view' },
     })
@@ -293,7 +293,7 @@ describe('shared-with-me', () => {
 
     const openWithToken1 = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token1,
@@ -303,7 +303,7 @@ describe('shared-with-me', () => {
 
     const rotate = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { invalidate: true },
     })
@@ -313,7 +313,7 @@ describe('shared-with-me', () => {
 
     const openWithOldToken = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token1,
@@ -323,7 +323,7 @@ describe('shared-with-me', () => {
 
     const openWithToken2 = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token2,
@@ -333,7 +333,7 @@ describe('shared-with-me', () => {
 
     const recentsRes = await app.inject({
       method: 'GET',
-      url: '/api/projects/recents',
+      url: '/api/v1/projects/recents',
       headers: { cookie: sessionCookie(memberSession) },
     })
     expect(recentsRes.statusCode).toBe(200)
@@ -343,7 +343,7 @@ describe('shared-with-me', () => {
 
     const sharedRes = await app.inject({
       method: 'GET',
-      url: '/api/projects/shared-with-me',
+      url: '/api/v1/projects/shared-with-me',
       headers: { cookie: sessionCookie(memberSession) },
     })
     expect(sharedRes.statusCode).toBe(200)
@@ -361,7 +361,7 @@ describe('shared-with-me', () => {
 
     const enableFirst = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'view' },
     })
@@ -370,7 +370,7 @@ describe('shared-with-me', () => {
 
     const openWithToken1 = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token1,
@@ -380,7 +380,7 @@ describe('shared-with-me', () => {
 
     const disable = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: false },
     })
@@ -388,7 +388,7 @@ describe('shared-with-me', () => {
 
     const openWhileDisabled = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token1,
@@ -398,7 +398,7 @@ describe('shared-with-me', () => {
 
     const enableSecond = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'view' },
     })
@@ -408,7 +408,7 @@ describe('shared-with-me', () => {
 
     const openAfterReEnable = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': token1,
@@ -426,7 +426,7 @@ describe('shared-with-me', () => {
 
     const enableEditLink = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'edit' },
     })
@@ -435,7 +435,7 @@ describe('shared-with-me', () => {
 
     const openViaEditLink = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/open`,
+      url: `/api/v1/projects/${projectId}/open`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': linkToken,
@@ -445,7 +445,7 @@ describe('shared-with-me', () => {
 
     const inviteMember = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { email: member.email, role: 'edit' },
     })
@@ -453,7 +453,7 @@ describe('shared-with-me', () => {
 
     const downgradeLink = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { role: 'view' },
     })
@@ -461,7 +461,7 @@ describe('shared-with-me', () => {
 
     const accessRes = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/access`,
+      url: `/api/v1/projects/${projectId}/access`,
       headers: { cookie: sessionCookie(memberSession) },
     })
     expect(accessRes.statusCode).toBe(200)
@@ -478,7 +478,7 @@ describe('shared-with-me', () => {
 
     const enableEditLink = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'edit' },
     })
@@ -487,7 +487,7 @@ describe('shared-with-me', () => {
 
     const inviteMember = await app.inject({
       method: 'POST',
-      url: `/api/projects/${projectId}/members`,
+      url: `/api/v1/projects/${projectId}/members`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { email: member.email, role: 'edit' },
     })
@@ -495,7 +495,7 @@ describe('shared-with-me', () => {
 
     const disableLink = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: false },
     })
@@ -503,7 +503,7 @@ describe('shared-with-me', () => {
 
     const removeMember = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/members/${member.id}`,
+      url: `/api/v1/projects/${projectId}/members/${member.id}`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { remove: true },
     })
@@ -511,14 +511,14 @@ describe('shared-with-me', () => {
 
     const accessWithoutToken = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/access`,
+      url: `/api/v1/projects/${projectId}/access`,
       headers: { cookie: sessionCookie(memberSession) },
     })
     expect(accessWithoutToken.statusCode).toBe(403)
 
     const accessWithOldToken = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/access`,
+      url: `/api/v1/projects/${projectId}/access`,
       headers: {
         cookie: sessionCookie(memberSession),
         'x-share-token': linkToken,
@@ -536,7 +536,7 @@ describe('project access info', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/access`,
+      url: `/api/v1/projects/${projectId}/access`,
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -554,7 +554,7 @@ describe('project access info', () => {
 
     const linkRes = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'view' },
     })
@@ -565,7 +565,7 @@ describe('project access info', () => {
     const guestSession = await createTestSession(queryAliasUser.id)
     const accessRes = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/access?share=${encodeURIComponent(token)}`,
+      url: `/api/v1/projects/${projectId}/access?share=${encodeURIComponent(token)}`,
       headers: { cookie: sessionCookie(guestSession) },
     })
 

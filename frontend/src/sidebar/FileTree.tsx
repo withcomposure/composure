@@ -241,7 +241,7 @@ async function uploadSingleFile(
   const formData = new FormData()
     formData.append('file', file)
 
-    xhr.open('POST', apiUrl(`/api/upload/${encodeURIComponent(projectId)}`))
+    xhr.open('POST', apiUrl(`/upload/${encodeURIComponent(projectId)}`))
     xhr.withCredentials = true
     for (const [headerName, headerValue] of Object.entries(shareHeaders)) {
       xhr.setRequestHeader(headerName, headerValue)
@@ -300,7 +300,7 @@ async function deleteAssetFromServer(
   storageKey: string,
   shareHeaders: Record<string, string>,
 ): Promise<void> {
-  await apiFetch(`/api/upload/${encodeURIComponent(projectId)}/${encodeURIComponent(storageKey)}`, {
+  await apiFetch(`/upload/${encodeURIComponent(projectId)}/${encodeURIComponent(storageKey)}`, {
     method: 'DELETE',
     credentials: 'include',
     headers: { ...shareHeaders },

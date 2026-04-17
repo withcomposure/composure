@@ -91,7 +91,7 @@ export function SettingsView({
     setBusy(true)
     setGlobalError(null)
     try {
-      const next = await fetchJson<AuthSession>('/api/auth/profile', {
+      const next = await fetchJson<AuthSession>('/auth/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: profileEmail, displayName: profileName, profileImageUrl }),
@@ -135,7 +135,7 @@ export function SettingsView({
     setGlobalError(null)
     setPasswordError(null)
     try {
-      await fetchJson<{ ok: boolean }>('/api/auth/password', {
+      await fetchJson<{ ok: boolean }>('/auth/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),

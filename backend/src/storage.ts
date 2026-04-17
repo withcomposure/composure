@@ -162,7 +162,7 @@ async function persistPart(projectId: string, part: MultipartFile, maxBytes: num
   }
 }
 
-/** Upload route: POST /api/upload/:projectId */
+/** Upload route: POST /api/v1/upload/:projectId */
 export async function uploadRoute(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -192,7 +192,7 @@ export async function uploadRoute(
   reply.send({ uploaded })
 }
 
-/** Delete a single asset: DELETE /api/upload/:projectId/:storageKey */
+/** Delete a single asset: DELETE /api/v1/upload/:projectId/:storageKey */
 export function deleteAssetRoute(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -213,7 +213,7 @@ export function deleteAssetRoute(
   reply.send({ ok: true })
 }
 
-/** List assets for a project: GET /api/upload/:projectId */
+/** List assets for a project: GET /api/v1/upload/:projectId */
 export function listAssetsRoute(
   req: FastifyRequest,
   reply: FastifyReply,

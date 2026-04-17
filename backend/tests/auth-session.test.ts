@@ -10,7 +10,7 @@ beforeEach(async () => {
 
 describe('auth hook — session resolution', () => {
   it('unauthenticated request gets no authUser', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/auth/session' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/session' })
     const body = res.json()
 
     expect(res.statusCode).toBe(200)
@@ -24,7 +24,7 @@ describe('auth hook — session resolution', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: sessionCookie(sessionId) },
     })
     const body = res.json()
@@ -43,7 +43,7 @@ describe('auth hook — session resolution', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: sessionCookie(sessionId) },
     })
     const body = res.json()
@@ -55,7 +55,7 @@ describe('auth hook — session resolution', () => {
   it('invalid session cookie gets no authUser', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: sessionCookie('nonexistent-session-id') },
     })
     const body = res.json()
@@ -68,7 +68,7 @@ describe('auth hook — session resolution', () => {
     const guestId = '550e8400e29b41d4a716446655440000'
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: guestCookie(guestId) },
     })
     const body = res.json()
@@ -80,7 +80,7 @@ describe('auth hook — session resolution', () => {
   it('sets guest cookie when none provided', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
     })
 
     const setCookieHeader = res.headers['set-cookie']
@@ -92,7 +92,7 @@ describe('auth hook — session resolution', () => {
   it('guest cookie Max-Age is 90 days in seconds', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
     })
 
     const setCookieHeader = res.headers['set-cookie']
@@ -107,13 +107,13 @@ describe('auth hook — session resolution', () => {
   })
 
   it('guestRetentionDays matches actual cookie lifetime', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/auth/session' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/session' })
     const body = res.json()
     expect(body.guestRetentionDays).toBe(90)
   })
 
   it('returns correct userCount and signupMode', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/auth/session' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/session' })
     const body = res.json()
 
     expect(body.userCount).toBe(0)
@@ -121,7 +121,7 @@ describe('auth hook — session resolution', () => {
   })
 
   it('session includes guestSignupsEnabled defaulting to true', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/auth/session' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/session' })
     const body = res.json()
     expect(body.guestSignupsEnabled).toBe(true)
   })
@@ -130,7 +130,7 @@ describe('auth hook — session resolution', () => {
     await setTestGuestSignups(false)
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
     })
 
     const setCookieHeader = res.headers['set-cookie']
@@ -145,7 +145,7 @@ describe('auth hook — session resolution', () => {
     await setTestGuestSignups(false)
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: guestCookie(existingGuestId) },
     })
 

@@ -32,7 +32,7 @@ describe('App guest dashboard pinning', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
-      if (url === '/api/auth/session') {
+      if (url === '/api/v1/auth/session') {
         return json({
           authenticated: false,
           user: null,
@@ -43,7 +43,7 @@ describe('App guest dashboard pinning', () => {
         })
       }
 
-      if (url === '/api/projects') {
+      if (url === '/api/v1/projects') {
         return json([
           {
             id: projectId,
@@ -59,19 +59,19 @@ describe('App guest dashboard pinning', () => {
         ])
       }
 
-      if (url === '/api/projects/shared-with-me') {
+      if (url === '/api/v1/projects/shared-with-me') {
         return json([])
       }
 
-      if (url === '/api/projects/recents') {
+      if (url === '/api/v1/projects/recents') {
         return json([])
       }
 
-      if (url === '/api/projects/trash') {
+      if (url === '/api/v1/projects/trash') {
         return json({ projects: [], retentionDays: 30 })
       }
 
-      if (url === '/api/preferences') {
+      if (url === '/api/v1/preferences') {
         return json({
           appearance: 'system',
           recentItemsLimit: 10,

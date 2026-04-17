@@ -9,13 +9,13 @@ beforeEach(async () => {
 })
 
 describe('admin gate', () => {
-  it('unauthenticated request to /api/admin/* returns 401', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/admin/users' })
+  it('unauthenticated request to /api/v1/admin/* returns 401', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/users' })
     expect(res.statusCode).toBe(401)
     expect(res.json().error).toMatch(/authentication/i)
   })
 
-  it('non-admin user gets 403 on /api/admin/*', async () => {
+  it('non-admin user gets 403 on /api/v1/admin/*', async () => {
     // First user is admin; create a second user who is not
     await createTestUser({ email: 'admin@test.com' })
     const normalUser = await createTestUser({ email: 'normal@test.com' })
@@ -23,7 +23,7 @@ describe('admin gate', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -31,13 +31,13 @@ describe('admin gate', () => {
     expect(res.json().error).toMatch(/administrator/i)
   })
 
-  it('admin user can access /api/admin/*', async () => {
+  it('admin user can access /api/v1/admin/*', async () => {
     const admin = await createTestUser({ email: 'admin@test.com' })
     const sessionId = await createTestSession(admin.id)
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -58,7 +58,7 @@ describe('admin gate', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/session',
+      url: '/api/v1/auth/session',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -69,7 +69,7 @@ describe('admin gate', () => {
   it('admin gate applies to POST endpoints too', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/admin/users',
+      url: '/api/v1/admin/users',
       payload: { email: 'new@test.com', password: 'password123', displayName: 'New' },
     })
 
@@ -79,7 +79,7 @@ describe('admin gate', () => {
   it('admin gate applies to PATCH endpoints too', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: '/api/admin/server-settings',
+      url: '/api/v1/admin/server-settings',
       payload: { signupMode: 'open' },
     })
 

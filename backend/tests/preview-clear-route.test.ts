@@ -22,7 +22,7 @@ afterEach(async () => {
   await app.close()
 })
 
-describe('DELETE /api/projects/:projectId/preview.pdf', () => {
+describe('DELETE /api/v1/projects/:projectId/preview.pdf', () => {
   it('clears preview output via compiler dispatch for editors', async () => {
     process.env.COMPILERS = 'http://compiler.test'
     const fetchMock = vi.fn<typeof fetch>()
@@ -35,7 +35,7 @@ describe('DELETE /api/projects/:projectId/preview.pdf', () => {
 
     const response = await app.inject({
       method: 'DELETE',
-      url: `/api/projects/${projectId}/preview.pdf`,
+      url: `/api/v1/projects/${projectId}/preview.pdf`,
       headers: {
         cookie: sessionCookie(sessionId),
       },
@@ -65,7 +65,7 @@ describe('DELETE /api/projects/:projectId/preview.pdf', () => {
 
     const response = await app.inject({
       method: 'DELETE',
-      url: `/api/projects/${projectId}/preview.pdf`,
+      url: `/api/v1/projects/${projectId}/preview.pdf`,
       headers: {
         cookie: sessionCookie(viewerSessionId),
       },

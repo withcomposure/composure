@@ -15,12 +15,13 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
+        ws: true,
         changeOrigin: true,
       },
-      '/collaborate': {
-        target: 'ws://localhost:8080',
+      '/v1': {
+        target: 'http://localhost:8080',
         ws: true,
-        rewriteWsOrigin: true,
+        changeOrigin: true,
       },
       '/assets': {
         target: 'http://localhost:8080',

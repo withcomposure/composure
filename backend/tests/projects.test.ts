@@ -18,7 +18,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: 'My Project' },
     })
@@ -35,7 +35,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: 'Template Project', templateId: 'latex-blank' },
     })
@@ -66,7 +66,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: guestCookie(guestId) },
       payload: { title: 'Guest Project' },
     })
@@ -80,7 +80,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       payload: { title: 'Should Fail' },
     })
 
@@ -93,7 +93,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: guestCookie(guestId) },
       payload: { title: 'Existing Guest Project' },
     })
@@ -109,7 +109,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -125,7 +125,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}`,
+      url: `/api/v1/projects/${projectId}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: 'Renamed' },
     })
@@ -141,7 +141,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/api/projects/${projectId}`,
+      url: `/api/v1/projects/${projectId}`,
       headers: { cookie: sessionCookie(sessionId) },
     })
 
@@ -159,7 +159,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}`,
+      url: `/api/v1/projects/${projectId}`,
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: '' },
     })
@@ -173,7 +173,7 @@ describe('project CRUD', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: '/api/projects/not-a-valid-uuid',
+      url: '/api/v1/projects/not-a-valid-uuid',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: 'Test' },
     })
@@ -199,7 +199,7 @@ describe('project limits', () => {
     // Third should be rejected
     const res = await app.inject({
       method: 'POST',
-      url: '/api/projects',
+      url: '/api/v1/projects',
       headers: { cookie: sessionCookie(sessionId) },
       payload: { title: 'Over Limit' },
     })

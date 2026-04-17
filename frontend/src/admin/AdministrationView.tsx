@@ -239,7 +239,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setLoadingUsers(true)
     setUsersError(null)
     try {
-      const response = await fetchJson<{ users: AdminUser[] }>(`/api/admin/users?q=${encodeURIComponent(search)}`)
+      const response = await fetchJson<{ users: AdminUser[] }>(`/admin/users?q=${encodeURIComponent(search)}`)
       setUsers(response.users)
     } catch (err) {
       setUsersError(getErrorMessage(err))
@@ -269,7 +269,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
   const loadServerSettings = useCallback(async () => {
     try {
-      const response = await fetchJson<ServerSettings>('/api/admin/server-settings')
+      const response = await fetchJson<ServerSettings>('/admin/server-settings')
       const next = toServerSettingsFormState(response)
       applyServerSettingsForm(next)
       setServerSettingsSaved(next)
@@ -280,7 +280,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
   const loadInvites = useCallback(async () => {
     try {
-      const response = await fetchJson<{ invites: InviteTokenRecord[] }>('/api/admin/invites')
+      const response = await fetchJson<{ invites: InviteTokenRecord[] }>('/admin/invites')
       setInvites(response.invites)
     } catch (err) {
       setInvitesError(getErrorMessage(err))
@@ -289,7 +289,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
   const loadSmtpSettings = useCallback(async () => {
     try {
-      const response = await fetchJson<SmtpSettingsMasked>('/api/admin/smtp')
+      const response = await fetchJson<SmtpSettingsMasked>('/admin/smtp')
       setSmtpHost(response.host)
       setSmtpPort(response.port)
       setSmtpUsername(response.username)
@@ -307,10 +307,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setMonitoringBusy(true)
     setMonitoringError(null)
     try {
-      const response = await fetchJson<{ jobs: BackgroundJobSummary[]; health: HealthStatus }>(`/api/admin/monitoring/jobs?seconds=${seconds}`)
+      const response = await fetchJson<{ jobs: BackgroundJobSummary[]; health: HealthStatus }>(`/admin/monitoring/jobs?seconds=${seconds}`)
       setRecentJobs(response.jobs)
       setHealthStatus(response.health)
-      const summaryResponse = await fetchJson<{ summary: JobQueueSummary; health: HealthStatus }>(`/api/admin/monitoring/summary?seconds=${seconds}`)
+      const summaryResponse = await fetchJson<{ summary: JobQueueSummary; health: HealthStatus }>(`/admin/monitoring/summary?seconds=${seconds}`)
       setJobSummary(summaryResponse.summary)
       setHealthStatus(summaryResponse.health)
     } catch (err) {
@@ -354,10 +354,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setResetError(null)
     setResetBusy(true)
     try {
-      const createResponse = await fetchJson<{ url: string }>(`/api/admin/users/${user.id}/password-reset-link`, {
+      const createResponse = await fetchJson<{ url: string }>(`/admin/users/${user.id}/password-reset-link`, {
         method: 'POST',
       })
-      const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/api/admin/users/${user.id}/password-reset-links`)
+      const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/admin/users/${user.id}/password-reset-links`)
       setGeneratedResetUrl(createResponse.url)
       setExistingResetLinks(linksResponse.links)
     } catch (err) {
@@ -368,7 +368,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   }, [])
 
   const refreshResetLinks = useCallback(async (userId: string) => {
-    const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/api/admin/users/${userId}/password-reset-links`)
+    const linksResponse = await fetchJson<{ links: PasswordResetLinkRecord[] }>(`/admin/users/${userId}/password-reset-links`)
     setExistingResetLinks(linksResponse.links)
   }, [])
 
@@ -377,7 +377,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setResetBusy(true)
     setResetError(null)
     try {
-      await fetchJson<{ ok: boolean }>(`/api/admin/password-reset-links/${encodeURIComponent(token)}/expire`, {
+      await fetchJson<{ ok: boolean }>(`/admin/password-reset-links/${encodeURIComponent(token)}/expire`, {
         method: 'POST',
       })
       await refreshResetLinks(resetTarget.id)
@@ -409,7 +409,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setCreateBusy(true)
     setCreateError(null)
     try {
-      await fetchJson<{ user: AdminUser }>('/api/admin/users', {
+      await fetchJson<{ user: AdminUser }>('/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -459,7 +459,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setEditBusy(true)
     setEditError(null)
     try {
-      const response = await fetchJson<{ user: AdminUser; forceRelogin?: boolean }>(`/api/admin/users/${editingUser.id}`, {
+      const response = await fetchJson<{ user: AdminUser; forceRelogin?: boolean }>(`/admin/users/${editingUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -497,7 +497,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setDeleteBusy(true)
     setDeleteError(null)
     try {
-      const response = await fetchJson<{ ok: boolean; forceRelogin?: boolean }>(`/api/admin/users/${deleteTarget.id}`, {
+      const response = await fetchJson<{ ok: boolean; forceRelogin?: boolean }>(`/admin/users/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmEmail: deleteConfirmEmail.trim() }),
@@ -536,7 +536,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
         trashRetentionDays,
         largeFileThreshold,
       })
-      const response = await fetchJson<ServerSettings>('/api/admin/server-settings', {
+      const response = await fetchJson<ServerSettings>('/admin/server-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -573,7 +573,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setInvitesError(null)
     try {
       const emailValue = inviteEmail.trim().toLowerCase()
-      const response = await fetchJson<{ url: string }>('/api/admin/invites', {
+      const response = await fetchJson<{ url: string }>('/admin/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: emailValue || undefined }),
@@ -595,7 +595,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setInvitesBusy(true)
     setInvitesError(null)
     try {
-      await fetchJson<{ ok: boolean }>(`/api/admin/invites/${encodeURIComponent(token)}`, {
+      await fetchJson<{ ok: boolean }>(`/admin/invites/${encodeURIComponent(token)}`, {
         method: 'DELETE',
       })
       await loadInvites()
@@ -610,7 +610,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setSmtpBusy(true)
     setSmtpError(null)
     try {
-      const response = await fetchJson<SmtpSettingsMasked>('/api/admin/smtp', {
+      const response = await fetchJson<SmtpSettingsMasked>('/admin/smtp', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -643,7 +643,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setTestEmailBusy(true)
     setTestEmailResult(null)
     try {
-      await fetchJson<{ ok: boolean }>('/api/admin/smtp/test', {
+      await fetchJson<{ ok: boolean }>('/admin/smtp/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: testEmailTo.trim().toLowerCase() }),

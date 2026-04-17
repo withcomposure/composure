@@ -21,7 +21,7 @@ describe('PDF URL sessionStorage persistence', () => {
   })
 
   it('persists and retrieves a PDF URL', () => {
-    const pdfUrl = '/api/projects/project-1/preview.pdf?v=abc123'
+    const pdfUrl = '/api/v1/projects/project-1/preview.pdf?v=abc123'
     sessionStorage.setItem(STORAGE_KEY('project-1'), pdfUrl)
 
     const restored = sessionStorage.getItem(STORAGE_KEY('project-1'))
@@ -29,28 +29,28 @@ describe('PDF URL sessionStorage persistence', () => {
   })
 
   it('isolates URLs per project', () => {
-    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/projects/project-1/preview.pdf?v=aaa')
-    sessionStorage.setItem(STORAGE_KEY('project-2'), '/api/projects/project-2/preview.pdf?v=bbb')
+    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/v1/projects/project-1/preview.pdf?v=aaa')
+    sessionStorage.setItem(STORAGE_KEY('project-2'), '/api/v1/projects/project-2/preview.pdf?v=bbb')
 
     expect(sessionStorage.getItem(STORAGE_KEY('project-1'))).toBe(
-      '/api/projects/project-1/preview.pdf?v=aaa',
+      '/api/v1/projects/project-1/preview.pdf?v=aaa',
     )
     expect(sessionStorage.getItem(STORAGE_KEY('project-2'))).toBe(
-      '/api/projects/project-2/preview.pdf?v=bbb',
+      '/api/v1/projects/project-2/preview.pdf?v=bbb',
     )
   })
 
   it('overwrites previous URL on recompile', () => {
-    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/projects/project-1/preview.pdf?v=old')
-    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/projects/project-1/preview.pdf?v=new')
+    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/v1/projects/project-1/preview.pdf?v=old')
+    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/v1/projects/project-1/preview.pdf?v=new')
 
     expect(sessionStorage.getItem(STORAGE_KEY('project-1'))).toBe(
-      '/api/projects/project-1/preview.pdf?v=new',
+      '/api/v1/projects/project-1/preview.pdf?v=new',
     )
   })
 
   it('preserves shareToken in URL round-trip', () => {
-    const url = '/api/projects/project-1/preview.pdf?v=abc&shareToken=tok123'
+    const url = '/api/v1/projects/project-1/preview.pdf?v=abc&shareToken=tok123'
     sessionStorage.setItem(STORAGE_KEY('project-1'), url)
 
     const restored = sessionStorage.getItem(STORAGE_KEY('project-1'))
@@ -59,7 +59,7 @@ describe('PDF URL sessionStorage persistence', () => {
   })
 
   it('removes stored URL when output is cleared', () => {
-    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/projects/project-1/preview.pdf?v=abc123')
+    sessionStorage.setItem(STORAGE_KEY('project-1'), '/api/v1/projects/project-1/preview.pdf?v=abc123')
 
     sessionStorage.removeItem(STORAGE_KEY('project-1'))
 

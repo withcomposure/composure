@@ -14,13 +14,13 @@ describe('login', () => {
     // Signup to create the user correctly (hashes password properly)
     await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'user@test.com', password: 'password123' },
     })
 
@@ -33,13 +33,13 @@ describe('login', () => {
   it('session cookie Max-Age is 30 days in seconds', async () => {
     await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'user@test.com', password: 'password123' },
     })
 
@@ -57,13 +57,13 @@ describe('login', () => {
   it('login with wrong password fails', async () => {
     await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'user@test.com', password: 'wrongpassword' },
     })
 
@@ -74,7 +74,7 @@ describe('login', () => {
   it('login with non-existent email fails', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'nobody@test.com', password: 'password123' },
     })
 
@@ -84,7 +84,7 @@ describe('login', () => {
   it('login with suspended user fails', async () => {
     await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'suspended@test.com', password: 'password123', displayName: 'Suspended User' },
     })
 
@@ -93,7 +93,7 @@ describe('login', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'suspended@test.com', password: 'password123' },
     })
 
@@ -108,7 +108,7 @@ describe('login', () => {
 
     await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: userEmail, password: 'password123', displayName: 'Migrate Login' },
     })
 
@@ -123,7 +123,7 @@ describe('login', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: userEmail, password: 'password123' },
       headers: { cookie: guestCookie(guestId) },
     })
@@ -146,7 +146,7 @@ describe('logout', () => {
   it('logout clears session', async () => {
     const signupRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
@@ -155,7 +155,7 @@ describe('logout', () => {
 
     const logoutRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/logout',
+      url: '/api/v1/auth/logout',
       headers: { cookie: cookieHeader },
     })
 
@@ -168,7 +168,7 @@ describe('session listing and revocation', () => {
   it('lists sessions for authenticated user', async () => {
     const signupRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
@@ -177,7 +177,7 @@ describe('session listing and revocation', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/sessions',
+      url: '/api/v1/auth/sessions',
       headers: { cookie: cookieHeader },
     })
 
@@ -190,7 +190,7 @@ describe('session listing and revocation', () => {
   it('unauthenticated session list returns 401', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/sessions',
+      url: '/api/v1/auth/sessions',
     })
 
     expect(res.statusCode).toBe(401)
@@ -203,7 +203,7 @@ describe('session listing and revocation', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/auth/sessions',
+      url: '/api/v1/auth/sessions',
       headers: { cookie: sessionCookie(activeSession) },
     })
 
@@ -218,7 +218,7 @@ describe('password change', () => {
   it('changes password with correct current password', async () => {
     const signupRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
@@ -227,7 +227,7 @@ describe('password change', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/password',
+      url: '/api/v1/auth/password',
       headers: { cookie: cookieHeader },
       payload: { currentPassword: 'password123', newPassword: 'newpassword456' },
     })
@@ -237,7 +237,7 @@ describe('password change', () => {
     // Verify new password works
     const loginRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
+      url: '/api/v1/auth/login',
       payload: { email: 'user@test.com', password: 'newpassword456' },
     })
     expect(loginRes.statusCode).toBe(200)
@@ -246,7 +246,7 @@ describe('password change', () => {
   it('rejects password change with wrong current password', async () => {
     const signupRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
@@ -255,7 +255,7 @@ describe('password change', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/password',
+      url: '/api/v1/auth/password',
       headers: { cookie: cookieHeader },
       payload: { currentPassword: 'wrongcurrent', newPassword: 'newpassword456' },
     })
@@ -268,7 +268,7 @@ describe('profile update', () => {
   it('updating display name does not clear profile image', async () => {
     const signupRes = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'user@test.com', password: 'password123', displayName: 'Test User' },
     })
 
@@ -281,7 +281,7 @@ describe('profile update', () => {
     // Set a profile image first
     const updateRes = await app.inject({
       method: 'PATCH',
-      url: '/api/auth/profile',
+      url: '/api/v1/auth/profile',
       headers: { cookie: cookieHeader },
       payload: { email: 'user@test.com', displayName: 'Test User', profileImageUrl: dataUrl },
     })
@@ -291,7 +291,7 @@ describe('profile update', () => {
     // Now update only display name (no profileImageUrl in body)
     const nameOnlyRes = await app.inject({
       method: 'PATCH',
-      url: '/api/auth/profile',
+      url: '/api/v1/auth/profile',
       headers: { cookie: cookieHeader },
       payload: { email: 'user@test.com', displayName: 'New Name' },
     })

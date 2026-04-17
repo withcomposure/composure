@@ -42,9 +42,11 @@ docker compose -f docker-compose.yml -f docker-compose.db.yml up --build
 
 For split mode, copy `.env.split.example` to `.env.split` and set at least:
 - `CORS_ORIGIN=https://your-app.pages.dev`
+- `API_BASE_PATH=/`
 - `SERVE_FRONTEND=false`
 
 Requires Node 24.
+
 
 ## Features & Roadmap
 

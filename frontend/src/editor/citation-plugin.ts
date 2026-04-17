@@ -40,7 +40,7 @@ async function fetchBibEntries(): Promise<BibEntry[]> {
     }
     const shareToken = extractShareTokenFromUrl()
     const headers = shareToken ? { 'X-Share-Token': shareToken } : undefined
-    const res = await apiFetch(`/api/bibliography/${projectId}`, {
+    const res = await apiFetch(`/bibliography/${projectId}`, {
       credentials: 'same-origin',
       headers,
     })

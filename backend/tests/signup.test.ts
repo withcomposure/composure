@@ -13,7 +13,7 @@ describe('signup — bootstrap (first user)', () => {
   it('first user becomes admin', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'admin@test.com', password: 'password123', displayName: 'Admin User' },
     })
 
@@ -29,7 +29,7 @@ describe('signup — bootstrap (first user)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'admin@test.com', password: 'password123', displayName: 'Admin User' },
     })
 
@@ -46,7 +46,7 @@ describe('signup — second user', () => {
   it('second user gets user role in open mode', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'new@test.com', password: 'password123', displayName: 'New User' },
     })
 
@@ -59,7 +59,7 @@ describe('signup — second user', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'new@test.com', password: 'password123', displayName: 'New User' },
     })
 
@@ -73,7 +73,7 @@ describe('signup — second user', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: {
         email: 'invited@test.com',
         password: 'password123',
@@ -94,7 +94,7 @@ describe('signup — second user', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: {
         email: 'user2@test.com',
         password: 'password123',
@@ -112,7 +112,7 @@ describe('signup — second user', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: {
         email: 'user2@test.com',
         password: 'password123',
@@ -130,7 +130,7 @@ describe('signup — second user', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: {
         email: 'wrong@test.com',
         password: 'password123',
@@ -148,7 +148,7 @@ describe('signup — validation', () => {
   it('rejects invalid email', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'not-an-email', password: 'password123', displayName: 'Test' },
     })
 
@@ -158,7 +158,7 @@ describe('signup — validation', () => {
   it('rejects short password', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'test@test.com', password: 'short', displayName: 'Test User' },
     })
 
@@ -168,7 +168,7 @@ describe('signup — validation', () => {
   it('rejects short display name', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'test@test.com', password: 'password123', displayName: 'A' },
     })
 
@@ -180,7 +180,7 @@ describe('signup — validation', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'dupe@test.com', password: 'password123', displayName: 'Dupe User' },
     })
 
@@ -198,7 +198,7 @@ describe('signup — guest migration', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'newuser@test.com', password: 'password123', displayName: 'New User' },
       headers: { cookie: guestCookie(guestId) },
     })
@@ -228,7 +228,7 @@ describe('signup — guest migration', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'newuser2@test.com', password: 'password123', displayName: 'New User Two' },
       headers: { cookie: guestCookie(guestId) },
     })
@@ -260,7 +260,7 @@ describe('signup — pending invites', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/signup',
+      url: '/api/v1/auth/signup',
       payload: { email: 'invited@test.com', password: 'password123', displayName: 'Invited' },
     })
 

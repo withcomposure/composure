@@ -104,6 +104,11 @@ import {
   restoreToCommit,
 } from './history.js'
 import { findTextSizeViolation, textSizeViolationMessage } from './text-size-limit.js'
+import {
+  pathMatchesPrefix,
+  pathnameFromRawUrl,
+  resolveApiRouting,
+} from './routing.js'
 
 function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
   const filesMap = doc.getMap<string>('files')
@@ -165,6 +170,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const { hocuspocus = null, isProduction = isProductionEnv(process.env.NODE_ENV), resetAutoCommitTimer } = options
   const shouldServeFrontend = parseBooleanEnv(process.env.SERVE_FRONTEND, isProduction)
   const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
+  const apiRouting = resolveApiRouting(process.env)
+  const apiPath = apiRouting.apiPath
 
   const app = Fastify({
     logger: false,
@@ -192,7 +199,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return payload
   })
   app.addHook('preHandler', async (req, reply) => {
-    if (!req.url.startsWith('/api/admin')) {
+    const requestPathname = pathnameFromRawUrl(req.url)
+    if (!pathMatchesPrefix(requestPathname, apiRouting.adminApiPath)) {
       return
     }
 
@@ -275,8 +283,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   // Auth routes
-  app.get('/api/auth/session', authSessionRoute)
-  app.post('/api/auth/signup', {
+  app.get(apiPath('/auth/session'), authSessionRoute)
+  app.post(apiPath('/auth/signup'), {
     schema: {
       body: {
         type: 'object',
@@ -291,7 +299,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, signupRoute)
-  app.post('/api/auth/login', {
+  app.post(apiPath('/auth/login'), {
     schema: {
       body: {
         type: 'object',
@@ -304,10 +312,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, loginRoute)
-  app.post('/api/auth/logout', logoutRoute)
-  app.get('/api/auth/password-reset/:token', getPasswordResetTokenRoute)
-  app.post('/api/auth/password-reset/:token', applyPasswordResetRoute)
-  app.patch('/api/auth/profile', {
+  app.post(apiPath('/auth/logout'), logoutRoute)
+  app.get(apiPath('/auth/password-reset/:token'), getPasswordResetTokenRoute)
+  app.post(apiPath('/auth/password-reset/:token'), applyPasswordResetRoute)
+  app.patch(apiPath('/auth/profile'), {
     schema: {
       body: {
         type: 'object',
@@ -321,7 +329,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, updateProfileRoute)
-  app.post('/api/auth/password', {
+  app.post(apiPath('/auth/password'), {
     schema: {
       body: {
         type: 'object',
@@ -334,7 +342,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, changePasswordRoute)
-  app.post('/api/auth/delete-account', {
+  app.post(apiPath('/auth/delete-account'), {
     schema: {
       body: {
         type: 'object',
@@ -346,36 +354,36 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, deleteAccountRoute)
-  app.get('/api/auth/sessions', listSessionsRoute)
-  app.delete('/api/auth/sessions/:sessionId', revokeSessionRoute)
-  app.get('/api/preferences', getPreferencesRoute)
-  app.patch('/api/preferences', updatePreferencesRoute)
+  app.get(apiPath('/auth/sessions'), listSessionsRoute)
+  app.delete(apiPath('/auth/sessions/:sessionId'), revokeSessionRoute)
+  app.get(apiPath('/preferences'), getPreferencesRoute)
+  app.patch(apiPath('/preferences'), updatePreferencesRoute)
 
-  app.get('/api/admin/users', listAdminUsersRoute)
-  app.post('/api/admin/users', createAdminUserRoute)
-  app.patch('/api/admin/users/:userId', updateAdminUserRoute)
-  app.delete('/api/admin/users/:userId', deleteAdminUserRoute)
-  app.post('/api/admin/users/:userId/password-reset-link', generatePasswordResetLinkRoute)
-  app.get('/api/admin/users/:userId/password-reset-links', listPasswordResetLinksRoute)
-  app.post('/api/admin/password-reset-links/:token/expire', expirePasswordResetLinkRoute)
-  app.get('/api/admin/server-settings', getAdminServerSettingsRoute)
-  app.patch('/api/admin/server-settings', updateAdminServerSettingsRoute)
-  app.get('/api/admin/invites', listInviteTokensRoute)
-  app.post('/api/admin/invites', createInviteTokenRoute)
-  app.delete('/api/admin/invites/:token', revokeInviteTokenRoute)
-  app.get('/api/admin/smtp', getSmtpSettingsRoute)
-  app.patch('/api/admin/smtp', updateSmtpSettingsRoute)
-  app.post('/api/admin/smtp/test', sendTestEmailRoute)
-  app.get('/api/admin/monitoring/summary', getJobSummaryRoute)
-  app.get('/api/admin/monitoring/jobs', listRecentJobsRoute)
+  app.get(apiPath('/admin/users'), listAdminUsersRoute)
+  app.post(apiPath('/admin/users'), createAdminUserRoute)
+  app.patch(apiPath('/admin/users/:userId'), updateAdminUserRoute)
+  app.delete(apiPath('/admin/users/:userId'), deleteAdminUserRoute)
+  app.post(apiPath('/admin/users/:userId/password-reset-link'), generatePasswordResetLinkRoute)
+  app.get(apiPath('/admin/users/:userId/password-reset-links'), listPasswordResetLinksRoute)
+  app.post(apiPath('/admin/password-reset-links/:token/expire'), expirePasswordResetLinkRoute)
+  app.get(apiPath('/admin/server-settings'), getAdminServerSettingsRoute)
+  app.patch(apiPath('/admin/server-settings'), updateAdminServerSettingsRoute)
+  app.get(apiPath('/admin/invites'), listInviteTokensRoute)
+  app.post(apiPath('/admin/invites'), createInviteTokenRoute)
+  app.delete(apiPath('/admin/invites/:token'), revokeInviteTokenRoute)
+  app.get(apiPath('/admin/smtp'), getSmtpSettingsRoute)
+  app.patch(apiPath('/admin/smtp'), updateSmtpSettingsRoute)
+  app.post(apiPath('/admin/smtp/test'), sendTestEmailRoute)
+  app.get(apiPath('/admin/monitoring/summary'), getJobSummaryRoute)
+  app.get(apiPath('/admin/monitoring/jobs'), listRecentJobsRoute)
 
   // Project dashboard routes
-  app.get('/api/projects', listProjectsRoute)
-  app.get('/api/projects/recents', listRecentProjectsRoute)
-  app.delete('/api/projects/recents', clearRecentProjectsRoute)
-  app.get('/api/projects/shared-with-me', sharedWithMeRoute)
-  app.get('/api/templates', listTemplatesRoute)
-  app.post('/api/projects', {
+  app.get(apiPath('/projects'), listProjectsRoute)
+  app.get(apiPath('/projects/recents'), listRecentProjectsRoute)
+  app.delete(apiPath('/projects/recents'), clearRecentProjectsRoute)
+  app.get(apiPath('/projects/shared-with-me'), sharedWithMeRoute)
+  app.get(apiPath('/templates'), listTemplatesRoute)
+  app.post(apiPath('/projects'), {
     schema: {
       body: {
         type: 'object',
@@ -388,7 +396,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, createProjectRoute)
-  app.patch('/api/projects/:projectId', {
+  app.patch(apiPath('/projects/:projectId'), {
     schema: {
       params: {
         type: 'object',
@@ -407,14 +415,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, renameProjectRoute)
-  app.post('/api/projects/:projectId/open', markProjectOpenedRoute)
-  app.delete('/api/projects/:projectId', deleteProjectRoute)
-  app.get('/api/projects/trash', listTrashRoute)
-  app.post('/api/projects/:projectId/restore', restoreProjectRoute)
-  app.delete('/api/projects/:projectId/permanent', permanentDeleteProjectRoute)
-  app.get('/api/projects/:projectId/access', getProjectAccessRoute)
-  app.get('/api/projects/:projectId/workspace-state', getProjectWorkspaceStateRoute)
-  app.patch('/api/projects/:projectId/workspace-state', {
+  app.post(apiPath('/projects/:projectId/open'), markProjectOpenedRoute)
+  app.delete(apiPath('/projects/:projectId'), deleteProjectRoute)
+  app.get(apiPath('/projects/trash'), listTrashRoute)
+  app.post(apiPath('/projects/:projectId/restore'), restoreProjectRoute)
+  app.delete(apiPath('/projects/:projectId/permanent'), permanentDeleteProjectRoute)
+  app.get(apiPath('/projects/:projectId/access'), getProjectAccessRoute)
+  app.get(apiPath('/projects/:projectId/workspace-state'), getProjectWorkspaceStateRoute)
+  app.patch(apiPath('/projects/:projectId/workspace-state'), {
     schema: {
       params: {
         type: 'object',
@@ -436,16 +444,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, patchProjectWorkspaceStateRoute)
-  app.post('/api/projects/:projectId/members', inviteProjectMemberRoute)
-  app.patch('/api/projects/:projectId/members/:userId', patchProjectMemberRoute)
-  app.patch('/api/projects/:projectId/link-sharing', patchProjectLinkSharingRoute)
-  app.get('/api/projects/:projectId/comments', listProjectCommentsRoute)
-  app.post('/api/projects/:projectId/comments', addProjectCommentRoute)
-  app.patch('/api/projects/:projectId/comments/:commentId', patchProjectCommentRoute)
-  app.delete('/api/projects/:projectId/comments/:commentId', deleteProjectCommentRoute)
+  app.post(apiPath('/projects/:projectId/members'), inviteProjectMemberRoute)
+  app.patch(apiPath('/projects/:projectId/members/:userId'), patchProjectMemberRoute)
+  app.patch(apiPath('/projects/:projectId/link-sharing'), patchProjectLinkSharingRoute)
+  app.get(apiPath('/projects/:projectId/comments'), listProjectCommentsRoute)
+  app.post(apiPath('/projects/:projectId/comments'), addProjectCommentRoute)
+  app.patch(apiPath('/projects/:projectId/comments/:commentId'), patchProjectCommentRoute)
+  app.delete(apiPath('/projects/:projectId/comments/:commentId'), deleteProjectCommentRoute)
 
   // Document routes
-  app.get('/api/document/:projectId', {
+  app.get(apiPath('/document/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, async (req, reply) => {
     const projectId = (req.params as { projectId: string }).projectId
@@ -472,7 +480,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     })
   })
 
-  app.post('/api/save/:projectId', {
+  app.post(apiPath('/save/:projectId'), {
     preHandler: requireProjectParamAccess('edit', false),
   }, async (req, reply) => {
     const projectId = (req.params as { projectId: string }).projectId
@@ -570,7 +578,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
   })
 
-  app.post('/api/compile', {
+  app.post(apiPath('/compile'), {
     schema: {
       body: {
         type: 'object',
@@ -696,7 +704,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
   })
 
-  app.get('/api/projects/:projectId/preview.pdf', {
+  app.get(apiPath('/projects/:projectId/preview.pdf'), {
     preHandler: requireProjectParamAccess('view', false),
     schema: {
       params: {
@@ -732,7 +740,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     })
   })
 
-  app.delete('/api/projects/:projectId/preview.pdf', {
+  app.delete(apiPath('/projects/:projectId/preview.pdf'), {
     preHandler: requireProjectParamAccess('edit', false),
     schema: {
       params: {
@@ -753,24 +761,24 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     })
   })
 
-  app.get('/api/bibliography/:projectId', {
+  app.get(apiPath('/bibliography/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, bibliographyRoute)
-  app.post('/api/export/:projectId', {
+  app.post(apiPath('/export/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, exportRoute)
-  app.post('/api/upload/:projectId', {
+  app.post(apiPath('/upload/:projectId'), {
     preHandler: requireProjectParamAccess('edit', false),
   }, uploadRoute)
-  app.delete('/api/upload/:projectId/:storageKey', {
+  app.delete(apiPath('/upload/:projectId/:storageKey'), {
     preHandler: requireProjectParamAccess('edit', false),
   }, deleteAssetRoute)
-  app.get('/api/upload/:projectId', {
+  app.get(apiPath('/upload/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, listAssetsRoute)
 
   // History routes
-  app.get('/api/projects/:projectId/history', {
+  app.get(apiPath('/projects/:projectId/history'), {
     preHandler: requireProjectParamAccess('view', false),
     schema: {
       params: {
@@ -799,7 +807,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ commits })
   })
 
-  app.get('/api/projects/:projectId/history/:sha/files', {
+  app.get(apiPath('/projects/:projectId/history/:sha/files'), {
     preHandler: requireProjectParamAccess('view', false),
     schema: {
       params: {
@@ -817,7 +825,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ files })
   })
 
-  app.get('/api/projects/:projectId/history/:sha/diff', {
+  app.get(apiPath('/projects/:projectId/history/:sha/diff'), {
     preHandler: requireProjectParamAccess('view', false),
     schema: {
       params: {
@@ -849,7 +857,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send(diff)
   })
 
-  app.post('/api/projects/:projectId/history/snapshot', {
+  app.post(apiPath('/projects/:projectId/history/snapshot'), {
     preHandler: requireProjectParamAccess('edit', false),
     schema: {
       params: {
@@ -880,7 +888,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ snapshot })
   })
 
-  app.get('/api/projects/:projectId/history/snapshots', {
+  app.get(apiPath('/projects/:projectId/history/snapshots'), {
     preHandler: requireProjectParamAccess('view', false),
     schema: {
       params: {
@@ -895,7 +903,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ snapshots })
   })
 
-  app.post('/api/projects/:projectId/history/restore', {
+  app.post(apiPath('/projects/:projectId/history/restore'), {
     preHandler: requireProjectParamAccess('edit', false),
     schema: {
       params: {
@@ -984,7 +992,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.send({ commit: result.commit })
   })
 
-  app.post('/api/projects/:projectId/history/restore-file', {
+  app.post(apiPath('/projects/:projectId/history/restore-file'), {
     preHandler: requireProjectParamAccess('edit', false),
     schema: {
       params: {
@@ -1080,8 +1088,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     })
 
     app.setNotFoundHandler(async (req, reply) => {
-      const url = req.raw.url ?? ''
-      if (url.startsWith('/api/') || url === '/health' || url.startsWith('/assets/') || url.startsWith('/collaborate')) {
+      const requestPathname = pathnameFromRawUrl(req.raw.url)
+      const isApiPath = pathMatchesPrefix(requestPathname, apiRouting.apiRootPath)
+
+      if (
+        isApiPath
+        || requestPathname === '/health'
+        || pathMatchesPrefix(requestPathname, '/assets')
+        || pathMatchesPrefix(requestPathname, apiRouting.wsCollaborationPath)
+      ) {
         reply.status(404).send({ error: 'Not found' })
         return
       }

@@ -99,7 +99,7 @@ export default function App() {
   }, [])
 
   const loadSession = useCallback(async () => {
-    const next = await fetchJson<AuthSession>('/api/auth/session')
+    const next = await fetchJson<AuthSession>('/auth/session')
     setSession(next)
     return next
   }, [])
@@ -107,10 +107,10 @@ export default function App() {
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
     try {
-      const list = await fetchJson<ProjectSummary[]>('/api/projects')
+      const list = await fetchJson<ProjectSummary[]>('/projects')
       setProjects(list)
 
-      const shared = await fetchJson<ProjectSummary[]>('/api/projects/shared-with-me')
+      const shared = await fetchJson<ProjectSummary[]>('/projects/shared-with-me')
       setSharedProjects(shared)
     } catch (err) {
       console.error(`[app] load-projects-failed ${String(err)}`)
@@ -123,7 +123,7 @@ export default function App() {
 
   const loadRecents = useCallback(async () => {
     try {
-      const list = await fetchJson<RecentProjectSummary[]>('/api/projects/recents')
+      const list = await fetchJson<RecentProjectSummary[]>('/projects/recents')
       setRecentProjects(list)
     } catch {
       setRecentProjects([])
@@ -132,7 +132,7 @@ export default function App() {
 
   const loadTrash = useCallback(async () => {
     try {
-      const response = await fetchJson<{ projects: TrashedProjectSummary[]; retentionDays: number }>('/api/projects/trash')
+      const response = await fetchJson<{ projects: TrashedProjectSummary[]; retentionDays: number }>('/projects/trash')
       setTrashedProjects(response.projects)
       setTrashRetentionDays(response.retentionDays)
     } catch {
@@ -142,7 +142,7 @@ export default function App() {
 
   const loadPreferences = useCallback(async () => {
     try {
-      const next = await fetchJson<UserPreferences>('/api/preferences')
+      const next = await fetchJson<UserPreferences>('/preferences')
       setPreferences(next)
     } catch {
       setPreferences({
@@ -172,7 +172,7 @@ export default function App() {
       return
     }
     try {
-      const body = await fetchJson<{ sessions: SessionSummary[] }>('/api/auth/sessions')
+      const body = await fetchJson<{ sessions: SessionSummary[] }>('/auth/sessions')
       setAuthSessions(body.sessions)
     } catch {
       setAuthSessions([])
@@ -183,7 +183,7 @@ export default function App() {
     setTemplatesLoading(true)
     setTemplatesError(null)
     try {
-      const body = await fetchJson<{ templates: ProjectTemplate[] }>('/api/templates')
+      const body = await fetchJson<{ templates: ProjectTemplate[] }>('/templates')
       setTemplates(body.templates)
     } catch (err) {
       setTemplates([])
@@ -311,7 +311,7 @@ export default function App() {
   useEffect(() => {
     if (sessionLoading) return
     if (route.kind !== 'project') return
-    void apiFetch(`/api/projects/${route.projectId}/open`, {
+    void apiFetch(`/projects/${route.projectId}/open`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: route.shareToken ? { 'X-Share-Token': route.shareToken } : undefined,
@@ -331,7 +331,7 @@ export default function App() {
 
     setPasswordResetLoading(true)
     setAuthEntryError(null)
-    void fetchJson<{ email: string }>(`/api/auth/password-reset/${encodeURIComponent(route.token)}`)
+    void fetchJson<{ email: string }>(`/auth/password-reset/${encodeURIComponent(route.token)}`)
       .then((body) => {
         setPasswordResetEmail(body.email)
       })
@@ -370,7 +370,7 @@ export default function App() {
 
   const clearRecents = useCallback(async () => {
     try {
-      await fetchJson<{ ok: boolean }>('/api/projects/recents', { method: 'DELETE' })
+      await fetchJson<{ ok: boolean }>('/projects/recents', { method: 'DELETE' })
       setRecentProjects([])
     } catch (err) {
       console.error(`[app] clear-recents-failed ${String(err)}`)
@@ -378,7 +378,7 @@ export default function App() {
   }, [])
 
   const openProject = useCallback((projectId: string, shareToken?: string) => {
-    void apiFetch(`/api/projects/${projectId}/open`, {
+    void apiFetch(`/projects/${projectId}/open`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: shareToken ? { 'X-Share-Token': shareToken } : undefined,
@@ -387,7 +387,7 @@ export default function App() {
   }, [])
 
   const logoutEverywhere = useCallback(async () => {
-    const next = await fetchJson<AuthSession>('/api/auth/logout', {
+    const next = await fetchJson<AuthSession>('/auth/logout', {
       method: 'POST',
     })
     revokeAuthEntry()
@@ -400,7 +400,7 @@ export default function App() {
     setAuthEntryBusy(true)
     setAuthEntryError(null)
     try {
-      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/signup'
+      const endpoint = mode === 'login' ? '/auth/login' : '/auth/signup'
       const body: Record<string, string> = {
         email: payload.email,
         password: payload.password,
@@ -433,7 +433,7 @@ export default function App() {
     setAuthEntryBusy(true)
     setAuthEntryError(null)
     try {
-      const next = await fetchJson<AuthSession>(`/api/auth/password-reset/${encodeURIComponent(payload.token)}`, {
+      const next = await fetchJson<AuthSession>(`/auth/password-reset/${encodeURIComponent(payload.token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword: payload.newPassword }),
@@ -483,7 +483,7 @@ export default function App() {
           throw new Error('Password is required to delete your account.')
         }
 
-        const next = await fetchJson<AuthSession>('/api/auth/delete-account', {
+        const next = await fetchJson<AuthSession>('/auth/delete-account', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: trimmed }),
@@ -503,7 +503,7 @@ export default function App() {
       return
     }
 
-    const next = await fetchJson<UserPreferences>('/api/preferences', {
+    const next = await fetchJson<UserPreferences>('/preferences', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -538,7 +538,7 @@ export default function App() {
   }, [updatePreferencesPatch])
 
   const revokeSession = useCallback(async (sessionId: string) => {
-    await fetchJson<{ ok: boolean }>(`/api/auth/sessions/${sessionId}`, { method: 'DELETE' })
+    await fetchJson<{ ok: boolean }>(`/auth/sessions/${sessionId}`, { method: 'DELETE' })
     await loadAuthSessions()
   }, [loadAuthSessions])
 
@@ -589,7 +589,7 @@ export default function App() {
   const createProjectFromTemplate = useCallback(async (selection: { templateId: string; title: string }) => {
     setCreatingFromTemplate(true)
     try {
-      const created = await fetchJson<ProjectSummary>('/api/projects', {
+      const created = await fetchJson<ProjectSummary>('/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -617,7 +617,7 @@ export default function App() {
       confirmLabel: 'Save',
       onConfirm: async (title) => {
         try {
-          await fetchJson<{ ok: boolean }>(`/api/projects/${project.id}`, {
+          await fetchJson<{ ok: boolean }>(`/projects/${project.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title }),
@@ -640,7 +640,7 @@ export default function App() {
       confirmVariant: 'danger',
       onConfirm: async () => {
         try {
-          await fetchJson<{ ok: boolean }>(`/api/projects/${project.id}`, {
+          await fetchJson<{ ok: boolean }>(`/projects/${project.id}`, {
             method: 'DELETE',
           })
           await loadProjects()
@@ -659,7 +659,7 @@ export default function App() {
 
   const restoreProject = useCallback(async (projectId: string) => {
     try {
-      await fetchJson<{ ok: boolean }>(`/api/projects/${projectId}/restore`, { method: 'POST' })
+      await fetchJson<{ ok: boolean }>(`/projects/${projectId}/restore`, { method: 'POST' })
       await loadProjects()
       await loadTrash()
     } catch (err) {
@@ -677,7 +677,7 @@ export default function App() {
       confirmVariant: 'danger',
       onConfirm: async () => {
         try {
-          await fetchJson<{ ok: boolean }>(`/api/projects/${projectId}/permanent`, { method: 'DELETE' })
+          await fetchJson<{ ok: boolean }>(`/projects/${projectId}/permanent`, { method: 'DELETE' })
           await loadTrash()
         } catch (err) {
           throw new Error(`Failed to permanently delete: ${getErrorMessage(err)}`)

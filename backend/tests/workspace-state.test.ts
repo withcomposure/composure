@@ -51,7 +51,7 @@ describe('project workspace state', () => {
 
     const ownerPatch = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { state: ownerState },
     })
@@ -60,7 +60,7 @@ describe('project workspace state', () => {
 
     const memberPatch = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(memberSession) },
       payload: { state: memberState },
     })
@@ -69,13 +69,13 @@ describe('project workspace state', () => {
 
     const ownerGet = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(ownerSession) },
     })
 
     const memberGet = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(memberSession) },
     })
 
@@ -92,7 +92,7 @@ describe('project workspace state', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { state: ['not', 'an', 'object'] },
     })
@@ -109,7 +109,7 @@ describe('project workspace state', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: { cookie: sessionCookie(strangerSession) },
     })
 
@@ -123,7 +123,7 @@ describe('project workspace state', () => {
 
     const linkSharing = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/link-sharing`,
+      url: `/api/v1/projects/${projectId}/link-sharing`,
       headers: { cookie: sessionCookie(ownerSession) },
       payload: { enabled: true, role: 'view' },
     })
@@ -142,7 +142,7 @@ describe('project workspace state', () => {
 
     const patchA = await app.inject({
       method: 'PATCH',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: {
         cookie: guestCookie(guestA),
         'x-share-token': token,
@@ -154,7 +154,7 @@ describe('project workspace state', () => {
 
     const getA = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: {
         cookie: guestCookie(guestA),
         'x-share-token': token,
@@ -163,7 +163,7 @@ describe('project workspace state', () => {
 
     const getB = await app.inject({
       method: 'GET',
-      url: `/api/projects/${projectId}/workspace-state`,
+      url: `/api/v1/projects/${projectId}/workspace-state`,
       headers: {
         cookie: guestCookie(guestB),
         'x-share-token': token,

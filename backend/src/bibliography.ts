@@ -29,7 +29,7 @@ function serializeField(value: unknown): string {
 }
 
 /**
- * GET /api/bibliography/:projectId
+ * GET /api/v1/bibliography/:projectId
  * Extracts .bib content from the Yjs document and returns parsed entries.
  */
 export async function bibliographyRoute(

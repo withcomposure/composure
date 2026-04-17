@@ -22,7 +22,7 @@ function validateGitRemote(remote: string): boolean {
 }
 
 /**
- * POST /api/export/:projectId
+ * POST /api/v1/export/:projectId
  * Handles:
  *   - { format: "git", remote: "https://github.com/...", branch: "composure" }
  *   - { format: "docx" | "html" }
