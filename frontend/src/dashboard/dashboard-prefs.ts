@@ -3,7 +3,7 @@ import type {
   DashboardLayout,
   DashboardPreferencesState,
   SortBy,
-} from '../types'
+} from '@/types'
 
 export const DASHBOARD_PREFS_STORAGE_KEY = 'composure.dashboard-preferences.v1'
 

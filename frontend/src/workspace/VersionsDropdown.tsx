@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, History, Tag } from 'lucide-react'
-import type { CommitEntry } from '../types'
-import { fetchHistory } from '../sidebar/history-api'
-import { useClickOutside } from '../hooks/useClickOutside'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useMenuPosition } from '../hooks/useMenuPosition'
-import { fmtRelativeTime } from '../utils/format-time'
+import type { CommitEntry } from '@/types'
+import { fetchHistory } from '@/sidebar/history-api'
+import { useClickOutside } from '@/hooks/useClickOutside'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { useMenuPosition } from '@/hooks/useMenuPosition'
+import { fmtRelativeTime } from '@/utils/format-time'
 
 interface VersionsDropdownProps {
   projectId: string

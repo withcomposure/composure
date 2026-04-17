@@ -1,11 +1,11 @@
-import type { EditorLayoutNode, SplitOrientation } from "../editor/workspace-state";
+import type { EditorLayoutNode, SplitOrientation } from "@/editor/workspace-state";
 import {
   readComposureDragData,
   TAB_SINGLE_PATH_MIME,
   TAB_SOURCE_PANE_MIME,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
-} from "../utils/drag-data";
+} from "@/utils/drag-data";
 
 export type SplitDropZone = "center" | "right" | "bottom";
 

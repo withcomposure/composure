@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, type LucideIcon } from 'lucide-react'
-import { useClickOutside } from '../hooks/useClickOutside'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useMenuPosition } from '../hooks/useMenuPosition'
+import { useClickOutside } from '@/hooks/useClickOutside'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { useMenuPosition } from '@/hooks/useMenuPosition'
 
 interface DropdownOption<T extends string> {
   value: T

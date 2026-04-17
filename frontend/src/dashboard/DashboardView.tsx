@@ -22,10 +22,10 @@ import {
   TextCursor,
   Trash2,
 } from "lucide-react";
-import { CustomDropdown } from "../components/CustomDropdown";
-import { ProfileMenu } from "../workspace/ProfileMenu";
-import { ProjectCard } from "../dashboard/ProjectCard";
-import { ProjectListItem } from "../dashboard/ProjectListItem";
+import { CustomDropdown } from "@/components/CustomDropdown";
+import { ProfileMenu } from "@/workspace/ProfileMenu";
+import { ProjectCard } from "./ProjectCard";
+import { ProjectListItem } from "./ProjectListItem";
 import type {
   AuthSession,
   DashboardLayout,
@@ -33,9 +33,9 @@ import type {
   RecentProjectSummary,
   SortBy,
   TrashedProjectSummary,
-} from "../types";
-import { guestIdLabel, guestLabel } from "../utils/page-utils";
-import { fmtRelativeTime } from "../utils/format-time";
+} from "@/types";
+import { guestIdLabel, guestLabel } from "@/utils/page-utils";
+import { fmtRelativeTime } from "@/utils/format-time";
 
 interface DashboardViewProps {
   projects: ProjectSummary[];

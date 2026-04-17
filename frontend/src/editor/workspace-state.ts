@@ -1,4 +1,4 @@
-import type { WorkspaceTab } from '../types'
+import type { WorkspaceTab } from '@/types'
 
 export type SplitOrientation = 'horizontal' | 'vertical'
 export type SidebarTab = 'files' | 'review' | 'history'

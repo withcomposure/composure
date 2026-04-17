@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import { Avatar } from '../components/Avatar'
-import type { ProjectComment } from '../types'
-import { fmtTime } from '../utils/format-time'
+import { Avatar } from '@/components/Avatar'
+import type { ProjectComment } from '@/types'
+import { fmtTime } from '@/utils/format-time'
 
 export interface CommentLineNumbers {
   startLine: number | null

@@ -3,8 +3,8 @@ import type {
   CommitEntry,
   FileDiff,
   SnapshotEntry,
-} from '../types'
-import { fetchJson } from '../utils/fetch'
+} from '@/types'
+import { fetchJson } from '@/utils/fetch'
 
 export async function fetchHistory(
   projectId: string,

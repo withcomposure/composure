@@ -53,9 +53,9 @@ import {
 import { oneDark } from './editor-theme'
 import { detectEditorLanguage, languageAwareCompletion } from './editor-completion'
 import { FormatToolbar } from './FormatToolbar'
-import type { ProjectComment } from '../types'
-import { evaluateUtf8Limit } from '../utils/text-size'
-import { fmtTime } from '../utils/format-time'
+import type { ProjectComment } from '@/types'
+import { evaluateUtf8Limit } from '@/utils/text-size'
+import { fmtTime } from '@/utils/format-time'
 
 interface EditorProps {
   ydoc: Y.Doc

@@ -20,24 +20,24 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react'
-import { ActionMenu } from '../components/ActionMenu'
-import { CustomDropdown } from '../components/CustomDropdown'
-import { NumberStepper } from '../components/NumberStepper'
-import { PopupDialog } from '../components/PopupDialog'
-import { SegmentedControl } from '../components/SegmentedControl'
-import { ToggleSwitch } from '../components/ToggleSwitch'
-import { UserFormModal } from '../admin/UserFormModal'
+import { ActionMenu } from '@/components/ActionMenu'
+import { CustomDropdown } from '@/components/CustomDropdown'
+import { NumberStepper } from '@/components/NumberStepper'
+import { PopupDialog } from '@/components/PopupDialog'
+import { SegmentedControl } from '@/components/SegmentedControl'
+import { ToggleSwitch } from '@/components/ToggleSwitch'
+import { UserFormModal } from './UserFormModal'
 import {
   DEFAULT_SERVER_SETTINGS_FORM_STATE,
   toServerSettingsFormState,
   toServerSettingsPayload,
   type ServerSettings,
   type ServerSettingsFormState,
-} from '../admin/admin-utils'
-import { useSectionObserver } from '../hooks/useSectionObserver'
-import { fetchJson, getErrorMessage } from '../utils/fetch'
-import { fmtTime, fmtRelativeTime } from '../utils/format-time'
-import { navigateToProjects, navigateToSettings } from '../utils/route'
+} from './admin-utils'
+import { useSectionObserver } from '@/hooks/useSectionObserver'
+import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { fmtTime, fmtRelativeTime } from '@/utils/format-time'
+import { navigateToProjects, navigateToSettings } from '@/utils/route'
 
 interface AdminUser {
   id: string

@@ -1,20 +1,9 @@
-import { Avatar } from '../components/Avatar'
+import { Avatar } from '@/components/Avatar'
 import { X } from 'lucide-react'
 import { Eye, MessageSquare, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react'
-import { ToggleSwitch } from '../components/ToggleSwitch'
-import { CustomDropdown } from '../components/CustomDropdown'
-
-export type ShareRole = 'view' | 'comment' | 'edit'
-
-export interface AccessPerson {
-  userId: string | null
-  email: string | null
-  displayName: string
-  profileImageUrl: string | null
-  role: ShareRole | 'owner'
-  status: 'accepted' | 'pending'
-  isOwner: boolean
-}
+import { ToggleSwitch } from '@/components/ToggleSwitch'
+import { CustomDropdown } from '@/components/CustomDropdown'
+import type { AccessPerson, ShareRole } from '@/types'
 
 interface ShareModalProps {
   open: boolean

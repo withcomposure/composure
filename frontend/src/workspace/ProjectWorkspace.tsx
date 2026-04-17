@@ -14,42 +14,40 @@ import Asciidoctor from "@asciidoctor/core";
 import {
   CommentsPanel,
   type CommentLineNumbers,
-} from "../sidebar/CommentsPanel";
-import { FileTree } from "../sidebar/FileTree";
-import { type FileTabsDropPayload } from "../editor/FileTabs";
+} from "@/sidebar/CommentsPanel";
+import { FileTree } from "@/sidebar/FileTree";
+import { type FileTabsDropPayload } from "@/editor/FileTabs";
 
-import { HistoryPanel } from "../sidebar/HistoryPanel";
-import { HtmlPreview } from "../preview/HtmlPreview";
-import { CompilePreview } from "../preview/MediaViewer";
-import { ResizeHandle } from "../components/ResizeHandle";
-import {
-  ShareModal,
-  type AccessPerson,
-  type ShareRole,
-} from "./ShareModal";
+import { HistoryPanel } from "@/sidebar/HistoryPanel";
+import { HtmlPreview } from "@/preview/HtmlPreview";
+import { CompilePreview } from "@/preview/MediaViewer";
+import { ResizeHandle } from "@/components/ResizeHandle";
+import { ShareModal } from "./ShareModal";
 import { Toolbar } from "./Toolbar";
-import { EditorPane } from "../editor/EditorPane";
-import { PaneLayout } from "../editor/PaneLayout";
-import { useResizeDrag } from "../hooks/useResizeDrag";
+import { EditorPane } from "@/editor/EditorPane";
+import { PaneLayout } from "@/editor/PaneLayout";
+import { useResizeDrag } from "@/hooks/useResizeDrag";
 import type {
+  AccessPerson,
   ActiveCollaborator,
   ConnectionState,
   EditorMode,
   HistoryState,
   ProjectComment,
   ProjectAccessResponse,
+  ShareRole,
   SessionUser,
   WorkspaceTab,
-} from "../types";
+} from "@/types";
 import {
   parseFileMetadata,
   withFileId,
   type FileMetadata,
-} from "../utils/file-metadata";
+} from "@/utils/file-metadata";
 import {
   detectProjectFormatFromFilename,
   type ProjectFormat,
-} from "../utils/project-format";
+} from "@/utils/project-format";
 import {
   ROOT_PANE_ID,
   buildPersistedWorkspaceState,
@@ -63,19 +61,19 @@ import {
   type EditorLayoutNode,
   type EditorPaneState,
   type SplitOrientation,
-} from "../editor/workspace-state";
+} from "@/editor/workspace-state";
 import {
   hasAwarenessCursor,
   uint8ArrayToBase64,
-} from "../utils/page-utils";
-import { restoreVersion } from "../sidebar/history-api";
-import { getErrorMessage } from "../utils/fetch";
-import { makeProjectUrl, navigateToProjects, navigateToSettings } from "../utils/route";
+} from "@/utils/page-utils";
+import { restoreVersion } from "@/sidebar/history-api";
+import { getErrorMessage } from "@/utils/fetch";
+import { makeProjectUrl, navigateToProjects, navigateToSettings } from "@/utils/route";
 import {
   applyDroppedPathsToPaneState,
   removeDroppedTabPathsFromSource,
-} from "../editor/tab-drop-state";
-import { evaluateUtf8Limit, formatBinarySize } from "../utils/text-size";
+} from "@/editor/tab-drop-state";
+import { evaluateUtf8Limit, formatBinarySize } from "@/utils/text-size";
 import {
   buildSplitGeometry,
   collectPaneIds,
@@ -85,13 +83,13 @@ import {
   readDraggedFilePayload,
   removePaneFromLayout,
   type SplitDropZone,
-} from "../workspace/layout-utils";
+} from "./layout-utils";
 import {
   createEditorCornerResizeHandler,
   createEditorSplitResizeHandler,
   createPreviewResizeHandler,
   createSidebarResizeHandler,
-} from "../workspace/resize-handlers";
+} from "./resize-handlers";
 
 interface ProjectWorkspaceProps {
   projectId: string;

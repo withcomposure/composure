@@ -1,12 +1,12 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { TemplateGallery } from './dashboard/TemplateGallery'
-import { PopupDialog } from './components/PopupDialog'
-import { AuthEntryView } from './auth/AuthEntryView'
-import { AdministrationView } from './admin/AdministrationView'
-import { DashboardView } from './dashboard/DashboardView'
-import { ProjectWorkspace } from './workspace/ProjectWorkspace'
-import { SettingsView } from './settings/SettingsView'
-import { StatusPage } from './auth/StatusPage'
+import { TemplateGallery } from '@/dashboard/TemplateGallery'
+import { PopupDialog } from '@/components/PopupDialog'
+import { AuthEntryView } from '@/auth/AuthEntryView'
+import { AdministrationView } from '@/admin/AdministrationView'
+import { DashboardView } from '@/dashboard/DashboardView'
+import { ProjectWorkspace } from '@/workspace/ProjectWorkspace'
+import { SettingsView } from '@/settings/SettingsView'
+import { StatusPage } from '@/auth/StatusPage'
 import type {
   AppPopupState,
   AuthSession,
@@ -19,24 +19,24 @@ import type {
   SortBy,
   TrashedProjectSummary,
   UserPreferences,
-} from './types'
+} from '@/types'
 import {
   guestIdLabel,
   guestLabel,
-} from './utils/page-utils'
-import { fetchJson, getErrorMessage } from './utils/fetch'
+} from '@/utils/page-utils'
+import { fetchJson, getErrorMessage } from '@/utils/fetch'
 import {
   navigateToProject,
   navigateToProjects,
   navigateToAdmin,
   navigateToSettings,
   parseRoute,
-} from './utils/route'
+} from '@/utils/route'
 import {
   getDashboardPrincipalKey,
   loadDashboardPreferences,
   saveDashboardPreferences,
-} from './dashboard/dashboard-prefs'
+} from '@/dashboard/dashboard-prefs'
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())

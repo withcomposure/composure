@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
-import { ResizeHandle } from "../components/ResizeHandle";
+import { ResizeHandle } from "@/components/ResizeHandle";
 import type { EditorLayoutNode, SplitOrientation } from "./workspace-state";
 
 interface PaneLayoutProps {

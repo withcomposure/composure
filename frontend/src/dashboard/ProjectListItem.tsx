@@ -1,9 +1,9 @@
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Pin, TextCursor, Trash2 } from "lucide-react";
-import { Avatar } from "../components/Avatar";
-import type { ProjectSummary } from "../types";
-import { fmtRelativeTime } from "../utils/format-time";
-import { projectTypeLabelFromRootFile } from "../utils/project-format";
+import { Avatar } from "@/components/Avatar";
+import type { ProjectSummary } from "@/types";
+import { fmtRelativeTime } from "@/utils/format-time";
+import { projectTypeLabelFromRootFile } from "@/utils/project-format";
 
 interface ProjectListItemProps {
   project: ProjectSummary;

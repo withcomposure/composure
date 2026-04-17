@@ -5,17 +5,17 @@ import { FilePlus2, FileQuestion, MousePointerClick } from "lucide-react";
 import { DiffView } from "./DiffView";
 import { Editor } from "./Editor";
 import { FileTabs, type FileTabsDropPayload } from "./FileTabs";
-import { AssetPreview } from "../preview/AssetPreview";
-import type { CommentLineNumbers } from "../sidebar/CommentsPanel";
+import { AssetPreview } from "@/preview/AssetPreview";
+import type { CommentLineNumbers } from "@/sidebar/CommentsPanel";
 import type {
   EditorMode,
   HistoryState,
   ProjectComment,
   SessionUser,
-} from "../types";
-import { formatBinarySize } from "../utils/text-size";
+} from "@/types";
+import { formatBinarySize } from "@/utils/text-size";
 import type { EditorPaneState } from "./workspace-state";
-import type { SplitDropZone } from "../workspace/layout-utils";
+import type { SplitDropZone } from "@/workspace/layout-utils";
 
 interface EditorPaneProps {
   paneId: string;

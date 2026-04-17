@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { projectFormatLabel } from '../utils/project-format'
-import type { ProjectTemplate } from '../types'
+import { projectFormatLabel } from '@/utils/project-format'
+import type { ProjectTemplate } from '@/types'
 
 interface TemplateGalleryProps {
   templates: ProjectTemplate[]

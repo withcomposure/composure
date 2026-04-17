@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Tag, Plus, MoreHorizontal, RotateCcw } from 'lucide-react'
-import type { ChangedFile, CommitEntry } from '../types'
-import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
+import type { ChangedFile, CommitEntry } from '@/types'
+import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import {
   createSnapshotApi,
   fetchChangedFiles,
   fetchHistory,
 } from './history-api'
-import { getErrorMessage } from '../utils/fetch'
-import { fmtRelativeTime } from '../utils/format-time'
+import { getErrorMessage } from '@/utils/fetch'
+import { fmtRelativeTime } from '@/utils/format-time'
 
 interface HistoryPanelProps {
   projectId: string

@@ -1,4 +1,14 @@
-import type { AccessPerson, ShareRole } from '../workspace/ShareModal'
+export type ShareRole = 'view' | 'comment' | 'edit'
+
+export interface AccessPerson {
+  userId: string | null
+  email: string | null
+  displayName: string
+  profileImageUrl: string | null
+  role: ShareRole | 'owner'
+  status: 'accepted' | 'pending'
+  isOwner: boolean
+}
 
 export interface ProjectSummary {
   id: string

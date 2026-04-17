@@ -1,4 +1,4 @@
-import type { RouteState } from '../types'
+import type { RouteState } from '@/types'
 
 export function isValidProjectId(id: string): boolean {
   return /^[a-f0-9]{32}$/.test(id)

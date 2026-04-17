@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LogIn, LogOut, User } from 'lucide-react'
-import { Avatar } from '../components/Avatar'
-import { useClickOutside } from '../hooks/useClickOutside'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useMenuPosition } from '../hooks/useMenuPosition'
+import { Avatar } from '@/components/Avatar'
+import { useClickOutside } from '@/hooks/useClickOutside'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { useMenuPosition } from '@/hooks/useMenuPosition'
 
 interface ProfileMenuProps {
   name: string

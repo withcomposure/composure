@@ -17,8 +17,8 @@ import {
   Upload,
   type LucideIcon,
 } from 'lucide-react'
-import { PopupDialog } from '../components/PopupDialog'
-import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
+import { PopupDialog } from '@/components/PopupDialog'
+import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import {
   normalizeWorkspacePath,
   parseFileMetadata,
@@ -26,14 +26,14 @@ import {
   withFileId,
   type FileMetadata,
   type NodeType,
-} from '../utils/file-metadata'
+} from '@/utils/file-metadata'
 import {
   hasDataTransferType,
   readComposureDragData,
   TREE_MULTI_PATHS_MIME,
   TREE_SINGLE_PATH_MIME,
   writeComposureDragPayload,
-} from '../utils/drag-data'
+} from '@/utils/drag-data'
 
 // ---------------------------------------------------------------------------
 // Types

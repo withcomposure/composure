@@ -1,6 +1,6 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
-import type { StartResizeDrag } from "../hooks/useResizeDrag";
-import type { EditorLayoutNode, SplitOrientation } from "../editor/workspace-state";
+import type { StartResizeDrag } from "@/hooks/useResizeDrag";
+import type { EditorLayoutNode, SplitOrientation } from "@/editor/workspace-state";
 import {
   clampSplitRatio,
   findSplitRatio,

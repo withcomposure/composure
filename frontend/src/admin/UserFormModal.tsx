@@ -1,9 +1,9 @@
 import { AlertCircle, type LucideIcon } from "lucide-react";
-import { CustomDropdown } from "../components/CustomDropdown";
-import { NumberStepper } from "../components/NumberStepper";
-import { PopupDialog } from "../components/PopupDialog";
-import { SegmentedControl } from "../components/SegmentedControl";
-import { ToggleSwitch } from "../components/ToggleSwitch";
+import { CustomDropdown } from "@/components/CustomDropdown";
+import { NumberStepper } from "@/components/NumberStepper";
+import { PopupDialog } from "@/components/PopupDialog";
+import { SegmentedControl } from "@/components/SegmentedControl";
+import { ToggleSwitch } from "@/components/ToggleSwitch";
 
 export type RoleOption = "user" | "admin";
 

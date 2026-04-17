@@ -1,7 +1,7 @@
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import type { EditorView } from '@codemirror/view'
 import { citationCompletion } from './citation-plugin'
-import { detectProjectFormatFromFilename, type ProjectFormat } from '../utils/project-format'
+import { detectProjectFormatFromFilename, type ProjectFormat } from '@/utils/project-format'
 
 export type EditorLanguage = ProjectFormat
 

@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, AlertTriangle, Camera, ChevronLeft, History, Lock, Palette, Shield, Type, User } from 'lucide-react'
-import { Avatar } from '../components/Avatar'
-import { NumberStepper } from '../components/NumberStepper'
-import { SegmentedControl } from '../components/SegmentedControl'
-import { ToggleSwitch } from '../components/ToggleSwitch'
-import { useSectionObserver } from '../hooks/useSectionObserver'
-import type { AuthSession, SessionSummary, UserPreferences } from '../types'
-import { fetchJson, getErrorMessage } from '../utils/fetch'
-import { fmtTime } from '../utils/format-time'
-import { navigateToAdmin, navigateToProjects } from '../utils/route'
+import { Avatar } from '@/components/Avatar'
+import { NumberStepper } from '@/components/NumberStepper'
+import { SegmentedControl } from '@/components/SegmentedControl'
+import { ToggleSwitch } from '@/components/ToggleSwitch'
+import { useSectionObserver } from '@/hooks/useSectionObserver'
+import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
+import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { fmtTime } from '@/utils/format-time'
+import { navigateToAdmin, navigateToProjects } from '@/utils/route'
 import {
   buildAvatarDataUrl,
-} from '../utils/page-utils'
+} from '@/utils/page-utils'
 
 interface SettingsViewProps {
   session: AuthSession | null
