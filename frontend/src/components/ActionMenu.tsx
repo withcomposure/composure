@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Ellipsis, type LucideIcon } from 'lucide-react'
-import { useClickOutside } from '@/hooks/useClickOutside'
-import { useEscapeKey } from '@/hooks/useEscapeKey'
-import { useMenuPosition } from '@/hooks/useMenuPosition'
+import { useClickOutside } from '@/hooks/use-click-outside'
+import { useEscapeKey } from '@/hooks/use-escape-key'
+import { useMenuPosition } from '@/hooks/use-menu-position'
 
 interface ActionMenuItem {
   id: string

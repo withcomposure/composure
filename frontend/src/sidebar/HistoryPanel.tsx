@@ -186,15 +186,15 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
   const [menuSha, setMenuSha] = useState<string | null>(null)
   const commitFilesCache = useRef(new Map<string, ChangedFile[]>())
 
-  const PAGE_SIZE = 200
+  const pageSize = 200
 
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const commitList = await fetchHistory(projectId, { limit: PAGE_SIZE })
+      const commitList = await fetchHistory(projectId, { limit: pageSize })
       setCommits(commitList)
-      setHasMore(commitList.length === PAGE_SIZE)
+      setHasMore(commitList.length === pageSize)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -207,9 +207,9 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
     setLoadingMore(true)
     try {
       const lastSha = commits[commits.length - 1].sha
-      const more = await fetchHistory(projectId, { limit: PAGE_SIZE, before: lastSha })
+      const more = await fetchHistory(projectId, { limit: pageSize, before: lastSha })
       setCommits((prev) => [...prev, ...more])
-      setHasMore(more.length === PAGE_SIZE)
+      setHasMore(more.length === pageSize)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {

@@ -26,19 +26,19 @@ export interface AssetStore {
 // LocalAssetStore implementation
 // ---------------------------------------------------------------------------
 
-const DATA_DIR = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data')
-const ASSETS_ROOT = path.join(DATA_DIR, 'assets')
-fs.mkdirSync(ASSETS_ROOT, { recursive: true })
+const dataDir = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data')
+const assetsRoot = path.join(dataDir, 'assets')
+fs.mkdirSync(assetsRoot, { recursive: true })
 
-const STORAGE_KEY_PATTERN = /^[a-f0-9]{32,40}\.[a-zA-Z0-9]+$/
+const storageKeyPattern = /^[a-f0-9]{32,40}\.[a-zA-Z0-9]+$/
 
 export function isValidStorageKey(key: string): boolean {
-  return STORAGE_KEY_PATTERN.test(key)
+  return storageKeyPattern.test(key)
 }
 
 class LocalAssetStore implements AssetStore {
   private projectDir(projectId: string): string {
-    return path.join(ASSETS_ROOT, projectId)
+    return path.join(assetsRoot, projectId)
   }
 
   async put(projectId: string, storageKey: string, stream: Readable): Promise<{ size: number }> {
@@ -148,7 +148,7 @@ async function persistPart(projectId: string, part: MultipartFile, maxBytes: num
 
   // Binary file — write to asset store
   const storageKey = generateStorageKey(part.filename)
-  const dir = path.join(ASSETS_ROOT, projectId)
+  const dir = path.join(assetsRoot, projectId)
   fs.mkdirSync(dir, { recursive: true })
   const targetPath = path.join(dir, storageKey)
   fs.writeFileSync(targetPath, buffer)
@@ -231,5 +231,5 @@ export function listAssetsRoute(
 
 /** Get the asset directory path for a project */
 export function getProjectAssetsDir(projectId: string): string {
-  return path.join(ASSETS_ROOT, projectId)
+  return path.join(assetsRoot, projectId)
 }

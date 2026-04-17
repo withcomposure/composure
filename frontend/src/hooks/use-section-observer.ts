@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 
-const DEFAULT_SECTION_THRESHOLD: number[] = [0.2, 0.6]
+const defaultSectionThreshold: number[] = [0.2, 0.6]
 
 interface UseSectionObserverOptions<T extends string> {
   enabled?: boolean
@@ -19,7 +19,7 @@ export function useSectionObserver<T extends string>(
     root = null,
     rootId,
     rootMargin = '-20% 0px -60% 0px',
-    threshold = DEFAULT_SECTION_THRESHOLD,
+    threshold = defaultSectionThreshold,
     getSectionId,
   }: UseSectionObserverOptions<T> = {},
 ): void {

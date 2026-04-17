@@ -34,14 +34,14 @@ import { isProductionEnv } from './env.js'
 import { createUid } from './ids.js'
 import { isValidEmail } from './security.js'
 
-const IS_PROD = isProductionEnv(process.env.NODE_ENV)
+const isProd = isProductionEnv(process.env.NODE_ENV)
 
 export const GUEST_COOKIE_NAME = 'guest_id'
 export const SESSION_COOKIE_NAME = 'composure_session'
 
-const GUEST_COOKIE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60
-const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
-const MAX_AVATAR_IMAGE_BYTES = Number.parseInt(process.env.MAX_AVATAR_IMAGE_BYTES ?? '262144', 10)
+const guestCookieMaxAgeSeconds = 90 * 24 * 60 * 60
+const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
+const maxAvatarImageBytes = Number.parseInt(process.env.MAX_AVATAR_IMAGE_BYTES ?? '262144', 10)
 
 function isLocalHostname(hostname: string | undefined): boolean {
   if (!hostname) return false
@@ -50,7 +50,7 @@ function isLocalHostname(hostname: string | undefined): boolean {
 }
 
 function shouldUseSecureCookies(req: FastifyRequest): boolean {
-  if (!IS_PROD) return false
+  if (!isProd) return false
 
   const forwardedProto = req.headers['x-forwarded-proto']
   const protoHeader = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto
@@ -138,10 +138,10 @@ function validateProfileImageUrl(value: string): { ok: true } | { ok: false; err
   }
 
   const bytes = base64PayloadBytes(payload)
-  if (bytes > MAX_AVATAR_IMAGE_BYTES) {
+  if (bytes > maxAvatarImageBytes) {
     return {
       ok: false,
-      error: `Profile photo exceeds the ${Math.floor(MAX_AVATAR_IMAGE_BYTES / 1024)}KB size limit.`,
+      error: `Profile photo exceeds the ${Math.floor(maxAvatarImageBytes / 1024)}KB size limit.`,
     }
   }
 
@@ -158,7 +158,7 @@ export function maybeSetGuestCookie(req: FastifyRequest, reply: FastifyReply, al
   reply.setCookie(GUEST_COOKIE_NAME, guestId, {
     httpOnly: true,
     sameSite: 'strict',
-    maxAge: GUEST_COOKIE_MAX_AGE_SECONDS,
+    maxAge: guestCookieMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
   })
@@ -203,7 +203,7 @@ async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionRespo
     authenticated: Boolean(req.authUser),
     user: req.authUser,
     principal: req.principal,
-    guestRetentionDays: Math.round(GUEST_COOKIE_MAX_AGE_SECONDS / (24 * 60 * 60)),
+    guestRetentionDays: Math.round(guestCookieMaxAgeSeconds / (24 * 60 * 60)),
     userCount: await countUsers(),
     signupMode: await getSignupMode(),
     guestSignupsEnabled: await getGuestSignupsEnabled(),
@@ -277,12 +277,12 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
     await markInviteTokenUsed(inviteToken)
   }
 
-  const session = await createSession(created.id, SESSION_MAX_AGE_SECONDS)
+  const session = await createSession(created.id, sessionMaxAgeSeconds)
   await markUserLoggedIn(created.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
     sameSite: 'strict',
-    maxAge: SESSION_MAX_AGE_SECONDS,
+    maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
   })
@@ -330,12 +330,12 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
     return
   }
 
-  const session = await createSession(user.id, SESSION_MAX_AGE_SECONDS)
+  const session = await createSession(user.id, sessionMaxAgeSeconds)
   await markUserLoggedIn(user.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
     sameSite: 'strict',
-    maxAge: SESSION_MAX_AGE_SECONDS,
+    maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
   })
@@ -752,11 +752,11 @@ export async function applyPasswordResetRoute(
     return
   }
 
-  const session = await createSession(user.id, SESSION_MAX_AGE_SECONDS)
+  const session = await createSession(user.id, sessionMaxAgeSeconds)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
     sameSite: 'strict',
-    maxAge: SESSION_MAX_AGE_SECONDS,
+    maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
   })

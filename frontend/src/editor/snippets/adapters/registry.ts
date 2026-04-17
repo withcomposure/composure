@@ -1,5 +1,5 @@
 import type { EditorLanguage } from '../../editor-completion'
-import type { FormatAdapter } from '@/types'
+import type { FormatAdapter } from '../types'
 import { latexAdapter } from './latex'
 import { typstAdapter } from './typst'
 import { markdownAdapter } from './markdown'

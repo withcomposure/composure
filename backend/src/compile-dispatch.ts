@@ -35,7 +35,7 @@ interface ClearPreviewDispatchInput {
   reply: FastifyReply
 }
 
-const COMPILER_TIMEOUT_MS = Number.parseInt(process.env.COMPILER_TIMEOUT_MS ?? '45000', 10)
+const compilerTimeoutMs = Number.parseInt(process.env.COMPILER_TIMEOUT_MS ?? '45000', 10)
 
 // ---------------------------------------------------------------------------
 // Per-compiler semaphore for concurrency limiting
@@ -179,7 +179,7 @@ export async function dispatchCompile(input: DispatchInput): Promise<void> {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(input.payload),
-        signal: AbortSignal.timeout(COMPILER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(compilerTimeoutMs),
       })
     } catch (err) {
       console.error(
@@ -244,7 +244,7 @@ export async function dispatchPreview(input: PreviewDispatchInput): Promise<void
         ...(input.ifNoneMatchHeader ? { 'If-None-Match': input.ifNoneMatchHeader } : {}),
         ...(input.ifModifiedSinceHeader ? { 'If-Modified-Since': input.ifModifiedSinceHeader } : {}),
       },
-      signal: AbortSignal.timeout(COMPILER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(compilerTimeoutMs),
     })
   } catch (err) {
     console.error(
@@ -322,7 +322,7 @@ export async function dispatchClearPreview(input: ClearPreviewDispatchInput): Pr
   try {
     response = await fetch(target, {
       method: 'DELETE',
-      signal: AbortSignal.timeout(COMPILER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(compilerTimeoutMs),
     })
   } catch (err) {
     console.error(
@@ -377,7 +377,7 @@ export async function dispatchExport(input: ExportDispatchInput): Promise<void> 
           documentUpdateBase64,
           outputFormat: input.outputFormat,
         }),
-        signal: AbortSignal.timeout(COMPILER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(compilerTimeoutMs),
       })
     } catch (err) {
       console.error(

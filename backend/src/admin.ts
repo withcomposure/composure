@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import nodemailer from 'nodemailer'
-import { setMaxConcurrentPerCompiler } from './compile.dispatch.js'
+import { setMaxConcurrentPerCompiler } from './compile-dispatch.js'
 import {
   countAdminUsers,
   createInviteToken,
@@ -52,7 +52,7 @@ import {
 } from './db/index.js'
 import { isValidEmail, isValidUserId } from './security.js'
 
-const SESSION_COOKIE_NAME = 'composure_session'
+const sessionCookieName = 'composure_session'
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -259,7 +259,7 @@ export async function updateAdminUserRoute(
     await deleteAllUserSessions(userId)
     forceRelogin = req.authUser?.id === userId
     if (forceRelogin) {
-      reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' })
+      reply.clearCookie(sessionCookieName, { path: '/' })
     }
   }
 

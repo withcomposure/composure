@@ -3,7 +3,7 @@ import fs from 'fs'
 import { spawn } from 'child_process'
 import type { Renderer, CompileContext, CompileOutput } from './types.js'
 
-const OUTPUT_FORMAT_TO_EXT: Record<string, string> = {
+const outputFormatToExt: Record<string, string> = {
   pdf: '.pdf',
   docx: '.docx',
   html: '.html',
@@ -11,7 +11,7 @@ const OUTPUT_FORMAT_TO_EXT: Record<string, string> = {
   typst: '.typ',
 }
 
-const OUTPUT_FORMAT_TO_MIME: Record<string, string> = {
+const outputFormatToMime: Record<string, string> = {
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   html: 'text/html',
@@ -41,8 +41,8 @@ export const pandocRenderer: Renderer = {
     const pandocCtx = ctx as PandocCompileContext
     const format = pandocCtx.outputFormat ?? 'pdf'
 
-    const ext = OUTPUT_FORMAT_TO_EXT[format] ?? `.${format}`
-    const mime = OUTPUT_FORMAT_TO_MIME[format] ?? 'application/octet-stream'
+    const ext = outputFormatToExt[format] ?? `.${format}`
+    const mime = outputFormatToMime[format] ?? 'application/octet-stream'
     const outputName = path.basename(ctx.rootFile).replace(/\.[^./]+$/, ext)
     const outputPath = path.join(ctx.outDir, outputName)
 

@@ -72,7 +72,7 @@ import {
   getProjectWorkspaceStateRoute,
   patchProjectWorkspaceStateRoute,
 } from './workspace-state.js'
-import { dispatchClearPreview, dispatchCompile, dispatchPreview } from './compile.dispatch.js'
+import { dispatchClearPreview, dispatchCompile, dispatchPreview } from './compile-dispatch.js'
 import { bibliographyRoute } from './bibliography.js'
 import { exportRoute } from './export.js'
 import { uploadRoute, deleteAssetRoute, listAssetsRoute, assetStore, isValidStorageKey } from './storage.js'

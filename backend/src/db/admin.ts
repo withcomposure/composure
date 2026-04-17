@@ -339,56 +339,56 @@ async function storeLimitSetting(
   return clamped
 }
 
-const DEFAULT_MAX_UPLOAD = 50 * 1024 * 1024 // 50 MB
-const MIN_UPLOAD = 1024                      // 1 KB
-const MAX_UPLOAD = 500 * 1024 * 1024         // 500 MB
+const defaultMaxUpload = 50 * 1024 * 1024 // 50 MB
+const minUpload = 1024                    // 1 KB
+const maxUpload = 500 * 1024 * 1024       // 500 MB
 
 export async function getMaxUploadFileSize(): Promise<LimitValue> {
-  return parseLimitSetting(await getServerSettingValue(MAX_UPLOAD_FILE_SIZE_KEY), DEFAULT_MAX_UPLOAD, MIN_UPLOAD, MAX_UPLOAD)
+  return parseLimitSetting(await getServerSettingValue(MAX_UPLOAD_FILE_SIZE_KEY), defaultMaxUpload, minUpload, maxUpload)
 }
 
 export async function setMaxUploadFileSize(value: LimitValue): Promise<LimitValue> {
-  return storeLimitSetting(MAX_UPLOAD_FILE_SIZE_KEY, value, MIN_UPLOAD, MAX_UPLOAD)
+  return storeLimitSetting(MAX_UPLOAD_FILE_SIZE_KEY, value, minUpload, maxUpload)
 }
 
-const DEFAULT_MAX_TEXT = 5 * 1024 * 1024 // 5 MB
-const MIN_TEXT = 1024                     // 1 KB
-const MAX_TEXT = 100 * 1024 * 1024        // 100 MB
+const defaultMaxText = 5 * 1024 * 1024 // 5 MB
+const minText = 1024                   // 1 KB
+const maxText = 100 * 1024 * 1024      // 100 MB
 
 export async function getMaxTextFileSize(): Promise<LimitValue> {
-  return parseLimitSetting(await getServerSettingValue(MAX_TEXT_FILE_SIZE_KEY), DEFAULT_MAX_TEXT, MIN_TEXT, MAX_TEXT)
+  return parseLimitSetting(await getServerSettingValue(MAX_TEXT_FILE_SIZE_KEY), defaultMaxText, minText, maxText)
 }
 
 export async function setMaxTextFileSize(value: LimitValue): Promise<LimitValue> {
-  return storeLimitSetting(MAX_TEXT_FILE_SIZE_KEY, value, MIN_TEXT, MAX_TEXT)
+  return storeLimitSetting(MAX_TEXT_FILE_SIZE_KEY, value, minText, maxText)
 }
 
-const DEFAULT_MAX_FILES = 200
-const MIN_FILES = 1
-const MAX_FILES = 10000
+const defaultMaxFiles = 200
+const minFiles = 1
+const maxFiles = 10000
 
 export async function getMaxFilesPerProject(): Promise<LimitValue> {
-  return parseLimitSetting(await getServerSettingValue(MAX_FILES_PER_PROJECT_KEY), DEFAULT_MAX_FILES, MIN_FILES, MAX_FILES)
+  return parseLimitSetting(await getServerSettingValue(MAX_FILES_PER_PROJECT_KEY), defaultMaxFiles, minFiles, maxFiles)
 }
 
 export async function setMaxFilesPerProject(value: LimitValue): Promise<LimitValue> {
-  return storeLimitSetting(MAX_FILES_PER_PROJECT_KEY, value, MIN_FILES, MAX_FILES)
+  return storeLimitSetting(MAX_FILES_PER_PROJECT_KEY, value, minFiles, maxFiles)
 }
 
-const DEFAULT_LARGE_FILE_THRESHOLD = 500_000
-const MIN_LARGE_FILE_THRESHOLD = 100_000
-const MAX_LARGE_FILE_THRESHOLD = 5_000_000
+const defaultLargeFileThreshold = 500_000
+const minLargeFileThreshold = 100_000
+const maxLargeFileThreshold = 5_000_000
 
 export async function getLargeFileThresholdChars(): Promise<number> {
   const stored = await getServerSettingValue(LARGE_FILE_THRESHOLD_CHARS_KEY)
-  if (!stored) return DEFAULT_LARGE_FILE_THRESHOLD
+  if (!stored) return defaultLargeFileThreshold
   const parsed = Number.parseInt(stored, 10)
-  if (!Number.isFinite(parsed) || parsed < MIN_LARGE_FILE_THRESHOLD) return DEFAULT_LARGE_FILE_THRESHOLD
-  return Math.min(MAX_LARGE_FILE_THRESHOLD, parsed)
+  if (!Number.isFinite(parsed) || parsed < minLargeFileThreshold) return defaultLargeFileThreshold
+  return Math.min(maxLargeFileThreshold, parsed)
 }
 
 export async function setLargeFileThresholdChars(value: number): Promise<number> {
-  const clamped = Math.max(MIN_LARGE_FILE_THRESHOLD, Math.min(MAX_LARGE_FILE_THRESHOLD, Math.round(value)))
+  const clamped = Math.max(minLargeFileThreshold, Math.min(maxLargeFileThreshold, Math.round(value)))
   await setServerSettingValue(LARGE_FILE_THRESHOLD_CHARS_KEY, String(clamped))
   return clamped
 }
@@ -497,7 +497,7 @@ export async function markInviteTokenUsed(token: string): Promise<boolean> {
 // SMTP settings (stored in server_settings KV table)
 // ---------------------------------------------------------------------------
 
-const SMTP_KEYS = {
+const smtpKeys = {
   host: 'smtp_host',
   port: 'smtp_port',
   username: 'smtp_username',
@@ -534,13 +534,13 @@ function normalizeEncryption(raw: string | null): 'none' | 'starttls' | 'tls' {
 
 export async function getSmtpSettings(): Promise<SmtpSettings> {
   return {
-    host: (await getServerSettingValue(SMTP_KEYS.host)) ?? '',
-    port: Number.parseInt((await getServerSettingValue(SMTP_KEYS.port)) ?? '587', 10) || 587,
-    username: (await getServerSettingValue(SMTP_KEYS.username)) ?? '',
-    password: (await getServerSettingValue(SMTP_KEYS.password)) ?? '',
-    senderName: (await getServerSettingValue(SMTP_KEYS.senderName)) ?? '',
-    senderAddress: (await getServerSettingValue(SMTP_KEYS.senderAddress)) ?? '',
-    encryption: normalizeEncryption(await getServerSettingValue(SMTP_KEYS.encryption)),
+    host: (await getServerSettingValue(smtpKeys.host)) ?? '',
+    port: Number.parseInt((await getServerSettingValue(smtpKeys.port)) ?? '587', 10) || 587,
+    username: (await getServerSettingValue(smtpKeys.username)) ?? '',
+    password: (await getServerSettingValue(smtpKeys.password)) ?? '',
+    senderName: (await getServerSettingValue(smtpKeys.senderName)) ?? '',
+    senderAddress: (await getServerSettingValue(smtpKeys.senderAddress)) ?? '',
+    encryption: normalizeEncryption(await getServerSettingValue(smtpKeys.encryption)),
   }
 }
 
@@ -566,15 +566,15 @@ export async function updateSmtpSettings(patch: Partial<{
   senderAddress: string
   encryption: string
 }>): Promise<void> {
-  if (patch.host !== undefined) await setServerSettingValue(SMTP_KEYS.host, patch.host)
-  if (patch.port !== undefined) await setServerSettingValue(SMTP_KEYS.port, String(patch.port))
-  if (patch.username !== undefined) await setServerSettingValue(SMTP_KEYS.username, patch.username)
+  if (patch.host !== undefined) await setServerSettingValue(smtpKeys.host, patch.host)
+  if (patch.port !== undefined) await setServerSettingValue(smtpKeys.port, String(patch.port))
+  if (patch.username !== undefined) await setServerSettingValue(smtpKeys.username, patch.username)
   if (typeof patch.password === 'string' && patch.password.length > 0) {
-    await setServerSettingValue(SMTP_KEYS.password, patch.password)
+    await setServerSettingValue(smtpKeys.password, patch.password)
   }
-  if (patch.senderName !== undefined) await setServerSettingValue(SMTP_KEYS.senderName, patch.senderName)
-  if (patch.senderAddress !== undefined) await setServerSettingValue(SMTP_KEYS.senderAddress, patch.senderAddress)
+  if (patch.senderName !== undefined) await setServerSettingValue(smtpKeys.senderName, patch.senderName)
+  if (patch.senderAddress !== undefined) await setServerSettingValue(smtpKeys.senderAddress, patch.senderAddress)
   if (patch.encryption !== undefined) {
-    await setServerSettingValue(SMTP_KEYS.encryption, normalizeEncryption(patch.encryption))
+    await setServerSettingValue(smtpKeys.encryption, normalizeEncryption(patch.encryption))
   }
 }

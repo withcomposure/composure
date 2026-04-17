@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   setMaxConcurrentPerCompiler,
   getCompilerQueueLength,
-} from '../src/compile.dispatch.js'
+} from '../src/compile-dispatch.js'
 
 // We test the semaphore logic by importing the module-level functions.
 // acquireCompilerSlot / releaseCompilerSlot are not exported, so we test

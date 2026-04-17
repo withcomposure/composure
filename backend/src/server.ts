@@ -13,28 +13,28 @@ import {
 } from './db/index.js'
 import { getUserPreferences } from './db/preferences.js'
 import { resolvePrincipalFromCookieHeader } from './auth.js'
-import { setMaxConcurrentPerCompiler } from './compile.dispatch.js'
+import { setMaxConcurrentPerCompiler } from './compile-dispatch.js'
 import { isProductionEnv, parseNodeEnv } from './env.js'
 import { isValidProjectId } from './security.js'
 import { buildApp } from './app.js'
 import { commitSnapshot } from './history.js'
 import { findTextSizeViolation, textSizeViolationMessage } from './text-size-limit.js'
 
-const PORT = Number.parseInt(process.env.PORT ?? '8080', 10)
-const NODE_ENV = parseNodeEnv(process.env.NODE_ENV)
-const IS_PROD = isProductionEnv(process.env.NODE_ENV)
-const DEFAULT_WS_MAX_PAYLOAD_BYTES = 100 * 1024 * 1024
+const port = Number.parseInt(process.env.PORT ?? '8080', 10)
+const nodeEnv = parseNodeEnv(process.env.NODE_ENV)
+const isProd = isProductionEnv(process.env.NODE_ENV)
+const defaultWsMaxPayloadBytes = 100 * 1024 * 1024
 
 async function resolveWsMaxPayloadBytes(): Promise<number> {
   const maxTextSize = await getMaxTextFileSize()
   if (maxTextSize === 'unlimited') {
-    return DEFAULT_WS_MAX_PAYLOAD_BYTES
+    return defaultWsMaxPayloadBytes
   }
 
   // Keep headroom for CRDT framing overhead while still rejecting obviously
   // pathological messages far above editable text limits.
   return Math.min(
-    DEFAULT_WS_MAX_PAYLOAD_BYTES,
+    defaultWsMaxPayloadBytes,
     Math.max(8 * 1024 * 1024, maxTextSize + 4 * 1024 * 1024),
   )
 }
@@ -311,7 +311,7 @@ const hocuspocus = new Hocuspocus({
 
 await initDatabase()
 
-const app = await buildApp({ hocuspocus, isProduction: IS_PROD, resetAutoCommitTimer: (projectId) => { lastAutoCommitTimestamp.set(projectId, Date.now()) } })
+const app = await buildApp({ hocuspocus, isProduction: isProd, resetAutoCommitTimer: (projectId) => { lastAutoCommitTimestamp.set(projectId, Date.now()) } })
 
 const wsMaxPayloadBytes = await resolveWsMaxPayloadBytes()
 console.info(`[ws] max-payload-bytes=${wsMaxPayloadBytes}`)
@@ -333,12 +333,12 @@ app.server.on('upgrade', (request, socket, head) => {
 // Configure per-compiler concurrency limit from server settings
 setMaxConcurrentPerCompiler(await getMaxConcurrentJobs())
 
-console.info(`[server] starting port=${PORT} env=${NODE_ENV} dataDir=${process.env.DATA_DIR ?? 'data'}`)
+console.info(`[server] starting port=${port} env=${nodeEnv} dataDir=${process.env.DATA_DIR ?? 'data'}`)
 
-await app.listen({ port: PORT, host: '0.0.0.0' })
+await app.listen({ port: port, host: '0.0.0.0' })
 console.log(`
   ╔══════════════════════════════════════╗
   ║   Composure server running           ║
-  ║   http://localhost:${String(PORT).padEnd(6)}            ║
+  ║   http://localhost:${String(port).padEnd(6)}            ║
   ╚══════════════════════════════════════╝
   `)

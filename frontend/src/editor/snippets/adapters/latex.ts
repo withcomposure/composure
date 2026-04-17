@@ -1,4 +1,4 @@
-import type { FormatAdapter } from '@/types'
+import type { FormatAdapter } from '../types'
 
 export const latexAdapter: FormatAdapter = {
   id: 'latex',

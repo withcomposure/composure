@@ -55,7 +55,8 @@ interface ToolbarProps {
   historyState: HistoryState | null
 }
 
-const MAX_VISIBLE_EDITORS = 4
+// Maximum number of visible avatars before showing the overflow button
+const maxVisibleEditors = 4
 
 function ActiveEditorsStrip({
   editors,
@@ -80,8 +81,8 @@ function ActiveEditorsStrip({
 
   if (editors.length === 0) return null
 
-  const visible = editors.slice(0, MAX_VISIBLE_EDITORS)
-  const hasOverflow = editors.length > MAX_VISIBLE_EDITORS
+  const visible = editors.slice(0, maxVisibleEditors)
+  const hasOverflow = editors.length > maxVisibleEditors
 
   return (
     <div className="relative flex items-center mx-1" ref={containerRef}>
@@ -113,7 +114,7 @@ function ActiveEditorsStrip({
             onClick={() => setShowList((prev) => !prev)}
             className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border border-cz-border bg-cz-surface text-[10px] font-medium text-cz-text-muted ring-2 ring-cz-surface hover:bg-cz-surface-hover"
           >
-            +{editors.length - MAX_VISIBLE_EDITORS}
+            +{editors.length - maxVisibleEditors}
           </button>
         )}
       </div>

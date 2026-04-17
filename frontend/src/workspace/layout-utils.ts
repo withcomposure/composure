@@ -42,9 +42,9 @@ export interface SplitCornerTarget {
   ySplitId: string;
 }
 
-const SPLIT_RATIO_MIN = 0.15;
-const SPLIT_RATIO_MAX = 0.85;
-const INTERSECTION_TOLERANCE_PX = 1.5;
+const splitRatioMin = 0.15;
+const splitRatioMax = 0.85;
+const intersectionTolerancePx = 1.5;
 
 export function dedupePaths(paths: string[]): string[] {
   return Array.from(new Set(paths.filter((path) => path.trim().length > 0)));
@@ -235,7 +235,7 @@ export function computeDropZone(
 }
 
 export function clampSplitRatio(ratio: number): number {
-  return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, ratio));
+  return Math.max(splitRatioMin, Math.min(splitRatioMax, ratio));
 }
 
 function collectSplitHandleGeometry(
@@ -322,13 +322,13 @@ function collectSplitHandleGeometry(
 }
 
 function isWithinRange(value: number, a: number, b: number): boolean {
-  const min = Math.min(a, b) - INTERSECTION_TOLERANCE_PX;
-  const max = Math.max(a, b) + INTERSECTION_TOLERANCE_PX;
+  const min = Math.min(a, b) - intersectionTolerancePx;
+  const max = Math.max(a, b) + intersectionTolerancePx;
   return value >= min && value <= max;
 }
 
 function isNear(value: number, target: number): boolean {
-  return Math.abs(value - target) <= INTERSECTION_TOLERANCE_PX;
+  return Math.abs(value - target) <= intersectionTolerancePx;
 }
 
 function collectSplitCorners(handles: SplitHandleGeometry[]): SplitCornerTarget[] {

@@ -40,12 +40,12 @@ export interface PersistedWorkspaceState {
 
 export const ROOT_PANE_ID = 'pane-1'
 
-const SIDEBAR_WIDTH_MIN = 180
-const SIDEBAR_WIDTH_MAX = 420
-const PREVIEW_WIDTH_MIN = 300
-const PREVIEW_WIDTH_MAX = 2400
-const SPLIT_RATIO_MIN = 0.15
-const SPLIT_RATIO_MAX = 0.85
+const sidebarWidthMin = 180
+const sidebarWidthMax = 420
+const previewWidthMin = 300
+const previewWidthMax = 2400
+const splitRatioMin = 0.15
+const splitRatioMax = 0.85
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -157,7 +157,7 @@ function normalizeLayoutNode(
 
     const orientation: SplitOrientation = raw.orientation === 'vertical' ? 'vertical' : 'horizontal'
     const ratio = typeof raw.ratio === 'number' && Number.isFinite(raw.ratio)
-      ? clamp(raw.ratio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)
+      ? clamp(raw.ratio, splitRatioMin, splitRatioMax)
       : 0.5
 
     seenSplitIds.add(splitId)
@@ -185,14 +185,14 @@ function normalizeSidebarWidth(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) {
     return 260
   }
-  return clamp(Math.floor(raw), SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX)
+  return clamp(Math.floor(raw), sidebarWidthMin, sidebarWidthMax)
 }
 
 function normalizePreviewWidth(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) {
     return 520
   }
-  return clamp(Math.floor(raw), PREVIEW_WIDTH_MIN, PREVIEW_WIDTH_MAX)
+  return clamp(Math.floor(raw), previewWidthMin, previewWidthMax)
 }
 
 export function collectPaneIds(node: EditorLayoutNode): string[] {

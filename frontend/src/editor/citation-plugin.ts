@@ -15,7 +15,7 @@ interface BibEntry {
 
 let cachedEntries: BibEntry[] | null = null
 let lastFetch = 0
-const CACHE_TTL = 10_000 // 10 seconds
+const cacheTtl = 10_000 // 10 seconds
 
 function extractProjectIdFromUrl(): string | null {
   const match = window.location.pathname.match(/^\/project\/([a-f0-9]{32})$/)
@@ -29,7 +29,7 @@ function extractShareTokenFromUrl(): string | null {
 
 async function fetchBibEntries(): Promise<BibEntry[]> {
   const now = Date.now()
-  if (cachedEntries && now - lastFetch < CACHE_TTL) {
+  if (cachedEntries && now - lastFetch < cacheTtl) {
     return cachedEntries
   }
   try {

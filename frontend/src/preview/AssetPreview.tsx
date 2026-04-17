@@ -1,5 +1,5 @@
 import { FileQuestion } from "lucide-react";
-import { ImageViewer, PdfViewer } from "./MediaViewer";
+import { ImageViewer, PdfViewer } from "./CompilePreview";
 
 function getAssetPreviewKind(
   fileName: string,

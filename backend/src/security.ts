@@ -1,7 +1,7 @@
 import path from 'path'
 
-const UID_LIKE_PATTERN = /^[a-f0-9]{32}$/
-const SIMPLE_EMAIL_PATTERN = /^\S+@\S+\.\S+$/
+const uidLikePattern = /^[a-f0-9]{32}$/
+const simpleEmailPattern = /^\S+@\S+\.\S+$/
 
 /**
  * Normalize user-provided relative paths and reject traversal/absolute paths.
@@ -33,11 +33,11 @@ export function isPathWithin(baseDir: string, candidatePath: string): boolean {
 }
 
 export function isValidProjectId(id: string): boolean {
-  return UID_LIKE_PATTERN.test(id)
+  return uidLikePattern.test(id)
 }
 
 export function isValidUserId(id: string): boolean {
-  return UID_LIKE_PATTERN.test(id)
+  return uidLikePattern.test(id)
 }
 
 export function normalizeRole(rawRole: unknown): 'view' | 'comment' | 'edit' {
@@ -49,7 +49,7 @@ export function normalizeRole(rawRole: unknown): 'view' | 'comment' | 'edit' {
 }
 
 export function isValidEmail(email: string): boolean {
-  return SIMPLE_EMAIL_PATTERN.test(email)
+  return simpleEmailPattern.test(email)
 }
 
 export function isPrivateOrLocalHostname(hostname: string): boolean {

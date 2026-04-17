@@ -34,7 +34,7 @@ import {
   type ServerSettings,
   type ServerSettingsFormState,
 } from './admin-utils'
-import { useSectionObserver } from '@/hooks/useSectionObserver'
+import { useSectionObserver } from '@/hooks/use-section-observer'
 import { fetchJson, getErrorMessage } from '@/utils/fetch'
 import { fmtTime, fmtRelativeTime } from '@/utils/format-time'
 import { navigateToProjects, navigateToSettings } from '@/utils/route'
@@ -114,7 +114,7 @@ const encryptionOptions: Array<{ value: EncryptionOption; label: string; icon: t
   { value: 'tls', label: 'TLS/SSL', icon: Lock },
 ]
 
-const JOB_TIMEFRAME_OPTIONS = [
+const jobTimeframeOptions = [
   { value: '3600', label: '1h' },
   { value: '7200', label: '2h' },
   { value: '21600', label: '6h' },
@@ -1328,7 +1328,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               <div className="flex items-center gap-2">
                 <SegmentedControl
                   value={jobsTimeframe}
-                  options={JOB_TIMEFRAME_OPTIONS}
+                  options={jobTimeframeOptions}
                   onChange={(next) => {
                     setJobsTimeframe(next)
                   }}
@@ -1378,7 +1378,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   </div>
                 </div>
                 <div className="rounded-md border border-cz-border bg-cz-bg/50 p-3">
-                  <div className="text-xs text-cz-text-muted">Last {JOB_TIMEFRAME_OPTIONS.find((o) => o.value === jobsTimeframe)?.label ?? '24h'}</div>
+                  <div className="text-xs text-cz-text-muted">Last {jobTimeframeOptions.find((o) => o.value === jobsTimeframe)?.label ?? '24h'}</div>
                   <div className="mt-1 text-sm text-cz-text">
                     <span className="text-green-400">{jobSummary.totalDone} done</span>
                     {' / '}

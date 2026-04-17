@@ -20,13 +20,13 @@ import { type FileTabsDropPayload } from "@/editor/FileTabs";
 
 import { HistoryPanel } from "@/sidebar/HistoryPanel";
 import { HtmlPreview } from "@/preview/HtmlPreview";
-import { CompilePreview } from "@/preview/MediaViewer";
+import { CompilePreview } from "@/preview/CompilePreview";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import { ShareModal } from "./ShareModal";
 import { Toolbar } from "./Toolbar";
 import { EditorPane } from "@/editor/EditorPane";
 import { PaneLayout } from "@/editor/PaneLayout";
-import { useResizeDrag } from "@/hooks/useResizeDrag";
+import { useResizeDrag } from "@/hooks/use-resize-drag";
 import type {
   AccessPerson,
   ActiveCollaborator,
@@ -119,7 +119,7 @@ interface ProjectWorkspaceProps {
   onPopupAlert: (message: string, title?: string) => void;
 }
 
-const CORNER_HIT_SIZE_PX = 14;
+const cornerHitSizePx = 14;
 
 function pdfPreviewStorageKey(projectId: string): string {
   return `composure:pdfUrl:${projectId}`;
@@ -2910,8 +2910,8 @@ export function ProjectWorkspace({
                 style={{
                   left: corner.x,
                   top: corner.y,
-                  width: CORNER_HIT_SIZE_PX,
-                  height: CORNER_HIT_SIZE_PX,
+                  width: cornerHitSizePx,
+                  height: cornerHitSizePx,
                   cursor: "move",
                 }}
                 className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-sm"

@@ -5,10 +5,10 @@ import git from 'isomorphic-git'
 import http from 'isomorphic-git/http/node'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { isPrivateOrLocalHostname, isValidProjectId } from './security.js'
-import { dispatchExport } from './compile.dispatch.js'
+import { dispatchExport } from './compile-dispatch.js'
 import { extractFiles } from './files.js'
 
-const EXPORT_ROOT = '/tmp/composure-export'
+const exportRoot = '/tmp/composure-export'
 
 function validateGitRemote(remote: string): boolean {
   try {
@@ -59,7 +59,7 @@ export async function exportRoute(
   }
 
   if (format === 'git') {
-    const exportDir = path.join(EXPORT_ROOT, uuid())
+    const exportDir = path.join(exportRoot, uuid())
     fs.mkdirSync(exportDir, { recursive: true })
     try {
       await extractFiles(projectId, exportDir)

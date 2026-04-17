@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "lint": "eslint src/",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
@@ -17,10 +18,13 @@
     "yjs": "^13.6.24"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.1",
     "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^4.1.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-check-file": "^3.3.1",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.1"
   }
 }

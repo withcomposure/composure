@@ -1,8 +1,8 @@
 import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
-const TEST_DATABASE_NAME_PATTERN = /(^|[_-])test([_-]|$)/i
+const databaseUrl = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
+const testDatabaseNamePattern = /(^|[_-])test([_-]|$)/i
 
 export let sql: postgres.Sql
 
@@ -24,14 +24,14 @@ function extractDatabaseName(databaseUrl: string): string | null {
 function assertSafeTestDatabaseReset(databaseUrl: string): void {
   const nodeEnv = process.env.NODE_ENV ?? ''
   const dbName = extractDatabaseName(databaseUrl)
-  const hasTestLikeName = dbName != null && TEST_DATABASE_NAME_PATTERN.test(dbName)
+  const hasTestLikeName = dbName != null && testDatabaseNamePattern.test(dbName)
 
   if (nodeEnv === 'test' && hasTestLikeName) {
     return
   }
 
   throw new Error(
-    `[db] refusing destructive test reset; requires NODE_ENV=test and test-like db name (pattern ${TEST_DATABASE_NAME_PATTERN}). NODE_ENV=${nodeEnv || '<unset>'} dbName=${dbName ?? '<unknown>'} url=${maskDatabaseUrl(databaseUrl)}`,
+    `[db] refusing destructive test reset; requires NODE_ENV=test and test-like db name (pattern ${testDatabaseNamePattern}). NODE_ENV=${nodeEnv || '<unset>'} dbName=${dbName ?? '<unknown>'} url=${maskDatabaseUrl(databaseUrl)}`,
   )
 }
 
@@ -314,9 +314,9 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
 
 /** Initialize PostgreSQL database with schema */
 export async function initDatabase(): Promise<void> {
-  console.info(`[db] init url=${maskDatabaseUrl(DATABASE_URL)}`)
+  console.info(`[db] init url=${maskDatabaseUrl(databaseUrl)}`)
 
-  sql = postgres(DATABASE_URL, { transform: { undefined: null } })
+  sql = postgres(databaseUrl, { transform: { undefined: null } })
 
   await applySchema(sql)
 

@@ -1,8 +1,8 @@
 import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
-import { useClickOutside } from '@/hooks/useClickOutside'
-import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { useClickOutside } from '@/hooks/use-click-outside'
+import { useEscapeKey } from '@/hooks/use-escape-key'
 
 export interface ContextMenuItem {
   icon: LucideIcon

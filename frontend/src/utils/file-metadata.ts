@@ -8,7 +8,7 @@ export interface FileMetadata {
   mimeType?: string
 }
 
-const UID_HEX_PATTERN = /^[a-f0-9]{32}$/
+const uidHexPattern = /^[a-f0-9]{32}$/
 
 export function createUid(): string {
   const bytes = new Uint8Array(16)
@@ -37,7 +37,7 @@ export function withFileId(meta: FileMetadata): FileMetadata {
   if (meta.type === 'folder') {
     return { ...meta, id: undefined }
   }
-  if (meta.id && UID_HEX_PATTERN.test(meta.id)) {
+  if (meta.id && uidHexPattern.test(meta.id)) {
     return meta
   }
   return { ...meta, id: createUid() }

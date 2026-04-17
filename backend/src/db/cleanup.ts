@@ -2,8 +2,8 @@ import type postgres from 'postgres'
 import { assetStore } from '../storage.js'
 import { getServerSettingValue } from './admin.js'
 
-const GUEST_INACTIVITY_TTL_SECONDS = 30 * 24 * 60 * 60
-const DEFAULT_TRASH_RETENTION_DAYS = 30
+const guestInactivityTtlSeconds = 30 * 24 * 60 * 60
+const defaultTrashRetentionDays = 30
 
 function nowUnix(): number {
   return Math.floor(Date.now() / 1000)
@@ -11,12 +11,12 @@ function nowUnix(): number {
 
 async function getTrashRetentionSeconds(): Promise<number> {
   const stored = await getServerSettingValue('trash_retention_days')
-  const days = stored ? Number.parseInt(stored, 10) : DEFAULT_TRASH_RETENTION_DAYS
-  return (Number.isFinite(days) && days >= 1 ? days : DEFAULT_TRASH_RETENTION_DAYS) * 24 * 60 * 60
+  const days = stored ? Number.parseInt(stored, 10) : defaultTrashRetentionDays
+  return (Number.isFinite(days) && days >= 1 ? days : defaultTrashRetentionDays) * 24 * 60 * 60
 }
 
 async function runGuestCleanup(database: postgres.Sql): Promise<void> {
-  const cutoff = nowUnix() - GUEST_INACTIVITY_TTL_SECONDS
+  const cutoff = nowUnix() - guestInactivityTtlSeconds
 
   const staleRows = await database`
     SELECT id
@@ -87,9 +87,9 @@ async function runTrashPurge(database: postgres.Sql): Promise<void> {
 }
 
 export function scheduleCleanupTasks(database: postgres.Sql): void {
-  const SESSION_INTERVAL_MS = 6 * 60 * 60 * 1000
-  const GUEST_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
-  const TRASH_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000
+  const sessionIntervalMs = 6 * 60 * 60 * 1000
+  const guestCleanupIntervalMs = 24 * 60 * 60 * 1000
+  const trashPurgeIntervalMs = 6 * 60 * 60 * 1000
 
   setInterval(async () => {
     try {
@@ -100,7 +100,7 @@ export function scheduleCleanupTasks(database: postgres.Sql): void {
     } catch (error) {
       console.warn(`[cleanup] session cleanup tick failed: ${String(error)}`)
     }
-  }, SESSION_INTERVAL_MS)
+  }, sessionIntervalMs)
 
   setInterval(async () => {
     try {
@@ -108,7 +108,7 @@ export function scheduleCleanupTasks(database: postgres.Sql): void {
     } catch (error) {
       console.warn(`[cleanup] guest cleanup tick failed: ${String(error)}`)
     }
-  }, GUEST_CLEANUP_INTERVAL_MS)
+  }, guestCleanupIntervalMs)
 
   setInterval(async () => {
     try {
@@ -116,5 +116,5 @@ export function scheduleCleanupTasks(database: postgres.Sql): void {
     } catch (error) {
       console.warn(`[cleanup] trash purge tick failed: ${String(error)}`)
     }
-  }, TRASH_PURGE_INTERVAL_MS)
+  }, trashPurgeIntervalMs)
 }

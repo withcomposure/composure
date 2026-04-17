@@ -5,7 +5,7 @@ import { detectProjectFormatFromFilename, type ProjectFormat } from '@/utils/pro
 
 export type EditorLanguage = ProjectFormat
 
-const LATEX_COMMANDS = Array.from(new Set([
+const latexCommands = Array.from(new Set([
   'begin',
   'end',
   'part',
@@ -328,7 +328,7 @@ const LATEX_COMMANDS = Array.from(new Set([
   'glossary',
 ]))
 
-const LATEX_FILE_ARGUMENT_COMMANDS = [
+const latexFileArgumentCommands = [
   'input',
   'include',
   'subfile',
@@ -347,7 +347,7 @@ const LATEX_FILE_ARGUMENT_COMMANDS = [
   'includeonly',
 ] as const
 
-const LATEX_FILE_COMMAND_EXTENSIONS: Record<string, readonly string[]> = {
+const latexFileCommandExtensions: Record<string, readonly string[]> = {
   includegraphics: ['.png', '.jpg', '.jpeg', '.pdf', '.eps', '.svg'],
   includesvg: ['.svg'],
   includepdf: ['.pdf'],
@@ -358,21 +358,21 @@ const LATEX_FILE_COMMAND_EXTENSIONS: Record<string, readonly string[]> = {
   addbibresource: ['.bib'],
 }
 
-const LATEX_FILE_COMMANDS_STRIP_EXTENSIONS = new Set(['input', 'include', 'subfile', 'bibliography'])
+const latexFileCommandsStripExtensions = new Set(['input', 'include', 'subfile', 'bibliography'])
 
-const latexFileCommandsRegexSource = LATEX_FILE_ARGUMENT_COMMANDS
+const latexFileCommandsRegexSource = latexFileArgumentCommands
   .map((command) => command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   .join('|')
 
-const LATEX_FILE_ARGUMENT_MATCH_PATTERN = new RegExp(
+const latexFileArgumentMatchPattern = new RegExp(
   String.raw`\\(?:${latexFileCommandsRegexSource})(?:\[[^\]]*\])?\{[^}]*$`,
 )
 
-const LATEX_FILE_ARGUMENT_EXTRACT_PATTERN = new RegExp(
+const latexFileArgumentExtractPattern = new RegExp(
   String.raw`^\\(${latexFileCommandsRegexSource})(?:\[[^\]]*\])?\{([^}]*)$`,
 )
 
-const LATEX_ENVIRONMENTS = [
+const latexEnvironments = [
   'document',
   'abstract',
   'figure',
@@ -395,7 +395,7 @@ const LATEX_ENVIRONMENTS = [
   'center',
 ]
 
-const TYPST_DIRECTIVES = [
+const typstDirectives = [
   'set',
   'show',
   'let',
@@ -479,18 +479,18 @@ function toRelativePath(fromFilePath: string, toFilePath: string): string {
 }
 
 function hasAllowedExtension(filePath: string, command: string): boolean {
-  const allowed = LATEX_FILE_COMMAND_EXTENSIONS[command]
+  const allowed = latexFileCommandExtensions[command]
   if (!allowed) return true
   const lowercase = filePath.toLowerCase()
   return allowed.some((ext) => lowercase.endsWith(ext))
 }
 
 function hasExtensionFilter(command: string): boolean {
-  return Boolean(LATEX_FILE_COMMAND_EXTENSIONS[command])
+  return Boolean(latexFileCommandExtensions[command])
 }
 
 function formatCandidatePath(filePath: string, command: string): string {
-  return LATEX_FILE_COMMANDS_STRIP_EXTENSIONS.has(command)
+  return latexFileCommandsStripExtensions.has(command)
     ? stripFileExtension(filePath)
     : filePath
 }
@@ -625,12 +625,12 @@ function latexFilePathCompletion(context: CompletionContext, paths: PathCompleti
     return null
   }
 
-  const match = context.matchBefore(LATEX_FILE_ARGUMENT_MATCH_PATTERN)
+  const match = context.matchBefore(latexFileArgumentMatchPattern)
   if (!match) {
     return null
   }
 
-  const parsed = LATEX_FILE_ARGUMENT_EXTRACT_PATTERN.exec(match.text)
+  const parsed = latexFileArgumentExtractPattern.exec(match.text)
   if (!parsed) {
     return null
   }
@@ -672,7 +672,7 @@ function latexCompletion(context: CompletionContext): CompletionResult | null {
     const from = envMatch.from + envMatch.text.lastIndexOf('{') + 1
     return {
       from,
-      options: LATEX_ENVIRONMENTS.map((label) => ({
+      options: latexEnvironments.map((label) => ({
         label,
         type: 'keyword',
         ...(isBeginEnvironment
@@ -691,7 +691,7 @@ function latexCompletion(context: CompletionContext): CompletionResult | null {
   if (commandMatch) {
     return {
       from: commandMatch.from + 1,
-      options: LATEX_COMMANDS.map((label) => ({
+      options: latexCommands.map((label) => ({
         label,
         type: 'keyword',
       })),
@@ -746,7 +746,7 @@ function typstCompletion(context: CompletionContext): CompletionResult | null {
 
   return {
     from: directiveMatch.from + 1,
-    options: TYPST_DIRECTIVES.map((label) => ({
+    options: typstDirectives.map((label) => ({
       label,
       type: 'keyword',
     })),

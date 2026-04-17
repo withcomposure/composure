@@ -4,9 +4,9 @@ export const TAB_SINGLE_PATH_MIME = 'text/x-composure-tab-path'
 export const TAB_SOURCE_PANE_MIME = 'text/x-composure-tab-source-pane'
 export const TAB_SOURCE_BAR_MIME = 'text/x-composure-tab-source-bar'
 
-const FALLBACK_TEXT_MIME = 'text/plain'
-const FALLBACK_TEXT_ALIAS_MIME = 'text'
-const FALLBACK_PREFIX = 'composure-dnd:'
+const fallbackTextMime = 'text/plain'
+const fallbackTextAliasMime = 'text'
+const fallbackPrefix = 'composure-dnd:'
 
 type DragPayloadRecord = Record<string, string>
 
@@ -40,13 +40,13 @@ function sanitizePayload(payload: DragPayloadRecord): DragPayloadRecord {
 }
 
 function readFallbackPayload(dataTransfer: DataTransfer): DragPayloadRecord | null {
-  const raw = dataTransfer.getData(FALLBACK_TEXT_MIME)
-  if (!raw || !raw.startsWith(FALLBACK_PREFIX)) {
+  const raw = dataTransfer.getData(fallbackTextMime)
+  if (!raw || !raw.startsWith(fallbackPrefix)) {
     return null
   }
 
   try {
-    const parsed = JSON.parse(raw.slice(FALLBACK_PREFIX.length)) as unknown
+    const parsed = JSON.parse(raw.slice(fallbackPrefix.length)) as unknown
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return null
     }
@@ -73,12 +73,12 @@ export function writeComposureDragPayload(dataTransfer: DataTransfer, payload: D
     dataTransfer.setData(mime, value)
   }
 
-  const fallback = `${FALLBACK_PREFIX}${JSON.stringify(normalized)}`
-  dataTransfer.setData(FALLBACK_TEXT_MIME, fallback)
+  const fallback = `${fallbackPrefix}${JSON.stringify(normalized)}`
+  dataTransfer.setData(fallbackTextMime, fallback)
 
   // Older engines may expose text/plain through the text alias.
   try {
-    dataTransfer.setData(FALLBACK_TEXT_ALIAS_MIME, fallback)
+    dataTransfer.setData(fallbackTextAliasMime, fallback)
   } catch {
     // Ignore unsupported aliases.
   }

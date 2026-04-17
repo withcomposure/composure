@@ -12,7 +12,7 @@ import {
   PreviewEmptyState,
   PreviewErrorBanner,
   PreviewToolbar,
-} from './PreviewChrome'
+} from './PreviewToolbar'
 import { usePreviewZoom } from './preview-zoom'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(

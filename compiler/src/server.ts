@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -10,20 +9,20 @@ import { selectRenderer } from './renderers/index.js'
 import { pandocRenderer, type PandocCompileContext } from './renderers/pandoc.js'
 import { createUid } from './ids.js'
 
-const PORT = Number.parseInt(process.env.PORT ?? '4000', 10)
-const COMPILE_DIR = process.env.COMPILE_DIR ?? '/var/composure/compiles'
-const ASSETS_DIR = process.env.ASSETS_DIR ?? '/app/data/assets'
-const TECTONIC_CACHE = process.env.TECTONIC_CACHE ?? '/var/composure/caches/tectonic'
-const TYPST_CACHE = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
-const DEFAULT_DOCUMENT_UPDATE_BASE64 = process.env.DEFAULT_DOCUMENT_UPDATE_BASE64 ?? ''
-const COMPILE_TIMEOUT_MS = Number.parseInt(process.env.COMPILE_TIMEOUT_MS ?? '60000', 10)
-const MAX_CONCURRENT_PROJECTS = Math.max(
+const port = Number.parseInt(process.env.PORT ?? '4000', 10)
+const compileDir = process.env.COMPILE_DIR ?? '/var/composure/compiles'
+const assetsDir = process.env.ASSETS_DIR ?? '/app/data/assets'
+const tectonicCache = process.env.TECTONIC_CACHE ?? '/var/composure/caches/tectonic'
+const typstCache = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
+const defaultDocumentUpdateBase64 = process.env.DEFAULT_DOCUMENT_UPDATE_BASE64 ?? ''
+const compileTimeoutMs = Number.parseInt(process.env.COMPILE_TIMEOUT_MS ?? '60000', 10)
+const maxConcurrentProjects = Math.max(
   1,
   Number.parseInt(process.env.MAX_CONCURRENT_PROJECTS ?? String(Math.max(1, os.cpus().length)), 10),
 )
 
 function sanitizeCompileLog(log: string | undefined, projectDir: string): string | undefined {
-  return _sanitizeCompileLog(log, projectDir, COMPILE_DIR, TECTONIC_CACHE, TYPST_CACHE)
+  return _sanitizeCompileLog(log, projectDir, compileDir, tectonicCache, typstCache)
 }
 
 interface CompileBody {
@@ -86,9 +85,9 @@ function parseSnapshot(base64: string | undefined): Uint8Array | null | undefine
     }
   }
 
-  if (DEFAULT_DOCUMENT_UPDATE_BASE64.length > 0) {
+  if (defaultDocumentUpdateBase64.length > 0) {
     try {
-      return Uint8Array.from(Buffer.from(DEFAULT_DOCUMENT_UPDATE_BASE64, 'base64'))
+      return Uint8Array.from(Buffer.from(defaultDocumentUpdateBase64, 'base64'))
     } catch {
       return null
     }
@@ -123,7 +122,7 @@ interface CollectedDoc {
   assetEntries: Array<{ displayPath: string; storageKey: string }>
 }
 
-const STORAGE_KEY_PATTERN = /^[a-f0-9]{32,40}\.[a-zA-Z0-9]+$/
+const storageKeyPattern = /^[a-f0-9]{32,40}\.[a-zA-Z0-9]+$/
 
 function collectDocFiles(snapshot: Uint8Array): CollectedDoc {
   const doc = new Y.Doc()
@@ -145,7 +144,7 @@ function collectDocFiles(snapshot: Uint8Array): CollectedDoc {
       const hasText = doc.share.has(textKey)
       const content = hasText ? doc.getText(textKey).toString() : ''
       textFiles.set(normalized, content)
-    } else if (meta.type === 'asset' && meta.storageKey && STORAGE_KEY_PATTERN.test(meta.storageKey)) {
+    } else if (meta.type === 'asset' && meta.storageKey && storageKeyPattern.test(meta.storageKey)) {
       assetEntries.push({ displayPath: normalized, storageKey: meta.storageKey })
     }
     // type === 'folder' → directories are created implicitly by mkdirSync in syncProjectSource
@@ -157,7 +156,7 @@ function collectDocFiles(snapshot: Uint8Array): CollectedDoc {
 
 
 function getProjectOutDir(projectId: string): string {
-  return path.join(COMPILE_DIR, projectId, 'out')
+  return path.join(compileDir, projectId, 'out')
 }
 
 function getPreviewStatePath(projectId: string): string {
@@ -262,7 +261,7 @@ function parseByteRange(rangeHeader: string, totalSize: number): { start: number
 }
 
 async function acquireGlobalProjectSlot(): Promise<void> {
-  if (activeProjects < MAX_CONCURRENT_PROJECTS) {
+  if (activeProjects < maxConcurrentProjects) {
     activeProjects++
     return
   }
@@ -292,17 +291,17 @@ async function runWithGlobalProjectSlot<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
-  const projectDir = path.join(COMPILE_DIR, payload.projectId)
+  const projectDir = path.join(compileDir, payload.projectId)
   const srcDir = path.join(projectDir, 'src')
   const outDir = path.join(projectDir, 'out')
-  const assetsProjectDir = path.join(ASSETS_DIR, payload.projectId)
+  const assetsProjectDir = path.join(assetsDir, payload.projectId)
 
   fs.rmSync(srcDir, { recursive: true, force: true })
 
   fs.mkdirSync(srcDir, { recursive: true })
   fs.mkdirSync(outDir, { recursive: true })
-  fs.mkdirSync(TECTONIC_CACHE, { recursive: true })
-  fs.mkdirSync(TYPST_CACHE, { recursive: true })
+  fs.mkdirSync(tectonicCache, { recursive: true })
+  fs.mkdirSync(typstCache, { recursive: true })
 
   const snapshot = parseSnapshot(payload.documentUpdateBase64)
   if (snapshot === null) {
@@ -369,7 +368,7 @@ async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
     rootFile: payload.rootFile,
     srcDir,
     outDir,
-    timeoutMs: COMPILE_TIMEOUT_MS,
+    timeoutMs: compileTimeoutMs,
   })
 
   const primaryOutput = output.success && output.outputs.length > 0 ? output.outputs[0] : undefined
@@ -469,7 +468,7 @@ app.get('/health', async () => ({
   status: 'ok',
   uptime: process.uptime(),
   activeProjects,
-  maxConcurrentProjects: MAX_CONCURRENT_PROJECTS,
+  maxConcurrentProjects: maxConcurrentProjects,
 }))
 
 app.post('/compile', {
@@ -558,10 +557,10 @@ app.post('/export', {
   }
 
   // Reuse executeCompile infrastructure for file extraction, then run pandoc
-  const projectDir = path.join(COMPILE_DIR, projectId)
+  const projectDir = path.join(compileDir, projectId)
   const srcDir = path.join(projectDir, 'src')
   const outDir = path.join(projectDir, 'out')
-  const assetsProjectDir = path.join(ASSETS_DIR, projectId)
+  const assetsProjectDir = path.join(assetsDir, projectId)
 
   fs.rmSync(srcDir, { recursive: true, force: true })
   fs.mkdirSync(srcDir, { recursive: true })
@@ -615,7 +614,7 @@ app.post('/export', {
     rootFile: safeRootFile,
     srcDir,
     outDir,
-    timeoutMs: COMPILE_TIMEOUT_MS,
+    timeoutMs: compileTimeoutMs,
     outputFormat,
   }
 
@@ -768,7 +767,7 @@ app.delete('/projects/:projectId/preview.pdf', {
   reply.status(204).send()
 })
 
-await app.listen({ host: '0.0.0.0', port: PORT })
+await app.listen({ host: '0.0.0.0', port: port })
 console.info(
-  `[compiler] listening port=${PORT} compileDir=${COMPILE_DIR} tectonicCache=${TECTONIC_CACHE} typstCache=${TYPST_CACHE} maxConcurrentProjects=${MAX_CONCURRENT_PROJECTS}`,
+  `[compiler] listening port=${port} compileDir=${compileDir} tectonicCache=${tectonicCache} typstCache=${typstCache} maxConcurrentProjects=${maxConcurrentProjects}`,
 )

@@ -163,7 +163,7 @@ interface ActiveSpanContext {
   union: SelectedLines
 }
 
-const COMMENT_OVERLAY_LEFT_PX = 56
+const commentOverlayLeftPx = 56
 
 const syncCommentsEffect = StateEffect.define<ProjectComment[]>()
 
@@ -1137,7 +1137,7 @@ export function Editor({
       endLine: range.endLine,
       restorePosition: selectionRestorePosition(view.state, range),
       top: coords ? coords.top - containerRect.top : 12,
-      left: COMMENT_OVERLAY_LEFT_PX,
+      left: commentOverlayLeftPx,
     })
     setDraftBody('')
   }, [])
@@ -1774,7 +1774,7 @@ export function Editor({
       {activeRangeOverlay && (
         <div
           className="cz-comment-range-cards absolute z-20 w-[300px] space-y-2"
-          style={{ top: `${Math.max(8, activeRangeOverlay.top)}px`, left: `${COMMENT_OVERLAY_LEFT_PX}px` }}
+          style={{ top: `${Math.max(8, activeRangeOverlay.top)}px`, left: `${commentOverlayLeftPx}px` }}
         >
           {activeRangeOverlay.comments.map((comment) => (
             <div key={comment.id} className="rounded-lg border border-cz-border bg-cz-surface p-3 shadow-xl">

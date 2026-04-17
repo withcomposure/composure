@@ -29,7 +29,7 @@ interface PopupDialogProps {
   panelClassName?: string
 }
 
-const PANEL_WIDTH_CLASS: Record<PopupPanelWidth, string> = {
+const panelWidthClass: Record<PopupPanelWidth, string> = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
@@ -81,7 +81,7 @@ export function PopupDialog({
         onMouseDown={(event) => {
           event.stopPropagation()
         }}
-        className={`w-full ${PANEL_WIDTH_CLASS[panelWidth]} rounded-xl border border-cz-border bg-cz-surface shadow-2xl ${panelClassName ?? ''}`.trim()}
+        className={`w-full ${panelWidthClass[panelWidth]} rounded-xl border border-cz-border bg-cz-surface shadow-2xl ${panelClassName ?? ''}`.trim()}
       >
         <div className="border-b border-cz-border px-5 py-4">
           <h2 className="text-base font-semibold text-cz-text">{title}</h2>

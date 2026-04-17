@@ -5,7 +5,7 @@ import {
   PreviewEmptyState,
   PreviewErrorBanner,
   PreviewToolbar,
-} from './PreviewChrome'
+} from './PreviewToolbar'
 import { usePreviewZoom } from './preview-zoom'
 
 interface HtmlPreviewProps {

@@ -158,10 +158,10 @@ export async function listRecentJobs(sinceSeconds: number): Promise<BackgroundJo
   }))
 }
 
-const STALLED_THRESHOLD_SECONDS = 300 // 5 minutes
+const stalledThresholdSeconds = 300 // 5 minutes
 
 export async function getHealthStatus(sinceSeconds: number = 86400): Promise<'healthy' | 'degraded' | 'stalled'> {
-  const stalledCutoff = nowUnix() - STALLED_THRESHOLD_SECONDS
+  const stalledCutoff = nowUnix() - stalledThresholdSeconds
   const [stalled] = await sql<[{ count: number }]>`
     SELECT COUNT(1)::integer AS count FROM background_jobs WHERE status = 'running' AND started_at < ${stalledCutoff}
   `
@@ -186,7 +186,7 @@ export async function getHealthStatus(sinceSeconds: number = 86400): Promise<'he
 }
 
 export async function markStalledJobs(): Promise<number> {
-  const stalledCutoff = nowUnix() - STALLED_THRESHOLD_SECONDS
+  const stalledCutoff = nowUnix() - stalledThresholdSeconds
   const result = await sql`
     UPDATE background_jobs SET status = 'stalled', finished_at = extract(epoch from now())::integer, error = 'Job stalled (exceeded 5 minute timeout)' WHERE status = 'running' AND started_at < ${stalledCutoff}
   `

@@ -28,16 +28,16 @@ export function evaluateUtf8Limit(
 
 export function formatBinarySize(bytes: number): string {
   const absolute = Math.max(0, bytes)
-  const KB = 1024
-  const MB = 1024 * KB
+  const kb = 1024
+  const mb = 1024 * kb
 
-  if (absolute >= MB) {
-    const value = absolute / MB
+  if (absolute >= mb) {
+    const value = absolute / mb
     return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} MB`
   }
 
-  if (absolute >= KB) {
-    const value = absolute / KB
+  if (absolute >= kb) {
+    const value = absolute / kb
     return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} KB`
   }
 

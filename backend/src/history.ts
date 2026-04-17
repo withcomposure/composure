@@ -8,13 +8,13 @@ import { normalizeRelativePath } from './security.js'
 import { getProjectAssetsDir } from './storage.js'
 import { classifyBuffer } from './classify.js'
 
-const DATA_DIR = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data')
-const REPOS_ROOT = path.join(DATA_DIR, 'repos')
+const dataDir = process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data')
+const reposRoot = path.join(dataDir, 'repos')
 
-const AUTHOR = { name: 'Composure', email: 'composure@local' }
+const author = { name: 'Composure', email: 'composure@local' }
 
 function repoDir(projectId: string): string {
-  return path.join(REPOS_ROOT, projectId)
+  return path.join(reposRoot, projectId)
 }
 
 export async function ensureRepo(projectId: string): Promise<string> {
@@ -23,8 +23,8 @@ export async function ensureRepo(projectId: string): Promise<string> {
   const gitDir = path.join(dir, '.git')
   if (!fs.existsSync(gitDir)) {
     await git.init({ fs, dir })
-    await git.setConfig({ fs, dir, path: 'user.email', value: AUTHOR.email })
-    await git.setConfig({ fs, dir, path: 'user.name', value: AUTHOR.name })
+    await git.setConfig({ fs, dir, path: 'user.email', value: author.email })
+    await git.setConfig({ fs, dir, path: 'user.name', value: author.name })
     console.info(`[history] init-repo projectId=${projectId}`)
   }
   return dir
@@ -137,7 +137,7 @@ async function doCommitSnapshot(projectId: string, yDocState?: Uint8Array, opts?
   const sha = await git.commit({
     fs,
     dir,
-    author: AUTHOR,
+    author: author,
     message: `Auto-save — ${new Date().toISOString()}`,
   })
 
@@ -420,7 +420,7 @@ async function doCreateSnapshot(projectId: string, name: string): Promise<Snapsh
       dir,
       ref: tagName,
       message: name,
-      tagger: AUTHOR,
+      tagger: author,
     })
 
     const commits = await git.log({ fs, dir, depth: 1 })
@@ -715,7 +715,7 @@ export async function restoreToCommit(projectId: string, sha: string): Promise<R
   const commitSha = await git.commit({
     fs,
     dir,
-    author: AUTHOR,
+    author: author,
     message: `Restored to ${sha.slice(0, 8)} — ${new Date().toISOString()}`,
   })
 

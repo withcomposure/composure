@@ -26,7 +26,7 @@ import { applySnippet } from './snippets/engine'
 
 // ── Icon lookup ──────────────────────────────────────────────────────────────
 
-const ICON_MAP: Record<string, LucideIcon> = {
+const iconMap: Record<string, LucideIcon> = {
   Bold,
   Italic,
   Underline,
@@ -48,7 +48,7 @@ function slotKey(slot: ToolbarSlot): string {
 }
 
 function renderIcon(iconName: string | undefined, label: string) {
-  const IconComponent = iconName ? ICON_MAP[iconName] : undefined
+  const IconComponent = iconName ? iconMap[iconName] : undefined
   if (IconComponent) {
     return createElement(IconComponent, { size: 15, strokeWidth: 1.8 })
   }
@@ -56,7 +56,7 @@ function renderIcon(iconName: string | undefined, label: string) {
 }
 
 function renderMenuIcon(iconName: string | undefined) {
-  const IconComponent = iconName ? ICON_MAP[iconName] : undefined
+  const IconComponent = iconName ? iconMap[iconName] : undefined
   if (!IconComponent) {
     return null
   }
@@ -264,9 +264,9 @@ interface FormatToolbarProps {
   disabled: boolean
 }
 
-const TOOLBAR_SLOT_GAP_PX = 2
-const TOOLBAR_FIT_EPSILON_PX = 1
-const DEFAULT_OVERFLOW_CONTROL_WIDTH_PX = 40
+const toolbarSlotGapPx = 2
+const toolbarFitEpsilonPx = 1
+const defaultOverflowControlWidthPx = 40
 
 export function FormatToolbar({ language, editorViewRef, disabled }: FormatToolbarProps) {
   const adapter = useMemo(() => getAdapter(language), [language])
@@ -371,17 +371,17 @@ export function FormatToolbar({ language, editorViewRef, disabled }: FormatToolb
 
     const effectiveOverflowControlWidth = overflowControlWidth > 0
       ? overflowControlWidth
-      : DEFAULT_OVERFLOW_CONTROL_WIDTH_PX
+      : defaultOverflowControlWidthPx
 
     const toolbarFits = (count: number): boolean => {
-      const slotBodyWidth = prefixWidths[count] + TOOLBAR_SLOT_GAP_PX * Math.max(0, count - 1)
+      const slotBodyWidth = prefixWidths[count] + toolbarSlotGapPx * Math.max(0, count - 1)
       if (count >= slotEntries.length) {
-        return slotBodyWidth <= containerWidth - TOOLBAR_FIT_EPSILON_PX
+        return slotBodyWidth <= containerWidth - toolbarFitEpsilonPx
       }
 
-      const gapBeforeOverflow = count > 0 ? TOOLBAR_SLOT_GAP_PX : 0
+      const gapBeforeOverflow = count > 0 ? toolbarSlotGapPx : 0
       const totalWidth = slotBodyWidth + gapBeforeOverflow + effectiveOverflowControlWidth
-      return totalWidth <= containerWidth - TOOLBAR_FIT_EPSILON_PX
+      return totalWidth <= containerWidth - toolbarFitEpsilonPx
     }
 
     let visibleCount = 0
