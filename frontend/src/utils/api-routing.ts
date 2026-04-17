@@ -1,5 +1,5 @@
-const API_VERSION = 'v1'
-const DEFAULT_API_BASE_PATH = '/api'
+const apiVersion = 'v1'
+const defaultApiBasePath = '/api'
 
 interface AbsoluteApiBase {
   mode: 'absolute'
@@ -15,7 +15,7 @@ interface RelativeApiBase {
 type ApiBase = AbsoluteApiBase | RelativeApiBase
 
 function normalizeBasePath(value: string | undefined): string {
-  const raw = (value ?? DEFAULT_API_BASE_PATH).trim()
+  const raw = (value ?? defaultApiBasePath).trim()
   if (!raw || raw === '/') {
     return ''
   }
@@ -89,7 +89,7 @@ function resolveApiBase(rawValue: string | undefined): ApiBase {
 }
 
 const apiBase = resolveApiBase(import.meta.env.VITE_API_URL as string | undefined)
-const apiRootPath = joinPath(apiBase.basePath || '/', API_VERSION)
+const apiRootPath = joinPath(apiBase.basePath || '/', apiVersion)
 
 function appendOptionalShareToken(baseUrl: string, shareToken: string | undefined): string {
   if (!shareToken) {
@@ -148,7 +148,7 @@ export function apiPath(path: string): string {
     return `${normalizedPathname}${suffix}`
   }
 
-  const absoluteVersionPath = `/${API_VERSION}`
+  const absoluteVersionPath = `/${apiVersion}`
   if (normalizedPathname === absoluteVersionPath || normalizedPathname.startsWith(`${absoluteVersionPath}/`)) {
     return `${joinPath(apiBase.basePath || '/', normalizedPathname)}${suffix}`
   }
