@@ -58,4 +58,72 @@ describe('compile cors', () => {
     expect(response.headers['access-control-allow-origin']).toBe(origin)
     expect(response.headers['x-compile-id']).toBe('abc123')
   })
+
+  it('returns CORS allow-origin header on successful export responses', async () => {
+    process.env.COMPILERS = 'http://compiler.test'
+    const fetchMock = vi.fn<typeof fetch>()
+    fetchMock.mockResolvedValue(new Response('export-data', {
+      status: 200,
+      headers: {
+        'content-type': 'application/pdf',
+        'content-disposition': 'attachment; filename="export.pdf"',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = await createTestUser({ email: 'exporter@test.com' })
+    const sessionId = await createTestSession(user.id)
+    const projectId = await createTestProject(user.id)
+
+    const origin = 'http://localhost:5173'
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/export/${projectId}`,
+      headers: {
+        origin,
+        cookie: sessionCookie(sessionId),
+        'content-type': 'application/json',
+      },
+      payload: {
+        format: 'pdf',
+        rootFile: 'main.tex',
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['access-control-allow-origin']).toBe(origin)
+    expect(response.headers['content-disposition']).toContain('export.pdf')
+  })
+
+  it('returns CORS allow-origin header on successful preview responses', async () => {
+    process.env.COMPILERS = 'http://compiler.test'
+    const fetchMock = vi.fn<typeof fetch>()
+    fetchMock.mockResolvedValue(new Response('pdf-bytes', {
+      status: 200,
+      headers: {
+        'content-type': 'application/pdf',
+        'content-length': '9',
+        'accept-ranges': 'bytes',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = await createTestUser({ email: 'previewer@test.com' })
+    const sessionId = await createTestSession(user.id)
+    const projectId = await createTestProject(user.id)
+
+    const origin = 'http://localhost:5173'
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/preview.pdf`,
+      headers: {
+        origin,
+        cookie: sessionCookie(sessionId),
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['access-control-allow-origin']).toBe(origin)
+    expect(response.headers['content-type']).toContain('application/pdf')
+  })
 })
