@@ -139,6 +139,19 @@ function withOptionalQuery(url: string, entries: Array<[string, string | undefin
   return parsed.toString()
 }
 
+function preserveQueuedReplyHeaders(reply: FastifyReply): void {
+  const queuedHeaders = reply.getHeaders()
+  for (const [name, value] of Object.entries(queuedHeaders)) {
+    if (value == null) {
+      continue
+    }
+    if (reply.raw.hasHeader(name)) {
+      continue
+    }
+    reply.raw.setHeader(name, value as number | string | readonly string[])
+  }
+}
+
 async function readCompilerErrorBody(response: Response): Promise<CompilerErrorBody | null> {
   const contentType = response.headers.get('content-type') ?? ''
 
@@ -208,6 +221,7 @@ export async function dispatchCompile(input: DispatchInput): Promise<void> {
 
     input.reply.hijack()
     input.reply.raw.statusCode = response.status
+    preserveQueuedReplyHeaders(input.reply)
     input.reply.raw.setHeader('Content-Type', contentType)
     input.reply.raw.setHeader('X-Content-Type-Options', 'nosniff')
     if (compileId) {
@@ -283,6 +297,7 @@ export async function dispatchPreview(input: PreviewDispatchInput): Promise<void
 
   input.reply.hijack()
   input.reply.raw.statusCode = response.status
+  preserveQueuedReplyHeaders(input.reply)
 
   const passthroughHeaders = [
     'content-type',
@@ -406,6 +421,7 @@ export async function dispatchExport(input: ExportDispatchInput): Promise<void> 
 
     input.reply.hijack()
     input.reply.raw.statusCode = response.status
+    preserveQueuedReplyHeaders(input.reply)
     input.reply.raw.setHeader('Content-Type', contentType)
     input.reply.raw.setHeader('X-Content-Type-Options', 'nosniff')
     if (contentDisposition) {
