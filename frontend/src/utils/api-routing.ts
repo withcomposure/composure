@@ -90,6 +90,9 @@ function resolveApiBase(rawValue: string | undefined): ApiBase {
 
 const apiBase = resolveApiBase(import.meta.env.VITE_API_URL as string | undefined)
 const apiRootPath = joinPath(apiBase.basePath || '/', apiVersion)
+const currentOrigin = typeof window !== 'undefined' ? window.location.origin : undefined;
+const isCrossOrigin = apiBase.mode === 'absolute' && apiBase.origin !== currentOrigin;
+const defaultApiRequestCredentials: RequestCredentials = isCrossOrigin ? 'include' : 'same-origin'
 
 function appendOptionalShareToken(baseUrl: string, shareToken: string | undefined): string {
   if (!shareToken) {
@@ -172,6 +175,10 @@ export function apiUrl(path: string): string {
   }
 
   return joinAbsoluteUrlWithPath(apiBase.origin, versionedPath)
+}
+
+export function apiRequestCredentials(): RequestCredentials {
+  return defaultApiRequestCredentials
 }
 
 export function collaborationWsUrl(shareToken?: string): string {

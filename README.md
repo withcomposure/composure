@@ -106,6 +106,7 @@ Recommended app env alignment:
 - Backend: `API_BASE_PATH=/` (or `/api`, but then include that in `VITE_API_URL`)
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}` when `API_BASE_PATH=/`
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}/api` when `API_BASE_PATH=/api`
+- Frontend: when `VITE_API_URL` is absolute, API requests are sent with credentials so session cookies persist between app/api subdomains.
 
 ### 3) Host Frontend + Backend on One Domain (Path-Based Routing)
 
@@ -160,6 +161,7 @@ Recommended backend env alignment:
 - `SERVE_FRONTEND=false`
 - `CORS_ORIGIN=https://${COMPOSURE_FRONTEND_ORIGIN}`
 - `API_BASE_PATH=/` (common for split mode) or `/api`
+- Ensure frontend `VITE_API_URL` points to this API origin (including any API base path).
 
 ### 5) Private LAN / Homelab with Internal TLS
 
@@ -288,7 +290,7 @@ If you later move to public DNS, remove `tls internal` and set `ACME_EMAIL` to u
 
 ### Hosting
 
-- [x] Configurable CORS origins (auth/session cookies may fail if frontend/backend are truly cross-origin, see `fetch.ts` and `auth.ts`, maybe add a warning or flag?)
+- [x] Configurable CORS origins
 
 ## Contributing
 
