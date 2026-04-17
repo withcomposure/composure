@@ -24,7 +24,7 @@ import {
   guestIdLabel,
   guestLabel,
 } from '@/utils/page-utils'
-import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { apiFetch, fetchJson, getErrorMessage } from '@/utils/fetch'
 import {
   navigateToProject,
   navigateToProjects,
@@ -311,7 +311,7 @@ export default function App() {
   useEffect(() => {
     if (sessionLoading) return
     if (route.kind !== 'project') return
-    void fetch(`/api/projects/${route.projectId}/open`, {
+    void apiFetch(`/api/projects/${route.projectId}/open`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: route.shareToken ? { 'X-Share-Token': route.shareToken } : undefined,
@@ -378,7 +378,7 @@ export default function App() {
   }, [])
 
   const openProject = useCallback((projectId: string, shareToken?: string) => {
-    void fetch(`/api/projects/${projectId}/open`, {
+    void apiFetch(`/api/projects/${projectId}/open`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: shareToken ? { 'X-Share-Token': shareToken } : undefined,

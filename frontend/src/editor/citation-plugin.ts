@@ -1,4 +1,5 @@
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
+import { apiFetch } from '@/utils/fetch'
 
 /**
  * Citation autocomplete plugin.
@@ -39,7 +40,7 @@ async function fetchBibEntries(): Promise<BibEntry[]> {
     }
     const shareToken = extractShareTokenFromUrl()
     const headers = shareToken ? { 'X-Share-Token': shareToken } : undefined
-    const res = await fetch(`/api/bibliography/${projectId}`, {
+    const res = await apiFetch(`/api/bibliography/${projectId}`, {
       credentials: 'same-origin',
       headers,
     })

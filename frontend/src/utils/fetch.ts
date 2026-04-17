@@ -1,5 +1,20 @@
+const configuredApiUrl = import.meta.env.VITE_API_URL as string | undefined
+const apiBaseUrl = configuredApiUrl?.trim().replace(/\/+$/, '') ?? ''
+
+export function apiUrl(path: string): string {
+  if (!apiBaseUrl || /^https?:\/\//i.test(path)) {
+    return path
+  }
+
+  return path.startsWith('/') ? `${apiBaseUrl}${path}` : `${apiBaseUrl}/${path}`
+}
+
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  return await fetch(apiUrl(path), init)
+}
+
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     credentials: 'same-origin',
     ...init,
   })

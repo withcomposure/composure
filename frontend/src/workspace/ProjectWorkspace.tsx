@@ -67,7 +67,7 @@ import {
   uint8ArrayToBase64,
 } from "@/utils/page-utils";
 import { restoreVersion } from "@/sidebar/history-api";
-import { getErrorMessage } from "@/utils/fetch";
+import { apiFetch, apiUrl, getErrorMessage } from "@/utils/fetch";
 import { makeProjectUrl, navigateToProjects, navigateToSettings } from "@/utils/route";
 import {
   applyDroppedPathsToPaneState,
@@ -747,7 +747,7 @@ export function ProjectWorkspace({
       let loadSucceeded = false;
 
       try {
-        const res = await fetch(`/api/projects/${projectId}/workspace-state`, {
+        const res = await apiFetch(`/api/projects/${projectId}/workspace-state`, {
           credentials: "same-origin",
           headers: shareHeaders,
         });
@@ -865,7 +865,7 @@ export function ProjectWorkspace({
     const timeout = window.setTimeout(() => {
       void (async () => {
         try {
-          const res = await fetch(
+          const res = await apiFetch(
             `/api/projects/${projectId}/workspace-state`,
             {
               method: "PATCH",
@@ -1095,7 +1095,7 @@ export function ProjectWorkspace({
 
   const loadAccess = useCallback(async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/access`, {
+      const res = await apiFetch(`/api/projects/${projectId}/access`, {
         credentials: "same-origin",
         headers: shareHeaders,
       });
@@ -1136,7 +1136,7 @@ export function ProjectWorkspace({
 
   const loadComments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/comments`, {
+      const res = await apiFetch(`/api/projects/${projectId}/comments`, {
         credentials: "same-origin",
         headers: shareHeaders,
       });
@@ -1595,7 +1595,7 @@ export function ProjectWorkspace({
         throw new Error("You do not have edit permissions for this project");
       }
 
-      const res = await fetch(`/api/save/${projectId}`, {
+      const res = await apiFetch(`/api/save/${projectId}`, {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -1653,7 +1653,7 @@ export function ProjectWorkspace({
 
     setClearingCompileOutput(true);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/projects/${encodeURIComponent(projectId)}/preview.pdf`,
         {
           method: "DELETE",
@@ -1727,7 +1727,7 @@ export function ProjectWorkspace({
         console.info(
           `[app] compile-request projectId=${projectId} rootFile=${rootFile}${isHistory ? ` commitSha=${historyState.commitSha}` : ""}`,
         );
-        const res = await fetch("/api/compile", {
+        const res = await apiFetch("/api/compile", {
           method: "POST",
           credentials: "same-origin",
           headers: {
@@ -1766,7 +1766,9 @@ export function ProjectWorkspace({
         if (shareToken) {
           previewParams.set("shareToken", shareToken);
         }
-        const url = `/api/projects/${encodeURIComponent(projectId)}/preview.pdf?${previewParams.toString()}`;
+        const url = apiUrl(
+          `/api/projects/${encodeURIComponent(projectId)}/preview.pdf?${previewParams.toString()}`,
+        );
         console.info(
           `[app] compile-success compileId=${String(compileId ?? "none")} previewUrl=${url}`,
         );
@@ -1816,7 +1818,7 @@ export function ProjectWorkspace({
         if (historyState) {
           exportBody.commitSha = historyState.commitSha;
         }
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/export/${encodeURIComponent(projectId)}`,
           {
             method: "POST",
@@ -2018,7 +2020,7 @@ export function ProjectWorkspace({
         throw new Error("Comment actions are disabled in view mode");
       }
 
-      const res = await fetch(`/api/projects/${projectId}/comments`, {
+      const res = await apiFetch(`/api/projects/${projectId}/comments`, {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -2048,7 +2050,7 @@ export function ProjectWorkspace({
         throw new Error("Comment actions are disabled in view mode");
       }
 
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/projects/${projectId}/comments/${commentId}`,
         {
           method: "PATCH",
@@ -2083,7 +2085,7 @@ export function ProjectWorkspace({
         throw new Error("Comment actions are disabled in view mode");
       }
 
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/projects/${projectId}/comments/${commentId}`,
         {
           method: "DELETE",
@@ -2125,7 +2127,7 @@ export function ProjectWorkspace({
 
     setInviting(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/members`, {
+      const res = await apiFetch(`/api/projects/${projectId}/members`, {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -2158,7 +2160,7 @@ export function ProjectWorkspace({
 
   const updateMemberRole = useCallback(
     async (userId: string, role: ShareRole | "remove") => {
-      const res = await fetch(`/api/projects/${projectId}/members/${userId}`, {
+      const res = await apiFetch(`/api/projects/${projectId}/members/${userId}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: {
@@ -2186,7 +2188,7 @@ export function ProjectWorkspace({
 
   const setLinkSharing = useCallback(
     async (enabled: boolean, role: ShareRole) => {
-      const res = await fetch(`/api/projects/${projectId}/link-sharing`, {
+      const res = await apiFetch(`/api/projects/${projectId}/link-sharing`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: {
@@ -2220,7 +2222,7 @@ export function ProjectWorkspace({
   );
 
   const invalidateLinkSharing = useCallback(async () => {
-    const res = await fetch(`/api/projects/${projectId}/link-sharing`, {
+    const res = await apiFetch(`/api/projects/${projectId}/link-sharing`, {
       method: "PATCH",
       credentials: "same-origin",
       headers: {
