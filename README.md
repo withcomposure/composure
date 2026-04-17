@@ -1,4 +1,4 @@
-# 🌿 Composure
+# 🐚 Composure
 
 [![Tests](https://github.com/withcomposure/composure/actions/workflows/test.yml/badge.svg)](https://github.com/withcomposure/composure/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/withcomposure/composure/branch/main/graph/badge.svg)](https://codecov.io/gh/withcomposure/composure)
@@ -7,8 +7,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24-green?logo=node.js)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/withcomposure/composure/pulls)
 
-Composure is a self-hostable, collaborative editor for LaTeX, Typst, Markdown, and more 
-— built as a modern open-source alternative to Overleaf.
+Composure is a self-hostable, collaborative editor for LaTeX, Typst, Markdown, and more.
 
 ## Getting Started
 
