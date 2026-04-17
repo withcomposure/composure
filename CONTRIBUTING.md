@@ -33,9 +33,9 @@ npm run dev
 ## Running Tests
 
 ```bash
-npm run test:ci -w backend
-npm run test:ci -w frontend
-npm run test:ci -w compiler
+npm test -w backend
+npm test -w frontend
+npm test -w compiler
 ```
 
 Please make sure all tests pass before opening a PR.

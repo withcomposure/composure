@@ -8,7 +8,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/composure_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/composure_test
     services:
       postgres:
         image: postgres:17
@@ -30,9 +30,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run test:ci -w backend
-      - run: npm run test:ci -w frontend
-      - run: npm run test:ci -w compiler
+      - run: npm test -w backend -- --coverage
+      - run: npm test -w frontend -- --coverage
+      - run: npm test -w compiler -- --coverage
       - uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
