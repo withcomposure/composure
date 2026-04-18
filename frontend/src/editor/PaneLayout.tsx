@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode, TouchEvent as ReactTouchEvent } from "react";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import type { EditorLayoutNode, SplitOrientation } from "./workspace-state";
 
@@ -7,7 +7,7 @@ interface PaneLayoutProps {
   renderPane: (paneId: string) => ReactNode;
   forcedActiveSplitIds: Set<string>;
   onResizeSplit: (
-    event: ReactMouseEvent<HTMLDivElement>,
+    event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>,
     splitId: string,
     orientation: SplitOrientation,
   ) => void;
@@ -50,7 +50,6 @@ export function PaneLayout({
           onResizeSplit(event, node.splitId, node.orientation)
         }
         forceActive={forcedActiveSplitIds.has(node.splitId)}
-        className="z-30"
       />
 
       <div

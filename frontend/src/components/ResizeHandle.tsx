@@ -1,9 +1,9 @@
-import { useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from 'react'
 
 interface ResizeHandleProps {
   orientation: 'vertical' | 'horizontal'
   ariaLabel: string
-  onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onMouseDown: (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => void
   className?: string
   forceActive?: boolean
   cursor?: CSSProperties['cursor']
@@ -32,9 +32,13 @@ export function ResizeHandle({
     }
 
     window.addEventListener('mouseup', stopDragging)
+    window.addEventListener('touchend', stopDragging)
+    window.addEventListener('touchcancel', stopDragging)
     window.addEventListener('blur', stopDragging)
     return () => {
       window.removeEventListener('mouseup', stopDragging)
+      window.removeEventListener('touchend', stopDragging)
+      window.removeEventListener('touchcancel', stopDragging)
       window.removeEventListener('blur', stopDragging)
     }
   }, [isDragging])
@@ -47,21 +51,34 @@ export function ResizeHandle({
         touchAction: 'none',
         cursor: cursor ?? (isVertical ? 'col-resize' : 'row-resize'),
       }}
-      className={`relative shrink-0 bg-transparent ${isVertical ? 'h-full w-1' : 'h-1 w-full'} ${className}`}
+      className={`relative shrink-0 bg-transparent before:absolute before:content-[''] ${
+        isVertical
+          ? 'h-full w-px before:-left-[5px] before:-right-[5px] before:inset-y-0'
+          : 'h-px w-full before:inset-x-0 before:-top-[5px] before:-bottom-[5px]'
+      } ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onMouseDown={(event) => {
         onMouseDown(event)
         setIsDragging(true)
       }}
+      onTouchStart={(event) => {
+        onMouseDown(event)
+        setIsDragging(true)
+      }}
     >
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute rounded-sm transition-all duration-100 ${
-          isVertical
-            ? `inset-y-0 left-1/2 -translate-x-1/2 ${isActive ? 'w-[2px] bg-cz-accent/70' : 'w-px bg-cz-border'}`
-            : `inset-x-0 top-1/2 -translate-y-1/2 ${isActive ? 'h-[2px] bg-cz-accent/70' : 'h-px bg-cz-border'}`
+        className={`pointer-events-none absolute inset-0 z-10 transition-colors duration-100 ${
+          isActive ? 'bg-cz-accent' : 'bg-cz-border'
         }`}
+      />
+      {/* Pill touch/click target */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border transition-colors duration-100 ${
+          isVertical ? 'h-8 w-[6px]' : 'h-[6px] w-8'
+        } ${isActive ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-bg'}`}
       />
     </div>
   )

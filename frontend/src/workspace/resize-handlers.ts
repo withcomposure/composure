@@ -1,4 +1,5 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type React from "react";
+import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
 import type { StartResizeDrag } from "@/hooks/use-resize-drag";
 import type { EditorLayoutNode, SplitOrientation } from "@/editor/workspace-state";
 import {
@@ -8,6 +9,15 @@ import {
   type SplitHandleGeometry,
   updateSplitRatio,
 } from "./layout-utils";
+
+function getClientPos(event: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent): { clientX: number; clientY: number } {
+  const e = 'nativeEvent' in event ? event.nativeEvent : event;
+  if ('touches' in e) {
+    const touch = e.touches[0] ?? e.changedTouches[0];
+    return { clientX: touch?.clientX ?? 0, clientY: touch?.clientY ?? 0 };
+  }
+  return { clientX: (e as MouseEvent).clientX, clientY: (e as MouseEvent).clientY };
+}
 
 interface SidebarResizeFactoryOptions {
   startResizeDrag: StartResizeDrag;
@@ -22,8 +32,8 @@ export function createSidebarResizeHandler({
   setIsResizingSidebar,
   setSidebarWidth,
 }: SidebarResizeFactoryOptions) {
-  return (event: ReactMouseEvent<HTMLDivElement>) => {
-    const startX = event.clientX;
+  return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => {
+    const { clientX: startX } = getClientPos(event.nativeEvent);
     const startWidth = sidebarWidthRef.current;
     startResizeDrag(event, {
       cursor: "col-resize",
@@ -31,7 +41,8 @@ export function createSidebarResizeHandler({
         setIsResizingSidebar(true);
       },
       onMove: (moveEvent) => {
-        const delta = moveEvent.clientX - startX;
+        const { clientX } = getClientPos(moveEvent);
+        const delta = clientX - startX;
         const nextWidth = Math.min(420, Math.max(180, startWidth + delta));
         if (nextWidth !== sidebarWidthRef.current) {
           sidebarWidthRef.current = nextWidth;
@@ -60,8 +71,8 @@ export function createPreviewResizeHandler({
   setIsResizingPreview,
   setPreviewWidth,
 }: PreviewResizeFactoryOptions) {
-  return (event: ReactMouseEvent<HTMLDivElement>) => {
-    const startX = event.clientX;
+  return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => {
+    const { clientX: startX } = getClientPos(event.nativeEvent);
     const startWidth = previewWidth;
     startResizeDrag(event, {
       cursor: "col-resize",
@@ -69,7 +80,8 @@ export function createPreviewResizeHandler({
         setIsResizingPreview(true);
       },
       onMove: (moveEvent) => {
-        const delta = startX - moveEvent.clientX;
+        const { clientX } = getClientPos(moveEvent);
+        const delta = startX - clientX;
         const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
         const maxWidth = Math.max(380, layoutWidth - 380);
         setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)));
@@ -93,12 +105,12 @@ export function createEditorSplitResizeHandler({
   setEditorLayout,
 }: SplitResizeFactoryOptions) {
   return (
-    event: ReactMouseEvent<HTMLDivElement>,
+    event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>,
     splitId: string,
     orientation: SplitOrientation,
   ) => {
     event.stopPropagation();
-    const container = event.currentTarget.parentElement;
+    const container = (event.target as HTMLElement).parentElement;
     if (!container) {
       return;
     }
@@ -109,19 +121,19 @@ export function createEditorSplitResizeHandler({
       return;
     }
 
-    const startX = event.clientX;
-    const startY = event.clientY;
+    const { clientX: startX, clientY: startY } = getClientPos(event.nativeEvent);
     startResizeDrag(event, {
       cursor: orientation === "horizontal" ? "col-resize" : "row-resize",
       onMove: (moveEvent) => {
+        const { clientX, clientY } = getClientPos(moveEvent);
         const axisSize =
           orientation === "horizontal"
             ? Math.max(1, containerRect.width)
             : Math.max(1, containerRect.height);
         const delta =
           orientation === "horizontal"
-            ? moveEvent.clientX - startX
-            : moveEvent.clientY - startY;
+            ? clientX - startX
+            : clientY - startY;
         const nextRatio = clampSplitRatio(
           (startRatio * axisSize + delta) / axisSize,
         );
@@ -148,7 +160,7 @@ export function createEditorCornerResizeHandler({
   setHoveredCornerKey,
   setDraggingCornerSplitIds,
 }: CornerResizeFactoryOptions) {
-  return (event: ReactMouseEvent<HTMLDivElement>, corner: SplitCornerTarget) => {
+  return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, corner: SplitCornerTarget) => {
     event.stopPropagation();
 
     const xSplitGeometry = splitGeometryById[corner.xSplitId];
@@ -163,8 +175,7 @@ export function createEditorCornerResizeHandler({
       return;
     }
 
-    const startX = event.clientX;
-    const startY = event.clientY;
+    const { clientX: startX, clientY: startY } = getClientPos(event.nativeEvent);
     const xAxisSize = Math.max(1, xSplitGeometry.rect.width);
     const yAxisSize = Math.max(1, ySplitGeometry.rect.height);
 
@@ -175,11 +186,12 @@ export function createEditorCornerResizeHandler({
         setDraggingCornerSplitIds([corner.xSplitId, corner.ySplitId]);
       },
       onMove: (moveEvent) => {
+        const { clientX, clientY } = getClientPos(moveEvent);
         const nextXRatio = clampSplitRatio(
-          (startXRatio * xAxisSize + (moveEvent.clientX - startX)) / xAxisSize,
+          (startXRatio * xAxisSize + (clientX - startX)) / xAxisSize,
         );
         const nextYRatio = clampSplitRatio(
-          (startYRatio * yAxisSize + (moveEvent.clientY - startY)) / yAxisSize,
+          (startYRatio * yAxisSize + (clientY - startY)) / yAxisSize,
         );
 
         setEditorLayout((prev) => {
