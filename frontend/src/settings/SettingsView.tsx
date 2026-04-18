@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, AlertTriangle, Camera, History, Lock, Palette, Shield, Type, User } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
-import { BackToProjectsButton } from '@/components/BackToProjectsButton'
+import { BackToProjectsButton } from './BackToProjectsButton'
 import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SegmentedControl } from '@/components/SegmentedControl'

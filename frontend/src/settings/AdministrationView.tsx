@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react'
 import { ActionMenu } from '@/components/ActionMenu'
-import { BackToProjectsButton } from '@/components/BackToProjectsButton'
+import { BackToProjectsButton } from './BackToProjectsButton'
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } fro
 import { TemplateGallery } from '@/dashboard/TemplateGallery'
 import { PopupDialog } from '@/components/PopupDialog'
 import { AuthEntryView } from '@/auth/AuthEntryView'
-import { AdministrationView } from '@/admin/AdministrationView'
+import { AdministrationView } from '@/settings/AdministrationView'
 import { DashboardView } from '@/dashboard/DashboardView'
 import { ProjectWorkspace } from '@/workspace/ProjectWorkspace'
 import { SettingsView } from '@/settings/SettingsView'
