@@ -282,11 +282,8 @@ export function DashboardView({
   }, [hasTrash]);
 
   const sidebarContent = (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="p-4">
-        <div className="mb-8 px-1 text-lg font-semibold tracking-tight text-cz-text">
-          <span className="text-cz-accent">C</span>omposure
-        </div>
         <button
           onClick={() => {
             setSidebarDrawerOpen(false);
@@ -463,12 +460,22 @@ export function DashboardView({
       <SideDrawer
         open={sidebarDrawerOpen}
         onClose={() => setSidebarDrawerOpen(false)}
-        title="Workspace"
+        ariaLabel="Workspace navigation"
+        title={
+          <div className="px-1 text-base font-semibold tracking-tight text-cz-text">
+            <span className="text-cz-accent">C</span>omposure
+          </div>
+        }
       >
         {sidebarContent}
       </SideDrawer>
 
       <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
+        <div className="p-4 pb-2">
+          <div className="px-1 text-lg font-semibold tracking-tight text-cz-text">
+            <span className="text-cz-accent">C</span>omposure
+          </div>
+        </div>
         {sidebarContent}
       </aside>
 
@@ -485,8 +492,11 @@ export function DashboardView({
               <Menu size={16} />
             </button>
 
-            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-              <Search size={16} className="text-cz-text-muted" />
+            <div className="relative min-w-0 flex-1 lg:max-w-xl">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cz-text-muted"
+              />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -495,7 +505,7 @@ export function DashboardView({
                     ? "Search recently deleted"
                     : "Search projects"
                 }
-                className="w-full min-w-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent lg:max-w-xl"
+                className="w-full min-w-0 rounded-md border border-cz-border bg-cz-bg py-2 pl-9 pr-3 text-sm text-cz-text outline-none focus:border-cz-accent"
               />
             </div>
 

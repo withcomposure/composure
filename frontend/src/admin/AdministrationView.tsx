@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Check,
-  ChevronLeft,
   Copy,
   Crown,
   Eye,
@@ -9,7 +8,6 @@ import {
   KeyRound,
   Lock,
   Mail,
-  Menu,
   Monitor,
   RefreshCw,
   Search,
@@ -22,7 +20,9 @@ import {
   Users,
 } from 'lucide-react'
 import { ActionMenu } from '@/components/ActionMenu'
+import { BackToProjectsButton } from '@/components/BackToProjectsButton'
 import { CustomDropdown } from '@/components/CustomDropdown'
+import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'
 import { PopupDialog } from '@/components/PopupDialog'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -695,20 +695,17 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setSidebarDrawerOpen(false)
   }, [])
 
+  const goToProjects = useCallback(() => {
+    setSidebarDrawerOpen(false)
+    navigateToProjects()
+  }, [])
+
+  const backToProjectsButton = (
+    <BackToProjectsButton onClick={goToProjects} />
+  )
+
   const sidebarContent = (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-cz-border p-4">
-        <button
-          onClick={() => {
-            setSidebarDrawerOpen(false)
-            navigateToProjects()
-          }}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-        >
-          <ChevronLeft size={14} />
-          Back to projects
-        </button>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 p-4">
         <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Administration</div>
         <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
@@ -751,27 +748,25 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       <SideDrawer
         open={sidebarDrawerOpen}
         onClose={() => setSidebarDrawerOpen(false)}
-        title="Administration"
+        ariaLabel="Administration navigation"
+        title={backToProjectsButton}
       >
         {sidebarContent}
       </SideDrawer>
 
       <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
+        <div className="border-b border-cz-border p-4">
+          {backToProjectsButton}
+        </div>
         {sidebarContent}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="sticky top-0 z-30 border-b border-cz-border bg-cz-surface px-4 py-3 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setSidebarDrawerOpen(true)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
-            aria-label="Open administration navigation"
-            title="Open administration navigation"
-          >
-            <Menu size={16} />
-          </button>
-        </div>
+        <MobileDrawerToolbar
+          title="Administration"
+          openLabel="Open administration navigation"
+          onOpenDrawer={() => setSidebarDrawerOpen(true)}
+        />
 
         <main id="admin-main-scroll" className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-5xl space-y-6">

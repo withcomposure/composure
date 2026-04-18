@@ -26,6 +26,7 @@ import { ShareModal } from "./ShareModal";
 import { Toolbar } from "./Toolbar";
 import { EditorPane } from "@/editor/EditorPane";
 import { PaneLayout } from "@/editor/PaneLayout";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useResizeDrag } from "@/hooks/use-resize-drag";
 import type {
   AccessPerson,
@@ -180,6 +181,7 @@ export function ProjectWorkspace({
     zone: SplitDropZone;
   } | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
+  const isMobileSidebarLayout = useIsMobile();
   const [previewWidth, setPreviewWidth] = useState(520);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(() => {
@@ -2744,12 +2746,12 @@ export function ProjectWorkspace({
       )}
 
       <aside
-        className={`${isResizingSidebar ? "" : "transition-sidebar"} fixed inset-y-0 left-0 z-50 flex h-full w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] flex-col border-r border-cz-border bg-cz-surface shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:max-w-none lg:shadow-none ${
+        className={`${isResizingSidebar ? "" : "transition-sidebar"} fixed inset-y-0 left-0 z-50 flex h-full w-72 max-w-[calc(100vw-2rem)] flex-col border-r border-cz-border bg-cz-surface shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:max-w-none lg:shadow-none ${
           sidebarOpen
             ? "translate-x-0 opacity-100"
             : "-translate-x-full opacity-0 pointer-events-none lg:w-0 lg:translate-x-0 lg:overflow-hidden"
         }`}
-        style={sidebarOpen ? { width: sidebarWidth } : undefined}
+        style={sidebarOpen && !isMobileSidebarLayout ? { width: sidebarWidth } : undefined}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-cz-border">
           <button
