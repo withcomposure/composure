@@ -68,7 +68,7 @@ export function ShareModal({
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-3xl rounded-xl border border-cz-border bg-cz-surface shadow-xl"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-cz-border bg-cz-surface shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-cz-border px-5 py-4">
           <h2 className="text-base font-semibold text-cz-text">Share Project</h2>
@@ -81,7 +81,7 @@ export function ShareModal({
           </button>
         </div>
 
-        <div className="space-y-5 p-5">
+        <div className="space-y-5 overflow-y-auto p-5">
           <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
             <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Invite by Email</div>
             <div className="flex flex-wrap gap-2">

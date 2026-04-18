@@ -9,6 +9,7 @@ import {
   KeyRound,
   Lock,
   Mail,
+  Menu,
   Monitor,
   RefreshCw,
   Search,
@@ -25,6 +26,7 @@ import { CustomDropdown } from '@/components/CustomDropdown'
 import { NumberStepper } from '@/components/NumberStepper'
 import { PopupDialog } from '@/components/PopupDialog'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { SideDrawer } from '@/components/SideDrawer'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { UserFormModal } from './UserFormModal'
 import {
@@ -135,6 +137,14 @@ const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof User }
   { value: 'admin', label: 'Admin', icon: Crown },
 ]
 
+const adminSectionItems: Array<{ id: AdminSectionId; label: string; icon: typeof User }> = [
+  { id: 'users', label: 'User Management', icon: Users },
+  { id: 'server', label: 'Server Settings', icon: Settings },
+  { id: 'invitations', label: 'Invitations', icon: UserPlus },
+  { id: 'email', label: 'Email', icon: Mail },
+  { id: 'monitoring', label: 'Monitoring', icon: Monitor },
+]
+
 function validatePassword(password: string): string | null {
   if (password.trim().length < 8) {
     return 'Password must be at least 8 characters.'
@@ -209,6 +219,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
 
   const [activeSection, setActiveSection] = useState<AdminSectionId>('users')
+  const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false)
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState('')
@@ -679,60 +690,90 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     },
   })
 
+  const scrollToSection = useCallback((sectionId: AdminSectionId) => {
+    sectionRefs.current[sectionId]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setSidebarDrawerOpen(false)
+  }, [])
+
+  const sidebarContent = (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-cz-border p-4">
+        <button
+          onClick={() => {
+            setSidebarDrawerOpen(false)
+            navigateToProjects()
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+        >
+          <ChevronLeft size={14} />
+          Back to projects
+        </button>
+      </div>
+      <div className="flex-1 p-4">
+        <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Administration</div>
+        <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
+          {adminSectionItems.map((item) => {
+            const Icon = item.icon
+            const active = activeSection === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
+              >
+                <span
+                  className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-surface'}`}
+                />
+                <Icon size={14} />
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="border-t border-cz-border p-4">
+        <button
+          onClick={() => {
+            setSidebarDrawerOpen(false)
+            navigateToSettings()
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+        >
+          <Settings size={14} />
+          Settings
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex h-screen bg-cz-bg text-cz-text">
+      <SideDrawer
+        open={sidebarDrawerOpen}
+        onClose={() => setSidebarDrawerOpen(false)}
+        title="Administration"
+      >
+        {sidebarContent}
+      </SideDrawer>
+
       <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
-        <div className="border-b border-cz-border p-4">
-          <button
-            onClick={navigateToProjects}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-          >
-            <ChevronLeft size={14} />
-            Back to projects
-          </button>
-        </div>
-        <div className="flex-1 p-4">
-          <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Administration</div>
-          <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
-            {[
-              { id: 'users', label: 'User Management', icon: Users },
-              { id: 'server', label: 'Server Settings', icon: Settings },
-              { id: 'invitations', label: 'Invitations', icon: UserPlus },
-              { id: 'email', label: 'Email', icon: Mail },
-              { id: 'monitoring', label: 'Monitoring', icon: Monitor },
-            ].map((item) => {
-              const Icon = item.icon
-              const active = activeSection === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() =>
-                    sectionRefs.current[item.id as AdminSectionId]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }
-                  className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
-                >
-                  <span
-                    className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-surface'}`}
-                  />
-                  <Icon size={14} />
-                  {item.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <div className="border-t border-cz-border p-4">
-          <button
-            onClick={navigateToSettings}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-          >
-            <Settings size={14} />
-            Settings
-          </button>
-        </div>
+        {sidebarContent}
       </aside>
 
-      <main id="admin-main-scroll" className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-30 border-b border-cz-border bg-cz-surface px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarDrawerOpen(true)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
+            aria-label="Open administration navigation"
+            title="Open administration navigation"
+          >
+            <Menu size={16} />
+          </button>
+        </div>
+
+        <main id="admin-main-scroll" className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-5xl space-y-6">
           <section id="admin-section-users" ref={(node) => { sectionRefs.current.users = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium">
@@ -1456,7 +1497,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
             </div>
           </section>
         </div>
-      </main>
+        </main>
+      </div>
 
       <UserFormModal
         mode='create'

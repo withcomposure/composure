@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import MarkdownIt from "markdown-it";
 import Asciidoctor from "@asciidoctor/core";
 import {
@@ -2734,9 +2734,20 @@ export function ProjectWorkspace({
       id="app-root"
       className="flex h-screen w-screen overflow-hidden bg-cz-bg"
     >
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close sidebar"
+        />
+      )}
+
       <aside
-        className={`${isResizingSidebar ? "" : "transition-sidebar"} flex flex-col bg-cz-surface ${
-          sidebarOpen ? "opacity-100" : "w-0 opacity-0 overflow-hidden"
+        className={`${isResizingSidebar ? "" : "transition-sidebar"} fixed inset-y-0 left-0 z-50 flex h-full w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] flex-col border-r border-cz-border bg-cz-surface shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:max-w-none lg:shadow-none ${
+          sidebarOpen
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-full opacity-0 pointer-events-none lg:w-0 lg:translate-x-0 lg:overflow-hidden"
         }`}
         style={sidebarOpen ? { width: sidebarWidth } : undefined}
       >
@@ -2753,6 +2764,15 @@ export function ProjectWorkspace({
             <span className="transition-transform duration-200 group-hover:translate-x-1.5">
               <span className="text-cz-accent">C</span>omposure
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text lg:hidden"
+            aria-label="Close sidebar"
+            title="Close sidebar"
+          >
+            <X size={16} />
           </button>
         </div>
         <div className="grid grid-cols-3 border-b border-cz-border">
@@ -2831,11 +2851,13 @@ export function ProjectWorkspace({
       </aside>
 
       {sidebarOpen && (
-        <ResizeHandle
-          orientation="vertical"
-          ariaLabel="Resize sidebar"
-          onMouseDown={resizeSidebar}
-        />
+        <div className="hidden lg:block">
+          <ResizeHandle
+            orientation="vertical"
+            ariaLabel="Resize sidebar"
+            onMouseDown={resizeSidebar}
+          />
+        </div>
       )}
 
       <div className="flex flex-1 flex-col min-w-0">

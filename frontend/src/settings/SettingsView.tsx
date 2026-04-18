@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, AlertTriangle, Camera, ChevronLeft, History, Lock, Palette, Shield, Type, User } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Camera, ChevronLeft, History, Lock, Menu, Palette, Shield, Type, User } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { SideDrawer } from '@/components/SideDrawer'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { useSectionObserver } from '@/hooks/use-section-observer'
 import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
@@ -27,6 +28,17 @@ interface SettingsViewProps {
   onLogout: () => Promise<void>
 }
 
+type SettingsSectionId = 'profile' | 'security' | 'appearance' | 'typesetting' | 'history' | 'danger'
+
+const settingsSectionItems: Array<{ id: SettingsSectionId; label: string; icon: typeof User }> = [
+  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'security', label: 'Security', icon: Lock },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'typesetting', label: 'Typesetting', icon: Type },
+  { id: 'history', label: 'History', icon: History },
+  { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
+]
+
 export function SettingsView({
   session,
   preferences,
@@ -46,12 +58,13 @@ export function SettingsView({
   const [busy, setBusy] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false)
   const [profileName, setProfileName] = useState(session?.user?.displayName ?? '')
   const [profileEmail, setProfileEmail] = useState(session?.user?.email ?? '')
   const [profileImageUrl, setProfileImageUrl] = useState(session?.user?.profileImageUrl ?? '')
   const profileImageUploadRef = useRef<HTMLInputElement | null>(null)
-  const [activeSection, setActiveSection] = useState<'profile' | 'security' | 'appearance' | 'typesetting' | 'history' | 'danger'>('profile')
-  const sectionRefs = useRef<Record<'profile' | 'security' | 'appearance' | 'typesetting' | 'history' | 'danger', HTMLElement | null>>({
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
+  const sectionRefs = useRef<Record<SettingsSectionId, HTMLElement | null>>({
     profile: null,
     security: null,
     appearance: null,
@@ -173,65 +186,92 @@ export function SettingsView({
     }
   }, [])
 
-  return (
-    <div className="flex h-screen bg-cz-bg text-cz-text">
-      <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
-        <div className="border-b border-cz-border p-4">
+  const scrollToSection = useCallback((sectionId: SettingsSectionId) => {
+    sectionRefs.current[sectionId]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setSidebarDrawerOpen(false)
+  }, [])
+
+  const sidebarContent = (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-cz-border p-4">
+        <button
+          onClick={() => {
+            setSidebarDrawerOpen(false)
+            navigateToProjects()
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+        >
+          <ChevronLeft size={14} />
+          Back to projects
+        </button>
+      </div>
+      <div className="flex-1 p-4">
+        <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Settings</div>
+        <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
+          {settingsSectionItems.map((item) => {
+            const Icon = item.icon
+            const active = activeSection === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
+              >
+                <span
+                  className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-surface'}`}
+                />
+                <Icon size={14} />
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {isAdmin && (
+        <div className="border-t border-cz-border p-4">
           <button
-            onClick={navigateToProjects}
+            onClick={() => {
+              setSidebarDrawerOpen(false)
+              navigateToAdmin()
+            }}
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
           >
-            <ChevronLeft size={14} />
-            Back to projects
+            <Shield size={14} />
+            Administration
           </button>
         </div>
-        <div className="flex-1 p-4">
-          <div className="mb-4 text-xs uppercase tracking-wider text-cz-text-muted">Settings</div>
-          <div className="relative ml-2 space-y-4 border-l border-cz-border pl-4">
-            {[
-              { id: 'profile', label: 'Profile', icon: User },
-              { id: 'security', label: 'Security', icon: Lock },
-              { id: 'appearance', label: 'Appearance', icon: Palette },
-              { id: 'typesetting', label: 'Typesetting', icon: Type },
-              { id: 'history', label: 'History', icon: History },
-              { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
-            ].map((item) => {
-              const Icon = item.icon
-              const active = activeSection === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() =>
-                    sectionRefs.current[
-                      item.id as 'profile' | 'security' | 'appearance' | 'typesetting' | 'history' | 'danger'
-                    ]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }
-                  className={`relative flex items-center gap-2 text-sm ${active ? 'text-cz-text' : 'text-cz-text-muted hover:text-cz-text'}`}
-                >
-                  <span
-                    className={`absolute -left-[22px] h-2.5 w-2.5 rounded-full border ${active ? 'border-cz-accent bg-cz-accent' : 'border-cz-border bg-cz-surface'}`}
-                  />
-                  <Icon size={14} />
-                  {item.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        {isAdmin && (
-          <div className="border-t border-cz-border p-4">
-            <button
-              onClick={navigateToAdmin}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-            >
-              <Shield size={14} />
-              Administration
-            </button>
-          </div>
-        )}
+      )}
+    </div>
+  )
+
+  return (
+    <div className="flex h-screen bg-cz-bg text-cz-text">
+      <SideDrawer
+        open={sidebarDrawerOpen}
+        onClose={() => setSidebarDrawerOpen(false)}
+        title="Settings"
+      >
+        {sidebarContent}
+      </SideDrawer>
+
+      <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
+        {sidebarContent}
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-30 border-b border-cz-border bg-cz-surface px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarDrawerOpen(true)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
+            aria-label="Open settings navigation"
+            title="Open settings navigation"
+          >
+            <Menu size={16} />
+          </button>
+        </div>
+
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-4xl space-y-6">
           {globalError && (
             <div className="rounded-md border border-cz-border bg-cz-bg/60 px-3 py-2 text-sm text-cz-text-muted">
@@ -698,7 +738,8 @@ export function SettingsView({
             </div>
           </section>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

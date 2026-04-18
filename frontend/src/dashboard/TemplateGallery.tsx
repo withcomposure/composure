@@ -95,10 +95,10 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
   )
 
   return (
-    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-4xl rounded-xl border border-cz-border bg-cz-surface shadow-2xl"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-cz-border bg-cz-surface shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-cz-border px-6 py-4">
           <div>
@@ -132,78 +132,80 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
           </div>
         </div>
 
-        <div className="grid grid-cols-[220px_1fr] gap-4 p-6">
-          <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-2">
-            <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-cz-text-muted">Categories</div>
-            <div className="mt-1 space-y-1">
-              {categories.map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setCategory(value)}
-                  className={`w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
-                    value === activeCategory
-                      ? 'bg-cz-accent-muted text-cz-accent'
-                      : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
-                  }`}
-                >
-                  {categoryLabel(value)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {loading ? (
-              <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">Loading templates...</div>
-            ) : error ? (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
-            ) : visibleTemplates.length === 0 ? (
-              <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">No templates in this category.</div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {visibleTemplates.map((template) => (
+        <div className="min-h-0 overflow-y-auto">
+          <div className="grid grid-cols-[220px_1fr] gap-4 p-6 max-md:grid-cols-1">
+            <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-2">
+              <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-cz-text-muted">Categories</div>
+              <div className="mt-1 space-y-1">
+                {categories.map((value) => (
                   <button
-                    key={template.id}
-                    onClick={() => {
-                      setSelectedTemplateId(template.id)
-                      setTitle(template.name)
-                    }}
-                    className={`rounded-lg border p-4 text-left transition-all ${
-                      template.id === activeSelectedTemplateId
-                        ? 'border-cz-accent bg-cz-accent-muted'
-                        : 'border-cz-border hover:border-cz-accent/40 hover:bg-cz-accent-muted'
+                    key={value}
+                    onClick={() => setCategory(value)}
+                    className={`w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                      value === activeCategory
+                        ? 'bg-cz-accent-muted text-cz-accent'
+                        : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
                     }`}
                   >
-                    <div className="mb-1 text-sm font-medium text-cz-text">{template.name}</div>
-                    <p className="text-[11px] text-cz-text-muted">{template.description}</p>
-                    <div className="mt-2 text-[10px] uppercase tracking-wider text-cz-text-muted">
-                      {template.isBlank ? 'Blank starter' : categoryLabel(template.category)}
-                    </div>
+                    {categoryLabel(value)}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
 
-            <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-3">
-              <label className="mb-1 block text-xs text-cz-text-muted">Project title</label>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                disabled={!selectedTemplate || creating}
-                className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
-              />
-              <div className="mt-3 flex justify-end">
-                <button
-                  onClick={() => {
-                    if (!selectedTemplate) return
-                    const normalizedTitle = title.trim() || selectedTemplate.name || 'Untitled'
-                    onCreate({ templateId: selectedTemplate.id, title: normalizedTitle })
-                  }}
+            <div className="space-y-3">
+              {loading ? (
+                <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">Loading templates...</div>
+              ) : error ? (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
+              ) : visibleTemplates.length === 0 ? (
+                <div className="rounded-lg border border-cz-border px-4 py-8 text-sm text-cz-text-muted">No templates in this category.</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                  {visibleTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => {
+                        setSelectedTemplateId(template.id)
+                        setTitle(template.name)
+                      }}
+                      className={`rounded-lg border p-4 text-left transition-all ${
+                        template.id === activeSelectedTemplateId
+                          ? 'border-cz-accent bg-cz-accent-muted'
+                          : 'border-cz-border hover:border-cz-accent/40 hover:bg-cz-accent-muted'
+                      }`}
+                    >
+                      <div className="mb-1 text-sm font-medium text-cz-text">{template.name}</div>
+                      <p className="text-[11px] text-cz-text-muted">{template.description}</p>
+                      <div className="mt-2 text-[10px] uppercase tracking-wider text-cz-text-muted">
+                        {template.isBlank ? 'Blank starter' : categoryLabel(template.category)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-lg border border-cz-border bg-cz-bg/40 p-3">
+                <label className="mb-1 block text-xs text-cz-text-muted">Project title</label>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
                   disabled={!selectedTemplate || creating}
-                  className="rounded-md bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover disabled:opacity-70"
-                >
-                  {creating ? 'Creating...' : 'Create project'}
-                </button>
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
+                />
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => {
+                      if (!selectedTemplate) return
+                      const normalizedTitle = title.trim() || selectedTemplate.name || 'Untitled'
+                      onCreate({ templateId: selectedTemplate.id, title: normalizedTitle })
+                    }}
+                    disabled={!selectedTemplate || creating}
+                    className="rounded-md bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover disabled:opacity-70"
+                  >
+                    {creating ? 'Creating...' : 'Create project'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -12,6 +12,7 @@ import {
   Grid3X3,
   History,
   List,
+  Menu,
   Pin,
   Plus,
   RotateCcw,
@@ -23,6 +24,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { CustomDropdown } from "@/components/CustomDropdown";
+import { SideDrawer } from "@/components/SideDrawer";
 import { ProfileMenu } from "@/workspace/ProfileMenu";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectListItem } from "./ProjectListItem";
@@ -97,6 +99,7 @@ export function DashboardView({
   onPermanentDeleteProject,
 }: DashboardViewProps) {
   const [query, setQuery] = useState("");
+  const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [draggedPinnedId, setDraggedPinnedId] = useState<string | null>(null);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const [dashboardPage, setDashboardPage] = useState<"projects" | "trash">(
@@ -278,178 +281,233 @@ export function DashboardView({
     window.location.hash = "#recently-deleted";
   }, [hasTrash]);
 
-  return (
-    <div className="flex h-screen bg-cz-bg text-cz-text">
-      <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
-        <div className="p-4">
-          <div className="mb-8 px-1 text-lg font-semibold tracking-tight text-cz-text">
-            <span className="text-cz-accent">C</span>omposure
-          </div>
-          <button
-            onClick={onOpenTemplatePicker}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover"
+  const sidebarContent = (
+    <div className="flex h-full flex-col">
+      <div className="p-4">
+        <div className="mb-8 px-1 text-lg font-semibold tracking-tight text-cz-text">
+          <span className="text-cz-accent">C</span>omposure
+        </div>
+        <button
+          onClick={() => {
+            setSidebarDrawerOpen(false);
+            onOpenTemplatePicker();
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover"
+        >
+          <Plus size={14} />
+          New Project
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">
+          Workspace
+        </div>
+        <div className="space-y-1">
+          <a
+            href="#pins"
+            onClick={() => {
+              setSidebarDrawerOpen(false);
+              openProjectsPage();
+            }}
+            className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
           >
-            <Plus size={14} />
-            New Project
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">
-            Workspace
-          </div>
-          <div className="space-y-1">
-            <a
-              href="#pins"
-              onClick={openProjectsPage}
-              className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-            >
-              <Pin size={14} />
-              Pinned
-            </a>
-            <a
-              href="#my-projects"
-              onClick={openProjectsPage}
-              className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-            >
-              <FolderKanban size={14} />
-              Projects
-            </a>
-            <a
-              href="#shared-with-me"
-              onClick={openProjectsPage}
-              className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-            >
-              <Share2 size={14} />
-              Shared with Me
-            </a>
-            {hasTrash && (
-              <button
-                onClick={openTrashPage}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-cz-surface-hover ${dashboardPage === "trash" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:text-cz-text"}`}
-              >
-                <Trash2 size={14} />
-                Recently Deleted
-              </button>
-            )}
-          </div>
-
-          <div className="mt-6 mb-2 text-xs uppercase tracking-wider text-cz-text-muted">
+            <Pin size={14} />
             Pinned
-          </div>
-          <div className="space-y-1">
-            {quickAccessPinnedProjects.length === 0 && (
-              <div className="rounded-md border border-dashed border-cz-border px-2 py-2 text-xs text-cz-text-muted">
-                No pinned projects
-              </div>
-            )}
-            {quickAccessPinnedProjects.map((project) => (
-              <div
-                role="button"
-                tabIndex={0}
-                key={project.id}
-                onClick={() => onOpen(project.id, project.shareToken)}
-                onKeyDown={(event) =>
-                  onProjectCardKeyDown(event, project.id, project.shareToken)
-                }
-                draggable
-                onDragStart={() => onPinnedDragStart(project.id)}
-                onDragEnd={onPinnedDragEnd}
-                onDragOver={(event) => onPinnedDragOver(event, project.id)}
-                className={`group flex w-full items-center justify-between rounded-md px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cz-accent ${draggedPinnedId === project.id ? "opacity-70" : "hover:bg-cz-surface-hover"}`}
-              >
-                <div className="min-w-0 flex-1 truncate text-sm text-cz-text">
-                  {project.title}
-                </div>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onTogglePin(project.id);
-                  }}
-                  className="rounded p-1 text-cz-accent transition"
-                  title="Unpin"
-                >
-                  <Pin size={13} className="fill-current" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 mb-2 flex items-center justify-between text-xs uppercase tracking-wider text-cz-text-muted">
-            <span>Recents</span>
+          </a>
+          <a
+            href="#my-projects"
+            onClick={() => {
+              setSidebarDrawerOpen(false);
+              openProjectsPage();
+            }}
+            className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+          >
+            <FolderKanban size={14} />
+            Projects
+          </a>
+          <a
+            href="#shared-with-me"
+            onClick={() => {
+              setSidebarDrawerOpen(false);
+              openProjectsPage();
+            }}
+            className="flex items-center cursor-default gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+          >
+            <Share2 size={14} />
+            Shared with Me
+          </a>
+          {hasTrash && (
             <button
-              onClick={onClearRecents}
-              className="rounded px-2 py-1 text-[11px] normal-case tracking-normal hover:bg-cz-surface-hover hover:text-cz-text"
+              onClick={() => {
+                setSidebarDrawerOpen(false);
+                openTrashPage();
+              }}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-cz-surface-hover ${dashboardPage === "trash" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:text-cz-text"}`}
             >
-              Clear
-            </button>
-          </div>
-          <div className="space-y-1">
-            {recents.length === 0 && (
-              <div className="rounded-md border border-dashed border-cz-border px-2 py-2 text-xs text-cz-text-muted">
-                No recent projects
-              </div>
-            )}
-            {recents.map((project) => (
-              <button
-                key={project.id}
-                onClick={() => onOpen(project.id, project.shareToken)}
-                className="w-full rounded-md px-2 py-2 text-left hover:bg-cz-surface-hover"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="line-clamp-2 flex-1 text-sm text-cz-text">
-                    {project.title}
-                  </div>
-                  <div className="shrink-0 whitespace-nowrap text-xs text-cz-text-muted">
-                    {fmtRelativeTime(project.openedAt)}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="border-t border-cz-border p-4">
-          {showAdminLink && (
-            <button
-              onClick={onOpenAdmin}
-              className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-            >
-              <Shield size={14} />
-              Administration
+              <Trash2 size={14} />
+              Recently Deleted
             </button>
           )}
+        </div>
+
+        <div className="mt-6 mb-2 text-xs uppercase tracking-wider text-cz-text-muted">
+          Pinned
+        </div>
+        <div className="space-y-1">
+          {quickAccessPinnedProjects.length === 0 && (
+            <div className="rounded-md border border-dashed border-cz-border px-2 py-2 text-xs text-cz-text-muted">
+              No pinned projects
+            </div>
+          )}
+          {quickAccessPinnedProjects.map((project) => (
+            <div
+              role="button"
+              tabIndex={0}
+              key={project.id}
+              onClick={() => {
+                setSidebarDrawerOpen(false);
+                onOpen(project.id, project.shareToken);
+              }}
+              onKeyDown={(event) =>
+                onProjectCardKeyDown(event, project.id, project.shareToken)
+              }
+              draggable
+              onDragStart={() => onPinnedDragStart(project.id)}
+              onDragEnd={onPinnedDragEnd}
+              onDragOver={(event) => onPinnedDragOver(event, project.id)}
+              className={`group flex w-full items-center justify-between rounded-md px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cz-accent ${draggedPinnedId === project.id ? "opacity-70" : "hover:bg-cz-surface-hover"}`}
+            >
+              <div className="min-w-0 flex-1 truncate text-sm text-cz-text">
+                {project.title}
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTogglePin(project.id);
+                }}
+                className="rounded p-1 text-cz-accent transition"
+                title="Unpin"
+              >
+                <Pin size={13} className="fill-current" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 mb-2 flex items-center justify-between text-xs uppercase tracking-wider text-cz-text-muted">
+          <span>Recents</span>
           <button
-            onClick={onOpenSettings}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+            onClick={onClearRecents}
+            className="rounded px-2 py-1 text-[11px] normal-case tracking-normal hover:bg-cz-surface-hover hover:text-cz-text"
           >
-            <Settings size={14} />
-            Settings
+            Clear
           </button>
         </div>
+        <div className="space-y-1">
+          {recents.length === 0 && (
+            <div className="rounded-md border border-dashed border-cz-border px-2 py-2 text-xs text-cz-text-muted">
+              No recent projects
+            </div>
+          )}
+          {recents.map((project) => (
+            <button
+              key={project.id}
+              onClick={() => {
+                setSidebarDrawerOpen(false);
+                onOpen(project.id, project.shareToken);
+              }}
+              className="w-full rounded-md px-2 py-2 text-left hover:bg-cz-surface-hover"
+            >
+              <div className="flex items-center gap-2">
+                <div className="line-clamp-2 flex-1 text-sm text-cz-text">
+                  {project.title}
+                </div>
+                <div className="shrink-0 whitespace-nowrap text-xs text-cz-text-muted">
+                  {fmtRelativeTime(project.openedAt)}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-cz-border p-4">
+        {showAdminLink && (
+          <button
+            onClick={() => {
+              setSidebarDrawerOpen(false);
+              onOpenAdmin();
+            }}
+            className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+          >
+            <Shield size={14} />
+            Administration
+          </button>
+        )}
+        <button
+          onClick={() => {
+            setSidebarDrawerOpen(false);
+            onOpenSettings();
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+        >
+          <Settings size={14} />
+          Settings
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex h-screen bg-cz-bg text-cz-text">
+      <SideDrawer
+        open={sidebarDrawerOpen}
+        onClose={() => setSidebarDrawerOpen(false)}
+        title="Workspace"
+      >
+        {sidebarContent}
+      </SideDrawer>
+
+      <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
+        {sidebarContent}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-cz-border bg-cz-surface px-4 py-3 md:px-6">
-          <div className="flex items-center gap-3">
-            <Search size={16} className="text-cz-text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                dashboardPage === "trash"
-                  ? "Search recently deleted"
-                  : "Search projects"
-              }
-              className="w-full max-w-xl rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-            />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarDrawerOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text lg:hidden"
+              aria-label="Open workspace navigation"
+              title="Open workspace navigation"
+            >
+              <Menu size={16} />
+            </button>
+
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              <Search size={16} className="text-cz-text-muted" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={
+                  dashboardPage === "trash"
+                    ? "Search recently deleted"
+                    : "Search projects"
+                }
+                className="w-full min-w-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent lg:max-w-xl"
+              />
+            </div>
+
             <button
               onClick={onOpenTemplatePicker}
-              className="flex items-center gap-2 rounded-lg bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover lg:hidden"
+              className="hidden items-center gap-2 rounded-lg bg-cz-accent px-3 py-2 text-sm font-medium text-white hover:bg-cz-accent-hover sm:flex lg:hidden"
             >
               <Plus size={14} />
               New
             </button>
-            <div className="ml-auto hidden md:block whitespace-nowrap">
+
+            <div className="ml-auto shrink-0 whitespace-nowrap">
               <ProfileMenu
                 name={
                   session?.authenticated
