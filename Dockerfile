@@ -30,6 +30,7 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/migrations ./backend/migrations
 COPY --from=backend-builder /app/backend/package.json ./backend/
 COPY --from=backend-builder /app/node_modules ./node_modules
 COPY package.json ./

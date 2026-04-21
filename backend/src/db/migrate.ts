@@ -1,10 +1,12 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Kysely, Migrator, FileMigrationProvider } from 'kysely'
 import { PostgresJSDialect } from 'kysely-postgres-js'
 import { sql } from './connection.js'
 
 export async function runMigrations(): Promise<void> {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url))
   const db = new Kysely<Record<string, never>>({
     dialect: new PostgresJSDialect({ postgres: sql }),
   })
@@ -14,7 +16,8 @@ export async function runMigrations(): Promise<void> {
     provider: new FileMigrationProvider({
       fs,
       path,
-      migrationFolder: path.resolve(import.meta.dirname, '../../migrations'),
+      // Resolve against the compiled module location, not process cwd.
+      migrationFolder: path.resolve(moduleDir, '../../migrations'),
     }),
   })
 

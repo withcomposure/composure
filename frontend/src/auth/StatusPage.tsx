@@ -3,7 +3,7 @@ import { AmbientBackground } from '@/components/AmbientBackground'
 import { navigateToProjects } from '@/utils/route'
 
 interface StatusPageProps {
-  code: 403 | 404
+  code: 403 | 404 | 503
   title: string
   description: string
 }

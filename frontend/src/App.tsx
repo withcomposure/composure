@@ -63,6 +63,7 @@ function providerLabel(provider: string): string {
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [session, setSession] = useState<AuthSession | null>(null)
+  const [backendUnavailable, setBackendUnavailable] = useState(false)
   const [authEntryGranted, setAuthEntryGranted] = useState<boolean>(
     () => window.sessionStorage.getItem('composure.auth-entry') === 'granted',
   )
@@ -114,6 +115,7 @@ export default function App() {
   const grantAuthEntry = useCallback(() => {
     window.sessionStorage.setItem('composure.auth-entry', 'granted')
     setAuthEntryGranted(true)
+    setBackendUnavailable(false)
   }, [])
 
   const revokeAuthEntry = useCallback(() => {
@@ -121,11 +123,33 @@ export default function App() {
     setAuthEntryGranted(false)
   }, [])
 
-  const loadSession = useCallback(async () => {
-    const next = await fetchJson<AuthSession>('/auth/session')
-    setSession(next)
-    return next
+  const checkBackendHealth = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = await fetchJson<{ status: string }>('/health')
+      const healthy = status.status === 'ok'
+      setBackendUnavailable(!healthy)
+      return healthy
+    } catch {
+      setBackendUnavailable(true)
+      return false
+    }
   }, [])
+
+  const loadSession = useCallback(async (): Promise<AuthSession | null> => {
+    try {
+      const next = await fetchJson<AuthSession>('/auth/session')
+      setSession(next)
+      setBackendUnavailable(false)
+      return next
+    } catch (err) {
+      const healthy = await checkBackendHealth()
+      if (!healthy) {
+        setSession(null)
+        return null
+      }
+      throw err
+    }
+  }, [checkBackendHealth])
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -231,14 +255,18 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      let loadedSession: AuthSession | null = null
       try {
-        await loadSession()
+        loadedSession = await loadSession()
+      } catch (err) {
+        console.warn(`[app] initial-session-load-failed ${String(err)}`)
       } finally {
         if (!cancelled) {
           setSessionLoading(false)
         }
       }
-      if (!cancelled) {
+
+      if (!cancelled && loadedSession) {
         await loadProjects()
         await loadRecents()
         await loadTrash()
@@ -791,6 +819,14 @@ export default function App() {
       <div className="flex h-screen w-screen items-center justify-center bg-cz-bg text-sm text-cz-text-muted">
         Initializing workspace...
       </div>
+    )
+  } else if (backendUnavailable) {
+    content = (
+      <StatusPage
+        code={503}
+        title="Service Unavailable"
+        description="The backend service is currently unreachable. Please try again in a moment."
+      />
     )
   } else if (!session?.authenticated && (route.kind === 'reset-password' || route.kind === 'invite' || !authEntryGranted)) {
     content = (
