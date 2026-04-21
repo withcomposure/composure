@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, Timer, Trash2 } from 'lucide-react'
+import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, Timer, Trash2, type LucideIcon } from 'lucide-react'
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
 import { Avatar } from '@/components/Avatar'
@@ -7,7 +7,6 @@ import { CustomDropdown } from '@/components/CustomDropdown'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
 import type { HistoryState } from '@/types'
-import {  } from 'lucide-react'
 
 export interface ActiveEditor {
   clientId: number
@@ -64,7 +63,7 @@ const modeOptions = [
   { value: 'view'    as const, icon: Eye,           label: 'Viewing',    description: 'Read only'        },
   { value: 'comment' as const, icon: MessageSquare, label: 'Commenting', description: 'Suggest changes'  },
   { value: 'edit'    as const, icon: Pencil,        label: 'Editing',    description: 'Full access'      },
-] satisfies Array<{ value: 'view' | 'comment' | 'edit', icon: any, label: string, description: string }>
+] satisfies Array<{ value: 'view' | 'comment' | 'edit', icon: LucideIcon, label: string, description: string }>
 
 function ActiveEditorsStrip({
   editors,

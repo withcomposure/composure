@@ -29,11 +29,11 @@ describe('applyTheme', () => {
   it('applies and clears inline theme vars as selection changes', () => {
     const root = document.documentElement
 
-    applyTheme('ocean', 'dark')
+    applyTheme('tide', 'dark')
     expect(root.dataset.appearance).toBe('dark')
-    expect(root.dataset.theme).toBe('ocean')
-    expect(root.style.getPropertyValue('--color-cz-accent')).toBe('#38bdf8')
-    expect(root.style.getPropertyValue('--color-cz-bg')).toBe('#060f1e')
+    expect(root.dataset.theme).toBe('tide')
+    expect(root.style.getPropertyValue('--color-cz-accent')).toBe('#2dd4bf')
+    expect(root.style.getPropertyValue('--color-cz-bg')).toBe('#080d0e')
 
     applyTheme('default', 'dark')
     expect(root.dataset.theme).toBe('default')
@@ -43,8 +43,8 @@ describe('applyTheme', () => {
 
   it('uses system appearance when set to system', () => {
     const root = document.documentElement
-    applyTheme('forest', 'system')
+    applyTheme('phosphor', 'system')
     expect(root.dataset.appearance).toBe('light')
-    expect(root.style.getPropertyValue('--color-cz-accent')).toBe('#16a34a')
+    expect(root.style.getPropertyValue('--color-cz-accent')).toBe('#059669')
   })
 })

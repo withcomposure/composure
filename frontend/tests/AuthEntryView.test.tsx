@@ -137,11 +137,8 @@ describe('AuthEntryView', () => {
     expect(screen.getByText(/passwords must match/i)).toBeInTheDocument()
   })
 
-  it('displays display name field in signup mode', async () => {
-    const user = userEvent.setup()
+  it('displays display name field in signup mode', () => {
     render(<AuthEntryView {...defaults} initialMode="signup" />)
-
-    await user.click(screen.getByRole('button', { name: /sign up with email/i }))
 
     expect(screen.getByPlaceholderText(/ada lovelace/i)).toBeInTheDocument()
   })
