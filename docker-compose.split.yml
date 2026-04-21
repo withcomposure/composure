@@ -5,3 +5,5 @@ services:
     environment:
       SERVE_FRONTEND: "false"
       CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN to your deployed frontend origin (for example https://your-app.pages.dev)}
+      FRONTEND_URL: ${FRONTEND_URL:-}
+      BACKEND_URL: ${BACKEND_URL:-}

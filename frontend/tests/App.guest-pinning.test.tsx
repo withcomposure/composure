@@ -74,6 +74,7 @@ describe('App guest dashboard pinning', () => {
       if (url === '/api/v1/preferences') {
         return json({
           appearance: 'system',
+          theme: 'default',
           recentItemsLimit: 10,
           autoCompileDefault: false,
           autoCompileTimeoutSeconds: 2,

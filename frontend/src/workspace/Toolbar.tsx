@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PanelLeft, PanelRightClose, PanelRightOpen, Play, Timer, Trash2 } from 'lucide-react'
+import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, Timer, Trash2 } from 'lucide-react'
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
 import { Avatar } from '@/components/Avatar'
+import { CustomDropdown } from '@/components/CustomDropdown'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
 import type { HistoryState } from '@/types'
+import {  } from 'lucide-react'
 
 export interface ActiveEditor {
   clientId: number
@@ -57,6 +59,12 @@ interface ToolbarProps {
 
 // Maximum number of visible avatars before showing the overflow button
 const maxVisibleEditors = 4
+
+const modeOptions = [
+  { value: 'view'    as const, icon: Eye,           label: 'Viewing',    description: 'Read only'        },
+  { value: 'comment' as const, icon: MessageSquare, label: 'Commenting', description: 'Suggest changes'  },
+  { value: 'edit'    as const, icon: Pencil,        label: 'Editing',    description: 'Full access'      },
+] satisfies Array<{ value: 'view' | 'comment' | 'edit', icon: any, label: string, description: string }>
 
 function ActiveEditorsStrip({
   editors,
@@ -225,17 +233,7 @@ export function Toolbar({
           className="rounded p-1 text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text transition-colors"
           title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
         >
-          <PanelLeft size={16} strokeWidth={1.7} />
-        </button>
-
-        <button
-          type="button"
-          onClick={onTogglePreview}
-          className="rounded p-1 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
-          title={previewOpen ? 'Hide preview' : 'Show preview'}
-          aria-label={previewOpen ? 'Hide preview' : 'Show preview'}
-        >
-          {previewOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+          {sidebarOpen ? <PanelLeftClose size={16} strokeWidth={1.7} /> : <PanelLeftOpen size={16} strokeWidth={1.7} />}
         </button>
 
         <div className="flex min-w-0 items-center gap-4">
@@ -278,7 +276,7 @@ export function Toolbar({
             <button
               onClick={onCompile}
               disabled={compiling}
-              className={`flex items-center gap-1.5 rounded-l-md px-2.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-l-md h-7 px-2.5 text-xs font-medium transition-all ${
                 compiling
                   ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
                   : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
@@ -357,39 +355,29 @@ export function Toolbar({
 
         <VersionsDropdown projectId={projectId} activeFile={displayFileName} onViewDiff={onViewDiff} />
 
-        <div className="hidden items-center gap-1 rounded-md border border-cz-border bg-cz-bg p-1 md:flex">
-          <button
-            onClick={() => onModeChange('view')}
-            disabled={inDiffMode}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'view' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
-          >
-            View
-          </button>
-          <button
-            onClick={() => onModeChange('comment')}
-            disabled={inDiffMode || !canComment}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'comment' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
-          >
-            Comment
-          </button>
-          <button
-            onClick={() => onModeChange('edit')}
-            disabled={inDiffMode || !canEdit}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-60 ${inDiffMode ? 'text-cz-text-muted' : mode === 'edit' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
-          >
-            Edit
-          </button>
-        </div>
+        <CustomDropdown
+          value={mode}
+          disabled={inDiffMode}
+          iconOnly
+          options={[
+            modeOptions[0],
+            { ...modeOptions[1], disabled: !canComment },
+            { ...modeOptions[2], disabled: !canEdit },
+          ]}
+          onChange={onModeChange}
+          // className="block"
+        />
 
         <button
           onClick={onOpenShare}
-          className="rounded-md px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text transition-colors"
+          className="rounded-md h-7 px-2.5 text-xs font-medium border border-cz-border text-cz-text hover:bg-cz-surface-hover transition-all"
           title="Share project"
         >
-          Share
+          <Link size={12} />
         </button>
 
-        <div className="ml-2">
+
+        <div className="ml-1">
           <ProfileMenu
             name={accountLabel}
             email={accountEmail}
@@ -400,6 +388,16 @@ export function Toolbar({
             onLogin={onLogin}
           />
         </div>
+
+        <button
+          type="button"
+          onClick={onTogglePreview}
+          className="rounded p-1 text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text"
+          title={previewOpen ? 'Hide preview' : 'Show preview'}
+          aria-label={previewOpen ? 'Hide preview' : 'Show preview'}
+        >
+          {previewOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+        </button>
       </div>
     </div>
   )

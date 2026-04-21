@@ -71,6 +71,29 @@ describe('login', () => {
     expect(res.json().error).toMatch(/invalid/i)
   })
 
+  it('blocks password login when password provider is disabled', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 'disabled-password@test.com', password: 'password123', displayName: 'Disabled Password' },
+    })
+
+    await sql`
+      INSERT INTO server_settings (key, value, updated_at)
+      VALUES ('password_login_enabled', 'false', extract(epoch from now())::integer)
+      ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    `
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 'disabled-password@test.com', password: 'password123' },
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toMatch(/disabled/i)
+  })
+
   it('login with non-existent email fails', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -261,6 +284,167 @@ describe('password change', () => {
     })
 
     expect(res.statusCode).toBe(401)
+  })
+})
+
+describe('password provider controls', () => {
+  it('does not allow disabling password when it is the only enabled auth method', async () => {
+    const signupRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 'only-password@test.com', password: 'password123', displayName: 'Only Password' },
+    })
+
+    const cookies = signupRes.headers['set-cookie']
+    const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : String(cookies ?? '')
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/v1/auth/password',
+      headers: { cookie: cookieHeader },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toMatch(/only login method/i)
+  })
+
+  it('allows disabling password when another enabled provider is linked', async () => {
+    const signupRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 'multi-provider@test.com', password: 'password123', displayName: 'Multi Provider' },
+    })
+
+    const userId = signupRes.json().user.id as string
+    const cookies = signupRes.headers['set-cookie']
+    const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : String(cookies ?? '')
+
+    await sql`
+      INSERT INTO oauth_providers (provider, enabled, client_id, client_secret, updated_at)
+      VALUES ('github', true, 'test-client-id', 'test-client-secret', extract(epoch from now())::integer)
+      ON CONFLICT (provider) DO UPDATE SET
+        enabled = EXCLUDED.enabled,
+        client_id = EXCLUDED.client_id,
+        client_secret = EXCLUDED.client_secret,
+        updated_at = EXCLUDED.updated_at
+    `
+
+    await sql`
+      INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+      VALUES ('oauth-account-test-id', ${userId}, 'github', 'github-provider-id', 'multi-provider@test.com', extract(epoch from now())::integer)
+    `
+
+    const disableRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/v1/auth/password',
+      headers: { cookie: cookieHeader },
+    })
+
+    expect(disableRes.statusCode).toBe(200)
+
+    const [row] = await sql<[{ password_hash: string | null }?]>`
+      SELECT password_hash FROM users WHERE id = ${userId}
+    `
+    expect(row?.password_hash).toBeNull()
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 'multi-provider@test.com', password: 'password123' },
+    })
+    expect(loginRes.statusCode).toBe(401)
+  })
+
+  it('allows re-enabling password auth with a new password when password hash is missing', async () => {
+    const signupRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 're-enable@test.com', password: 'password123', displayName: 'Re Enable' },
+    })
+
+    const userId = signupRes.json().user.id as string
+    const cookies = signupRes.headers['set-cookie']
+    const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : String(cookies ?? '')
+
+    await sql`
+      INSERT INTO oauth_providers (provider, enabled, client_id, client_secret, updated_at)
+      VALUES ('github', true, 'test-client-id', 'test-client-secret', extract(epoch from now())::integer)
+      ON CONFLICT (provider) DO UPDATE SET
+        enabled = EXCLUDED.enabled,
+        client_id = EXCLUDED.client_id,
+        client_secret = EXCLUDED.client_secret,
+        updated_at = EXCLUDED.updated_at
+    `
+
+    await sql`
+      INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+      VALUES ('oauth-account-re-enable-id', ${userId}, 'github', 'github-provider-id-re-enable', 're-enable@test.com', extract(epoch from now())::integer)
+    `
+
+    const disableRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/v1/auth/password',
+      headers: { cookie: cookieHeader },
+    })
+
+    expect(disableRes.statusCode).toBe(200)
+
+    const enableRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      headers: { cookie: cookieHeader },
+      payload: { newPassword: 'newpassword456' },
+    })
+
+    expect(enableRes.statusCode).toBe(200)
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 're-enable@test.com', password: 'newpassword456' },
+    })
+    expect(loginRes.statusCode).toBe(200)
+  })
+
+  it('deletes linked oauth accounts when deleting the user account', async () => {
+    const signupRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 'delete-linked@test.com', password: 'password123', displayName: 'Delete Linked' },
+    })
+
+    const userId = signupRes.json().user.id as string
+    const cookies = signupRes.headers['set-cookie']
+    const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : String(cookies ?? '')
+
+    await sql`
+      INSERT INTO oauth_providers (provider, enabled, client_id, client_secret, updated_at)
+      VALUES ('github', true, 'test-client-id', 'test-client-secret', extract(epoch from now())::integer)
+      ON CONFLICT (provider) DO UPDATE SET
+        enabled = EXCLUDED.enabled,
+        client_id = EXCLUDED.client_id,
+        client_secret = EXCLUDED.client_secret,
+        updated_at = EXCLUDED.updated_at
+    `
+
+    await sql`
+      INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+      VALUES ('oauth-account-delete-user-id', ${userId}, 'github', 'github-provider-id-delete', 'delete-linked@test.com', extract(epoch from now())::integer)
+    `
+
+    const deleteRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/delete-account',
+      headers: { cookie: cookieHeader },
+      payload: { password: 'password123' },
+    })
+
+    expect(deleteRes.statusCode).toBe(200)
+
+    const [linked] = await sql<[{ count: number }?]>`
+      SELECT count(*)::integer AS count FROM oauth_accounts WHERE user_id = ${userId}
+    `
+    expect(linked?.count ?? 0).toBe(0)
   })
 })
 

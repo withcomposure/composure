@@ -11,6 +11,7 @@ const defaults = {
   userCount: 1,
   signupMode: 'open' as const,
   initialMode: 'login' as const,
+  enabledLoginProviders: [],
   onLogin: () => {},
   onSignup: () => {},
   onPasswordReset: () => {},
@@ -59,7 +60,7 @@ describe('AuthEntryView', () => {
   })
 
   it('shows guest button with retention days', () => {
-    render(<AuthEntryView {...defaults} guestRetentionDays={45} />)
+    render(<AuthEntryView {...defaults} initialMode="signup" guestRetentionDays={45} />)
     expect(screen.getByRole('button', { name: /continue as guest/i })).toBeInTheDocument()
     expect(screen.getByText(/45 days/i)).toBeInTheDocument()
   })
@@ -73,7 +74,7 @@ describe('AuthEntryView', () => {
   it('calls onContinueAsGuest when guest button clicked', async () => {
     const user = userEvent.setup()
     let guestClicked = false
-    render(<AuthEntryView {...defaults} onContinueAsGuest={() => { guestClicked = true }} />)
+    render(<AuthEntryView {...defaults} initialMode="signup" onContinueAsGuest={() => { guestClicked = true }} />)
 
     await user.click(screen.getByRole('button', { name: /continue as guest/i }))
     expect(guestClicked).toBe(true)
@@ -137,7 +138,10 @@ describe('AuthEntryView', () => {
   })
 
   it('displays display name field in signup mode', async () => {
+    const user = userEvent.setup()
     render(<AuthEntryView {...defaults} initialMode="signup" />)
+
+    await user.click(screen.getByRole('button', { name: /sign up with email/i }))
 
     expect(screen.getByPlaceholderText(/ada lovelace/i)).toBeInTheDocument()
   })

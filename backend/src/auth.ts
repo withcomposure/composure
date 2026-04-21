@@ -5,12 +5,16 @@ import {
   countUsers,
   createSession,
   createUser,
+  countUserAuthMethods,
   deleteUserAccount,
   deleteSession,
   deleteUserSession,
+  disableUserPasswordAuthMethod,
   findUserByEmail,
+  getEnabledOAuthProviders,
   getGuestSignupsEnabled,
   getInviteTokenState,
+  getPasswordLoginEnabled,
   getPasswordResetTokenState,
   getSignupMode,
   getUserPreferences,
@@ -75,6 +79,7 @@ export interface AuthSessionResponse {
   userCount: number
   signupMode: 'open' | 'invite-only'
   guestSignupsEnabled: boolean
+  enabledLoginProviders: string[]
 }
 
 declare module 'fastify' {
@@ -103,7 +108,8 @@ function hashPassword(password: string): string {
   return `${salt}:${hash}`
 }
 
-function verifyPassword(password: string, passwordHash: string): boolean {
+function verifyPassword(password: string, passwordHash: string | null | undefined): boolean {
+  if (!passwordHash) return false
   const [salt, expectedHash] = passwordHash.split(':')
   if (!salt || !expectedHash) return false
 
@@ -199,6 +205,7 @@ export const authHook: preHandlerHookHandler = async (req, reply) => {
 }
 
 async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionResponse> {
+  const enabledProviders = await getEnabledOAuthProviders()
   return {
     authenticated: Boolean(req.authUser),
     user: req.authUser,
@@ -207,6 +214,7 @@ async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionRespo
     userCount: await countUsers(),
     signupMode: await getSignupMode(),
     guestSignupsEnabled: await getGuestSignupsEnabled(),
+    enabledLoginProviders: enabledProviders.map((p) => p.provider),
   }
 }
 
@@ -222,6 +230,11 @@ interface AuthBody {
 }
 
 export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply: FastifyReply): Promise<void> {
+  if (!(await getPasswordLoginEnabled())) {
+    reply.status(403).send({ error: 'Password signup is disabled.' })
+    return
+  }
+
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   const password = String(req.body?.password ?? '')
   const displayName = String(req.body?.displayName ?? '').trim()
@@ -281,7 +294,7 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   await markUserLoggedIn(created.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
@@ -311,6 +324,11 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
 }
 
 export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply: FastifyReply): Promise<void> {
+  if (!(await getPasswordLoginEnabled())) {
+    reply.status(403).send({ error: 'Password login is disabled.' })
+    return
+  }
+
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   const password = String(req.body?.password ?? '')
 
@@ -334,7 +352,7 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
   await markUserLoggedIn(user.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
@@ -474,24 +492,57 @@ export async function changePasswordRoute(
     return
   }
 
+  if (!(await getPasswordLoginEnabled())) {
+    reply.status(403).send({ error: 'Password login is disabled.' })
+    return
+  }
+
   const currentPassword = String(req.body?.currentPassword ?? '')
   const newPassword = String(req.body?.newPassword ?? '')
 
-  if (!currentPassword || newPassword.length < 8) {
-    reply.status(400).send({ error: 'Current password and a new password (min 8 chars) are required' })
+  if (newPassword.length < 8) {
+    reply.status(400).send({ error: 'New password must be at least 8 characters' })
     return
   }
 
   const user = await findUserByEmail(req.authUser.email)
-  if (!user || !verifyPassword(currentPassword, user.password_hash)) {
-    reply.status(401).send({ error: 'Current password is incorrect' })
+  if (!user) {
+    reply.status(404).send({ error: 'User not found' })
     return
+  }
+
+  if (user.password_hash != null) {
+    if (!currentPassword || !verifyPassword(currentPassword, user.password_hash)) {
+      reply.status(401).send({ error: 'Current password is incorrect' })
+      return
+    }
   }
 
   const nextPasswordHash = hashPassword(newPassword)
   const updated = await updateUserPasswordHash(req.authUser.id, nextPasswordHash)
   if (!updated) {
     reply.status(500).send({ error: 'Failed to update password' })
+    return
+  }
+
+  reply.send({ ok: true })
+}
+
+export async function disablePasswordRoute(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  if (!req.authUser) {
+    reply.status(401).send({ error: 'Authentication required' })
+    return
+  }
+
+  const methodCount = await countUserAuthMethods(req.authUser.id)
+  if (methodCount <= 1) {
+    reply.status(400).send({ error: 'Cannot disable your only login method. Link another provider first.' })
+    return
+  }
+
+  const disabled = await disableUserPasswordAuthMethod(req.authUser.id)
+  if (!disabled) {
+    reply.status(404).send({ error: 'Password login is already disabled for this account.' })
     return
   }
 
@@ -550,6 +601,7 @@ export async function getPreferencesRoute(req: FastifyRequest, reply: FastifyRep
 
 interface UpdatePreferencesBody {
   appearance?: 'light' | 'dark' | 'system'
+  theme?: string
   recentItemsLimit?: number
   autoCompileDefault?: boolean
   autoCompileTimeoutSeconds?: number
@@ -579,6 +631,9 @@ export async function updatePreferencesRoute(
   const patch: UpdatePreferencesBody = {}
   if (req.body?.appearance === 'light' || req.body?.appearance === 'dark' || req.body?.appearance === 'system') {
     patch.appearance = req.body.appearance
+  }
+  if (typeof req.body?.theme === 'string') {
+    patch.theme = req.body.theme
   }
   if (typeof req.body?.recentItemsLimit === 'number' && Number.isFinite(req.body.recentItemsLimit)) {
     patch.recentItemsLimit = req.body.recentItemsLimit
@@ -651,7 +706,7 @@ export async function deleteAccountRoute(
 
   const user = await findUserByEmail(req.authUser.email)
   if (!user || !verifyPassword(password, user.password_hash)) {
-    reply.status(401).send({ error: 'Password is incorrect' })
+    reply.status(401).send({ error: 'Current password is incorrect' })
     return
   }
 
@@ -755,7 +810,7 @@ export async function applyPasswordResetRoute(
   const session = await createSession(user.id, sessionMaxAgeSeconds)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',

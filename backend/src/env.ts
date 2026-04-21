@@ -68,6 +68,18 @@ export function normalizeOriginHeader(originHeader: string | string[] | undefine
   return normalizeOrigin(raw)
 }
 
+export function parseUrlEnv(value: string | undefined): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
 export function parseTrustedOrigins(
   value: string | undefined,
   nodeEnvValue: string | undefined = process.env.NODE_ENV,

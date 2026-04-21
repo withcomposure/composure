@@ -319,6 +319,10 @@ const hocuspocus = new Hocuspocus({
 
 await initDatabase()
 
+// Run Kysely migrations (additive only, safe to run on every startup)
+const { runMigrations } = await import('./db/migrate.js')
+await runMigrations()
+
 const app = await buildApp({ hocuspocus, isProduction: isProd, resetAutoCommitTimer: (projectId) => { lastAutoCommitTimestamp.set(projectId, Date.now()) } })
 const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
 

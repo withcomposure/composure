@@ -58,7 +58,7 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
         aria-label={exporting ? 'Exporting...' : 'Export'}
         aria-haspopup="menu"
         aria-expanded={showMenu}
-        className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
+        className={`flex items-center gap-1 rounded-md h-7 px-2 text-xs font-medium transition-all ${
           exporting
             ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
             : 'border border-cz-border text-cz-text hover:bg-cz-surface-hover'

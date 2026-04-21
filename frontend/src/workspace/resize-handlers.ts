@@ -24,6 +24,7 @@ interface SidebarResizeFactoryOptions {
   sidebarWidthRef: { current: number };
   setIsResizingSidebar: (resizing: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 export function createSidebarResizeHandler({
@@ -31,10 +32,22 @@ export function createSidebarResizeHandler({
   sidebarWidthRef,
   setIsResizingSidebar,
   setSidebarWidth,
+  setSidebarOpen,
 }: SidebarResizeFactoryOptions) {
+  const collapseThreshold = 56;
   return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => {
     const { clientX: startX } = getClientPos(event.nativeEvent);
     const startWidth = sidebarWidthRef.current;
+    let collapsedByDrag = false;
+
+    const applySidebarOpen = (open: boolean) => {
+      if (collapsedByDrag === !open) {
+        return;
+      }
+      collapsedByDrag = !open;
+      setSidebarOpen(open);
+    };
+
     startResizeDrag(event, {
       cursor: "col-resize",
       onStart: () => {
@@ -43,7 +56,14 @@ export function createSidebarResizeHandler({
       onMove: (moveEvent) => {
         const { clientX } = getClientPos(moveEvent);
         const delta = clientX - startX;
-        const nextWidth = Math.min(420, Math.max(180, startWidth + delta));
+        const rawWidth = startWidth + delta;
+        if (rawWidth <= collapseThreshold) {
+          applySidebarOpen(false);
+          return;
+        }
+
+        applySidebarOpen(true);
+        const nextWidth = Math.min(420, Math.max(180, rawWidth));
         if (nextWidth !== sidebarWidthRef.current) {
           sidebarWidthRef.current = nextWidth;
           setSidebarWidth(nextWidth);
@@ -62,6 +82,7 @@ interface PreviewResizeFactoryOptions {
   layoutRef: { current: HTMLDivElement | null };
   setIsResizingPreview: (resizing: boolean) => void;
   setPreviewWidth: (width: number) => void;
+  setPreviewOpen: (open: boolean) => void;
 }
 
 export function createPreviewResizeHandler({
@@ -70,10 +91,22 @@ export function createPreviewResizeHandler({
   layoutRef,
   setIsResizingPreview,
   setPreviewWidth,
+  setPreviewOpen,
 }: PreviewResizeFactoryOptions) {
+  const collapseThreshold = 84;
   return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => {
     const { clientX: startX } = getClientPos(event.nativeEvent);
     const startWidth = previewWidth;
+    let collapsedByDrag = false;
+
+    const applyPreviewOpen = (open: boolean) => {
+      if (collapsedByDrag === !open) {
+        return;
+      }
+      collapsedByDrag = !open;
+      setPreviewOpen(open);
+    };
+
     startResizeDrag(event, {
       cursor: "col-resize",
       onStart: () => {
@@ -82,9 +115,16 @@ export function createPreviewResizeHandler({
       onMove: (moveEvent) => {
         const { clientX } = getClientPos(moveEvent);
         const delta = startX - clientX;
+        const rawWidth = startWidth + delta;
+        if (rawWidth <= collapseThreshold) {
+          applyPreviewOpen(false);
+          return;
+        }
+
+        applyPreviewOpen(true);
         const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
         const maxWidth = Math.max(380, layoutWidth - 380);
-        setPreviewWidth(Math.min(maxWidth, Math.max(300, startWidth + delta)));
+        setPreviewWidth(Math.min(maxWidth, Math.max(300, rawWidth)));
       },
       onEnd: () => {
         setIsResizingPreview(false);

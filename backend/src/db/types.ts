@@ -50,6 +50,7 @@ export interface AdminUserSummary {
 
 export interface UserPreferences {
   appearance: 'light' | 'dark' | 'system'
+  theme: string
   recentItemsLimit: number
   autoCompileDefault: boolean
   autoCompileTimeoutSeconds: number

@@ -2,6 +2,6 @@
   "files": [],
   "references": [
     { "path": "./backend" },
-    { "path": "./typesetter" }
+    { "path": "./compiler" }
   ]
 }

@@ -1,8 +1,10 @@
 import { sql } from './connection.js'
 import { createUid } from '../ids.js'
 import type { SessionUser } from './types.js'
+import { deleteOAuthAccountsForUser } from './oauth.js'
 
 export async function deleteUserAccount(userId: string): Promise<boolean> {
+  await deleteOAuthAccountsForUser(userId)
   const result = await sql`DELETE FROM users WHERE id = ${userId}`
   return result.count > 0
 }
@@ -42,7 +44,7 @@ export async function findUserByEmail(email: string): Promise<{
   id: string
   email: string
   display_name: string
-  password_hash: string
+  password_hash: string | null
   profile_image_url: string | null
   role: 'user' | 'admin'
   is_suspended: boolean
@@ -55,7 +57,7 @@ export async function findUserByEmail(email: string): Promise<{
     id: string
     email: string
     display_name: string
-    password_hash: string
+    password_hash: string | null
     profile_image_url: string | null
     role: 'user' | 'admin'
     is_suspended: boolean

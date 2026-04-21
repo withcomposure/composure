@@ -27,6 +27,7 @@ import {
   authHook,
   authSessionRoute,
   changePasswordRoute,
+  disablePasswordRoute,
   deleteAccountRoute,
   getPasswordResetTokenRoute,
   getPreferencesRoute,
@@ -56,6 +57,11 @@ import {
   updateAdminServerSettingsRoute,
   updateAdminUserRoute,
   updateSmtpSettingsRoute,
+  getLoginProvidersRoute,
+  updateLoginProvidersRoute,
+  checkStrandedUsersRoute,
+  getStrandedUsersCsvRoute,
+  testLoginProviderRoute,
 } from './admin.js'
 import {
   clearRecentProjectsRoute,
@@ -90,7 +96,7 @@ import {
   patchProjectMemberRoute,
   sharedWithMeRoute,
 } from './sharing.js'
-import { isProductionEnv, normalizeOriginHeader, parseBooleanEnv, parseTrustedOrigins } from './env.js'
+import { isProductionEnv, normalizeOriginHeader, parseBooleanEnv, parseTrustedOrigins, parseUrlEnv } from './env.js'
 import { isValidProjectId, normalizeRelativePath } from './security.js'
 import {
   commitSnapshot,
@@ -109,6 +115,7 @@ import {
   pathnameFromRawUrl,
   resolveApiRouting,
 } from './routing.js'
+import { registerAllStrategies, registerOAuthRoutes } from './auth/oauth.js'
 
 function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
   const filesMap = doc.getMap<string>('files')
@@ -173,6 +180,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const corsMethods = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   const apiRouting = resolveApiRouting(process.env)
   const apiPath = apiRouting.apiPath
+  const backendUrl = parseUrlEnv(process.env.BACKEND_URL)
+  const frontendUrl = parseUrlEnv(process.env.FRONTEND_URL)
 
   const app = Fastify({
     logger: false,
@@ -337,15 +346,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     schema: {
       body: {
         type: 'object',
-        required: ['currentPassword', 'newPassword'],
+        required: ['newPassword'],
         properties: {
-          currentPassword: { type: 'string', minLength: 1, maxLength: 4096 },
+          currentPassword: { type: 'string', minLength: 0, maxLength: 4096 },
           newPassword: { type: 'string', minLength: 8, maxLength: 4096 },
         },
         additionalProperties: true,
       },
     },
   }, changePasswordRoute)
+  app.delete(apiPath('/auth/password'), disablePasswordRoute)
   app.post(apiPath('/auth/delete-account'), {
     schema: {
       body: {
@@ -378,8 +388,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get(apiPath('/admin/smtp'), getSmtpSettingsRoute)
   app.patch(apiPath('/admin/smtp'), updateSmtpSettingsRoute)
   app.post(apiPath('/admin/smtp/test'), sendTestEmailRoute)
+  app.get(apiPath('/admin/login-providers'), getLoginProvidersRoute)
+  app.put(apiPath('/admin/login-providers'), updateLoginProvidersRoute)
+  app.post(apiPath('/admin/login-providers/check-stranded'), checkStrandedUsersRoute)
+  app.post(apiPath('/admin/login-providers/stranded-csv'), getStrandedUsersCsvRoute)
+  app.post(apiPath('/admin/login-providers/test'), testLoginProviderRoute)
   app.get(apiPath('/admin/monitoring/summary'), getJobSummaryRoute)
   app.get(apiPath('/admin/monitoring/jobs'), listRecentJobsRoute)
+
+  // OAuth routes
+  registerAllStrategies()
+  registerOAuthRoutes(app, apiPath, { backendUrl, frontendUrl })
 
   // Project dashboard routes
   app.get(apiPath('/projects'), listProjectsRoute)

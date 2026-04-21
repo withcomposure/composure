@@ -37,7 +37,8 @@ import {
   type ServerSettingsFormState,
 } from './admin-utils'
 import { useSectionObserver } from '@/hooks/use-section-observer'
-import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { apiUrl, fetchJson, getErrorMessage } from '@/utils/fetch'
+import { apiRequestCredentials } from '@/utils/api-routing'
 import { fmtTime, fmtRelativeTime } from '@/utils/format-time'
 import { navigateToProjects, navigateToSettings } from '@/utils/route'
 
@@ -130,18 +131,25 @@ interface AdministrationViewProps {
 }
 
 type RoleOption = 'user' | 'admin'
-type AdminSectionId = 'users' | 'server' | 'invitations' | 'email' | 'monitoring'
+type AdminSectionId = 'users' | 'server' | 'invitations' | 'email' | 'login-providers' | 'monitoring'
 
 const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof User }> = [
   { value: 'user', label: 'User', icon: User },
   { value: 'admin', label: 'Admin', icon: Crown },
 ]
 
+const loginProviderLabels: Record<string, string> = {
+  password: 'Password',
+  github: 'GitHub',
+  google: 'Google',
+}
+
 const adminSectionItems: Array<{ id: AdminSectionId; label: string; icon: typeof User }> = [
   { id: 'users', label: 'User Management', icon: Users },
   { id: 'server', label: 'Server Settings', icon: Settings },
   { id: 'invitations', label: 'Invitations', icon: UserPlus },
   { id: 'email', label: 'Email', icon: Mail },
+  { id: 'login-providers', label: 'Login Providers', icon: KeyRound },
   { id: 'monitoring', label: 'Monitoring', icon: Monitor },
 ]
 
@@ -246,6 +254,31 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [monitoringBusy, setMonitoringBusy] = useState(false)
   const [monitoringError, setMonitoringError] = useState<string | null>(null)
 
+  // Login providers state
+  interface LoginProviderItem {
+    provider: string
+    enabled: boolean
+    hasCredentials: boolean
+    clientId: string
+    clientSecret: string
+    dirty: boolean
+  }
+  const [loginProviders, setLoginProviders] = useState<LoginProviderItem[]>([])
+  const [loginProvidersSaved, setLoginProvidersSaved] = useState<LoginProviderItem[]>([])
+  const [loginProvidersBusy, setLoginProvidersBusy] = useState(false)
+  const [loginProvidersError, setLoginProvidersError] = useState<string | null>(null)
+  const [providerTestResults, setProviderTestResults] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'fail'>>({})
+  const [providerTestErrors, setProviderTestErrors] = useState<Record<string, string>>({})
+  const [callbackCopied, setCallbackCopied] = useState(false)
+  const [strandedDialog, setStrandedDialog] = useState<{
+    kind: 'error' | 'warning'
+    message: string
+    strandedCount: number
+    strandedUserIds: string[]
+  } | null>(null)
+  const [strandedCsvDownloaded, setStrandedCsvDownloaded] = useState(false)
+  const [strandedConfirmText, setStrandedConfirmText] = useState('')
+
   const loadUsers = useCallback(async (search: string) => {
     setLoadingUsers(true)
     setUsersError(null)
@@ -314,6 +347,161 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     }
   }, [])
 
+  const loadLoginProviders = useCallback(async () => {
+    try {
+      const response = await fetchJson<{ providers: Array<{ provider: string; enabled: boolean; hasCredentials: boolean; clientId?: string }> }>('/admin/login-providers')
+      const items: LoginProviderItem[] = response.providers
+        .map((p) => ({
+          provider: p.provider,
+          enabled: p.enabled,
+          hasCredentials: p.hasCredentials,
+          clientId: p.clientId ?? '',
+          clientSecret: '',
+          dirty: false,
+        }))
+      setLoginProviders(items)
+      setLoginProvidersSaved(items.map((i) => ({ ...i })))
+    } catch (err) {
+      setLoginProvidersError(getErrorMessage(err))
+    }
+  }, [])
+
+  const saveLoginProviders = useCallback(async (force = false) => {
+    setLoginProvidersBusy(true)
+    setLoginProvidersError(null)
+    try {
+      if (!loginProviders.some((p) => p.enabled)) {
+        setLoginProvidersError('At least one login provider must remain enabled.')
+        setLoginProvidersBusy(false)
+        return
+      }
+
+      // Determine which providers are being disabled
+      const providersToDisable: string[] = []
+      for (const p of loginProviders) {
+        const saved = loginProvidersSaved.find((s) => s.provider === p.provider)
+        if (saved?.enabled && !p.enabled) {
+          providersToDisable.push(p.provider)
+        }
+      }
+      if (!force && providersToDisable.length > 0) {
+        const check = await fetchJson<{
+          strandedCount: number
+          totalUsers: number
+          adminStranded: boolean
+          allStranded: boolean
+          strandedUserIds: string[]
+        }>('/admin/login-providers/check-stranded', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providersToDisable }),
+        })
+
+        if (check.adminStranded) {
+          setStrandedDialog({
+            kind: 'error',
+            message: 'You cannot disable this provider because your own account relies on it. Link another login method first.',
+            strandedCount: check.strandedCount,
+            strandedUserIds: check.strandedUserIds,
+          })
+          setLoginProvidersBusy(false)
+          return
+        }
+
+        if (check.allStranded) {
+          setStrandedDialog({
+            kind: 'error',
+            message: 'Every user on this server relies on a provider you are disabling. No one would be able to log in.',
+            strandedCount: check.strandedCount,
+            strandedUserIds: check.strandedUserIds,
+          })
+          setLoginProvidersBusy(false)
+          return
+        }
+
+        if (check.strandedCount > 0) {
+          setStrandedDialog({
+            kind: 'warning',
+            message: `${check.strandedCount} user${check.strandedCount === 1 ? '' : 's'} will lose access to their account${check.strandedCount === 1 ? '' : 's'} because ${check.strandedCount === 1 ? 'their' : 'their'} only login method is being disabled.`,
+            strandedCount: check.strandedCount,
+            strandedUserIds: check.strandedUserIds,
+          })
+          setStrandedCsvDownloaded(false)
+          setStrandedConfirmText('')
+          setLoginProvidersBusy(false)
+          return
+        }
+      }
+
+      await fetchJson('/admin/login-providers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providers: loginProviders.map((p) => ({
+            provider: p.provider,
+            enabled: p.enabled,
+            ...(p.clientId && { clientId: p.clientId }),
+            ...(p.clientSecret && { clientSecret: p.clientSecret }),
+          })),
+        }),
+      })
+
+      setStrandedDialog(null)
+      await loadLoginProviders()
+    } catch (err) {
+      setLoginProvidersError(getErrorMessage(err))
+    } finally {
+      setLoginProvidersBusy(false)
+    }
+  }, [loginProviders, loginProvidersSaved, loadLoginProviders])
+
+  const downloadStrandedCsv = useCallback(async (userIds: string[]) => {
+    try {
+      const res = await fetch(
+        apiUrl('/admin/login-providers/stranded-csv'),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: apiRequestCredentials(),
+          body: JSON.stringify({ userIds }),
+        },
+      )
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'stranded-users.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+      setStrandedCsvDownloaded(true)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const testProvider = useCallback(async (provider: string, clientId: string, clientSecret: string) => {
+    setProviderTestResults((prev) => ({ ...prev, [provider]: 'testing' }))
+    setProviderTestErrors((prev) => {
+      const next = { ...prev }
+      delete next[provider]
+      return next
+    })
+    try {
+      const result = await fetchJson<{ ok: boolean; error?: string }>('/admin/login-providers/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, clientId, clientSecret }),
+      })
+      setProviderTestResults((prev) => ({ ...prev, [provider]: result.ok ? 'ok' : 'fail' }))
+      if (!result.ok && result.error) {
+        setProviderTestErrors((prev) => ({ ...prev, [provider]: result.error! }))
+      }
+    } catch (err) {
+      setProviderTestResults((prev) => ({ ...prev, [provider]: 'fail' }))
+      setProviderTestErrors((prev) => ({ ...prev, [provider]: getErrorMessage(err) }))
+    }
+  }, [])
+
   const loadMonitoringData = useCallback(async (seconds: string) => {
     setMonitoringBusy(true)
     setMonitoringError(null)
@@ -344,8 +532,9 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     void loadServerSettings()
     void loadInvites()
     void loadSmtpSettings()
+    void loadLoginProviders()
     void loadMonitoringData(jobsTimeframe)
-  }, [loadServerSettings, loadInvites, loadSmtpSettings, loadMonitoringData, jobsTimeframe])
+  }, [loadServerSettings, loadInvites, loadSmtpSettings, loadLoginProviders, loadMonitoringData, jobsTimeframe])
 
   const beginEditUser = useCallback((user: AdminUser) => {
     setEditingUser(user)
@@ -670,6 +859,19 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const smtpDirty = smtpHost !== smtpSaved.host || smtpPort !== smtpSaved.port || smtpUsername !== smtpSaved.username || smtpSenderName !== smtpSaved.senderName || smtpSenderAddress !== smtpSaved.senderAddress || smtpEncryption !== smtpSaved.encryption || smtpPassword !== ''
   const smtpAllFilled = smtpHost.trim() !== '' && smtpPort > 0 && smtpUsername.trim() !== '' && smtpSenderName.trim() !== '' && smtpSenderAddress.trim() !== '' && (smtpHasPassword || smtpPassword.trim() !== '')
 
+  const loginProvidersDirty = loginProviders.some((p) => {
+    const saved = loginProvidersSaved.find((item) => item.provider === p.provider)
+    return !saved || p.enabled !== saved.enabled || p.clientId !== saved.clientId || p.clientSecret !== ''
+  })
+
+  const enabledLoginProviderCount = loginProviders.filter((p) => p.enabled).length
+
+  const allEnabledProvidersTested = loginProviders
+    .filter((p) => p.provider !== 'password' && p.enabled && p.clientId.trim() !== '' && (p.clientSecret.trim() !== '' || p.hasCredentials))
+    .every((p) => providerTestResults[p.provider] === 'ok')
+
+  const loginProvidersSaveAllowed = loginProvidersDirty && enabledLoginProviderCount > 0 && allEnabledProvidersTested
+
   const serverSettingsDirty = signupMode !== serverSettingsSaved.signupMode || guestSignupsEnabled !== serverSettingsSaved.guestSignupsEnabled || inviteExpiryHours !== serverSettingsSaved.inviteExpiryHours || passwordResetExpiryHours !== serverSettingsSaved.passwordResetExpiryHours || maxConcurrentJobs !== serverSettingsSaved.maxConcurrentJobs || defaultProjectLimitMode !== serverSettingsSaved.defaultProjectLimitMode || (defaultProjectLimitMode === 'on' && defaultProjectLimitValue !== serverSettingsSaved.defaultProjectLimitValue) || maxUploadMode !== serverSettingsSaved.maxUploadMode || (maxUploadMode === 'on' && maxUploadValue !== serverSettingsSaved.maxUploadValue) || maxTextMode !== serverSettingsSaved.maxTextMode || (maxTextMode === 'on' && maxTextValue !== serverSettingsSaved.maxTextValue) || maxFilesMode !== serverSettingsSaved.maxFilesMode || (maxFilesMode === 'on' && maxFilesValue !== serverSettingsSaved.maxFilesValue) || trashRetentionDays !== serverSettingsSaved.trashRetentionDays || largeFileThreshold !== serverSettingsSaved.largeFileThreshold
 
   const isSelfEditing = editingUser?.id === currentUserId
@@ -679,6 +881,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     server: null,
     invitations: null,
     email: null,
+    'login-providers': null,
     monitoring: null,
   })
 
@@ -1341,6 +1544,212 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </div>
             )}
           </section>
+
+          <section id="admin-section-login-providers" ref={(node) => { sectionRefs.current['login-providers'] = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <KeyRound size={14} /> Login Providers
+              </div>
+              <button
+                type="button"
+                onClick={() => { void saveLoginProviders() }}
+                disabled={loginProvidersBusy || !loginProvidersSaveAllowed}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                  loginProvidersDirty
+                    ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
+                    : 'border-cz-border bg-cz-bg text-cz-text-muted'
+                }`}
+              >
+                {!loginProvidersDirty && <Check size={12} />}
+                {loginProvidersBusy ? 'Applying...' : loginProvidersDirty ? 'Apply Settings' : 'Saved'}
+              </button>
+            </div>
+
+            {/* Callback URL */}
+            <div className="mb-4">
+              <label className="mb-1 block text-xs text-cz-text-muted">Callback URL (configure this in each provider)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={new URL(apiUrl('/auth/via/{provider}/callback'), window.location.origin).href}
+                  className="flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text-muted outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(new URL(apiUrl('/auth/via/{provider}/callback'), window.location.origin).href)
+                    setCallbackCopied(true)
+                    setTimeout(() => setCallbackCopied(false), 2000)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                >
+                  {callbackCopied ? <Check size={14} /> : <Copy size={14} />}
+                  {callbackCopied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/50">
+              {loginProviders.map((p, idx) => {
+                const testStatus = providerTestResults[p.provider] ?? 'idle'
+                const testError = providerTestErrors[p.provider]
+                const isPasswordProvider = p.provider === 'password'
+                const canTest = !isPasswordProvider && p.enabled && p.clientId.trim() !== '' && (p.clientSecret.trim() !== '' || p.hasCredentials)
+                const toggleDisabled = loginProvidersBusy || (p.enabled && enabledLoginProviderCount <= 1)
+                const providerLabel = loginProviderLabels[p.provider] ?? p.provider
+                return (
+                  <div key={p.provider} className={`${idx === 0 ? '' : 'border-t border-cz-border'} px-3 py-3`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-cz-text">{providerLabel}</div>
+                        <div className="text-xs text-cz-text-muted">
+                          {isPasswordProvider
+                            ? 'Email and password login for local accounts.'
+                            : p.provider === 'github'
+                              ? 'GitHub OAuth App'
+                              : p.provider === 'google'
+                                ? 'Google OAuth 2.0'
+                                : `${p.provider} OAuth`}
+                        </div>
+                      </div>
+                      <ToggleSwitch
+                        checked={p.enabled}
+                        disabled={toggleDisabled}
+                        onChange={(checked) => {
+                          setLoginProviders((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, enabled: checked } : item)),
+                          )
+                          setProviderTestResults((prev) => {
+                            const next = { ...prev }
+                            delete next[p.provider]
+                            return next
+                          })
+                        }}
+                        ariaLabel={`Enable ${p.provider}`}
+                      />
+                    </div>
+                    {!isPasswordProvider && p.enabled && (
+                      <div className="mt-3 space-y-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-xs text-cz-text-muted">Client ID</label>
+                            <input
+                              type="text"
+                              value={p.clientId}
+                              onChange={(e) => {
+                                setLoginProviders((prev) =>
+                                  prev.map((item, i) => (i === idx ? { ...item, clientId: e.target.value } : item)),
+                                )
+                                setProviderTestResults((prev) => {
+                                  const next = { ...prev }
+                                  delete next[p.provider]
+                                  return next
+                                })
+                              }}
+                              placeholder="Client ID"
+                              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-cz-text-muted">Client Secret</label>
+                            <input
+                              type="password"
+                              value={p.clientSecret}
+                              onChange={(e) => {
+                                setLoginProviders((prev) =>
+                                  prev.map((item, i) => (i === idx ? { ...item, clientSecret: e.target.value } : item)),
+                                )
+                                setProviderTestResults((prev) => {
+                                  const next = { ...prev }
+                                  delete next[p.provider]
+                                  return next
+                                })
+                              }}
+                              placeholder={p.hasCredentials ? '••••••••' : 'Client Secret'}
+                              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={!canTest || testStatus === 'testing'}
+                            onClick={() => {
+                              void testProvider(p.provider, p.clientId, p.clientSecret || '__keep__')
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                          >
+                            {testStatus === 'testing' && <RefreshCw size={12} className="animate-spin" />}
+                            {testStatus === 'ok' && <Check size={12} className="text-green-400" />}
+                            {testStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                          </button>
+                          {testStatus === 'ok' && <span className="text-xs text-green-400">Credentials valid</span>}
+                          {testStatus === 'fail' && <span className="text-xs text-red-300">{testError ?? 'Test failed'}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {loginProvidersDirty && !allEnabledProvidersTested && (
+              <div className="mt-2 text-xs text-cz-text-muted">Test all enabled providers before saving.</div>
+            )}
+            {loginProvidersError && <div className="mt-2 text-sm text-red-300">{loginProvidersError}</div>}
+          </section>
+
+          {/* Stranded users dialog */}
+          <PopupDialog
+            open={strandedDialog !== null}
+            title={strandedDialog?.kind === 'error' ? 'Cannot Disable Provider' : 'Users Will Lose Access'}
+            message={strandedDialog?.message}
+            panelWidth="lg"
+            actions={
+              strandedDialog?.kind === 'error'
+                ? [{ label: 'OK', onClick: () => setStrandedDialog(null), variant: 'primary' as const }]
+                : [
+                    {
+                      label: 'Save Anyway',
+                      onClick: () => { void saveLoginProviders(true) },
+                      variant: 'danger' as const,
+                      disabled: !strandedCsvDownloaded || strandedConfirmText.toLowerCase() !== 'i understand',
+                    },
+                  ]
+            }
+            dismiss={strandedDialog ? { label: 'Cancel', onClick: () => setStrandedDialog(null) } : undefined}
+          >
+            {strandedDialog?.kind === 'warning' && (
+              <div className="space-y-3">
+                <p className="text-sm text-cz-text-muted">
+                  {strandedDialog.strandedCount} user{strandedDialog.strandedCount === 1 ? "'s" : "s'"} only login method is being disabled. They will not be able to log in until you help them recover their account.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { void downloadStrandedCsv(strandedDialog.strandedUserIds) }}
+                  className="inline-flex items-center gap-2 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text hover:bg-cz-surface-hover"
+                >
+                  {strandedCsvDownloaded ? <Check size={14} /> : null}
+                  {strandedCsvDownloaded ? 'Downloaded' : 'Download stranded users CSV'}
+                </button>
+                {strandedCsvDownloaded && (
+                  <div>
+                    <label className="mb-1 block text-xs text-cz-text-muted">
+                      Type &quot;I understand&quot; to confirm you will help these users recover their accounts.
+                    </label>
+                    <input
+                      type="text"
+                      value={strandedConfirmText}
+                      onChange={(e) => setStrandedConfirmText(e.target.value)}
+                      placeholder="I understand"
+                      className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </PopupDialog>
 
           <section id="admin-section-monitoring" ref={(node) => { sectionRefs.current.monitoring = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center justify-between">

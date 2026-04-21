@@ -27,7 +27,7 @@
   --toolbar-height: 44px;
 }
 
-:root[data-theme='dark'] {
+:root[data-appearance='dark'] {
   --color-cz-bg: #0a0a0f;
   --color-cz-surface: #12121a;
   --color-cz-surface-hover: #1a1a25;
@@ -40,7 +40,7 @@
   --color-cz-accent-muted: rgba(99, 102, 241, 0.12);
 }
 
-:root[data-theme='light'] {
+:root[data-appearance='light'] {
   --color-cz-bg: #f6f7fb;
   --color-cz-surface: #ffffff;
   --color-cz-surface-hover: #f2f4fb;

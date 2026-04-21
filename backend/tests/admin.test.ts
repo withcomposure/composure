@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp, createTestUser, createTestSession, sessionCookie } from './helpers/setup.js'
+import { sql } from '../src/db/connection.js'
 
 let app: FastifyInstance
 
@@ -180,5 +181,75 @@ describe('admin — invite tokens', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json().invites).toBeDefined()
+  })
+})
+
+describe('admin — login providers', () => {
+  it('includes password provider in login provider list', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/login-providers',
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const passwordProvider = res.json().providers.find((p: { provider: string }) => p.provider === 'password')
+    expect(passwordProvider).toBeDefined()
+    expect(passwordProvider.enabled).toBe(true)
+  })
+
+  it('rejects updates that would disable all login providers', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/login-providers',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: {
+        providers: [{ provider: 'password', enabled: false }],
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toMatch(/at least one login provider/i)
+  })
+
+  it('does not strand users with null password hash when disabling password provider', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+    const passwordOnlyUser = await createTestUser({ email: 'password-only@test.com' })
+    const oauthOnlyUser = await createTestUser({ email: 'oauth-only@test.com' })
+
+    await sql`
+      INSERT INTO oauth_providers (provider, enabled, client_id, client_secret, updated_at)
+      VALUES ('github', true, 'test-client-id', 'test-client-secret', extract(epoch from now())::integer)
+      ON CONFLICT (provider) DO UPDATE SET
+        enabled = EXCLUDED.enabled,
+        client_id = EXCLUDED.client_id,
+        client_secret = EXCLUDED.client_secret,
+        updated_at = EXCLUDED.updated_at
+    `
+
+    await sql`UPDATE users SET password_hash = NULL WHERE id = ${oauthOnlyUser.id}`
+    await sql`
+      INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+      VALUES ('oauth-account-admin-stranded-id', ${oauthOnlyUser.id}, 'github', 'github-provider-id-admin-stranded', ${oauthOnlyUser.email}, extract(epoch from now())::integer)
+    `
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/login-providers/check-stranded',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { providersToDisable: ['password'] },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { strandedUserIds: string[] }
+    expect(body.strandedUserIds).toContain(passwordOnlyUser.id)
+    expect(body.strandedUserIds).not.toContain(oauthOnlyUser.id)
   })
 })

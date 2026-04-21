@@ -2253,6 +2253,7 @@ export function ProjectWorkspace({
         sidebarWidthRef,
         setIsResizingSidebar,
         setSidebarWidth,
+        setSidebarOpen,
       }),
     [startResizeDrag],
   );
@@ -2265,6 +2266,7 @@ export function ProjectWorkspace({
         layoutRef,
         setIsResizingPreview,
         setPreviewWidth,
+        setPreviewOpen,
       }),
     [previewWidth, startResizeDrag],
   );
@@ -2928,12 +2930,13 @@ export function ProjectWorkspace({
                   width: cornerHitSizePx,
                   height: cornerHitSizePx,
                   cursor: "move",
+                  pointerEvents: "auto",
                 }}
-                className="absolute z-40 -translate-x-1/2 -translate-y-1/2 rounded-sm"
-                onMouseEnter={() => {
+                className="absolute z-40 -translate-x-1/2 -translate-y-1/2"
+                onPointerEnter={() => {
                   setHoveredCornerKey(corner.key);
                 }}
-                onMouseLeave={() => {
+                onPointerLeave={() => {
                   setHoveredCornerKey((prev) =>
                     prev === corner.key ? null : prev,
                   );

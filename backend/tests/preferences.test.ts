@@ -13,6 +13,7 @@ describe('user preferences', () => {
 
   it('returns defaults for null userId', async () => {
     const prefs = await getUserPreferences(null)
+    expect(prefs.theme).toBe('default')
     expect(prefs.autoSaveOnCompile).toBe(true)
     expect(prefs.autoSaveOnExport).toBe(true)
     expect(prefs.autoCompileTimeoutSeconds).toBe(2)
@@ -26,6 +27,7 @@ describe('user preferences', () => {
 
   it('returns defaults for non-existent userId', async () => {
     const prefs = await getUserPreferences(userId)
+    expect(prefs.theme).toBe('default')
     expect(prefs.autoSaveOnCompile).toBe(true)
     expect(prefs.autoSaveOnExport).toBe(true)
     expect(prefs.autoCompileTimeoutSeconds).toBe(2)
@@ -82,6 +84,20 @@ describe('user preferences', () => {
       await updateUserPreferences(userId, { autoSaveOnExport: true })
       const prefs = await getUserPreferences(userId)
       expect(prefs.autoSaveOnExport).toBe(true)
+    })
+  })
+
+  describe('theme', () => {
+    it('persists a valid theme id', async () => {
+      await updateUserPreferences(userId, { theme: 'ocean' })
+      const prefs = await getUserPreferences(userId)
+      expect(prefs.theme).toBe('ocean')
+    })
+
+    it('normalizes invalid theme ids to default', async () => {
+      await updateUserPreferences(userId, { theme: '  !invalid#theme  ' })
+      const prefs = await getUserPreferences(userId)
+      expect(prefs.theme).toBe('default')
     })
   })
 

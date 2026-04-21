@@ -45,7 +45,7 @@ export function ProfileMenu({
       <button
         type="button"
         onClick={() => onLogin?.()}
-        className="inline-flex items-center gap-2 rounded-md border border-cz-border px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+        className="whitespace-nowrap inline-flex items-center gap-2 rounded-md border border-cz-border px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
       >
         <LogIn size={13} />
         Log in

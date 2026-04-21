@@ -34,6 +34,14 @@ function normalizeDashboardLayout(layout: unknown): 'grid' | 'list' {
   return layout === 'list' ? 'list' : 'grid'
 }
 
+function normalizeThemeId(theme: unknown): string {
+  if (typeof theme !== 'string') return 'default'
+  const normalized = theme.trim().toLowerCase()
+  if (!normalized) return 'default'
+  if (!/^[a-z0-9-]+$/.test(normalized)) return 'default'
+  return normalized
+}
+
 function normalizePinnedProjectIds(input: unknown): string[] {
   if (!Array.isArray(input)) return []
   const result: string[] = []
@@ -53,6 +61,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
   if (!userId) {
     return {
       appearance: 'system',
+      theme: 'default',
       recentItemsLimit: 10,
       autoCompileDefault: false,
       autoCompileTimeoutSeconds: 2,
@@ -72,7 +81,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
   }
 
   const [row] = await sql`
-    SELECT appearance, recent_items_limit, auto_compile_default, auto_compile_timeout_seconds,
+    SELECT appearance, theme, recent_items_limit, auto_compile_default, auto_compile_timeout_seconds,
            editor_brace_matching, editor_highlight_selection_matches, editor_in_editor_find, editor_autocomplete,
            editor_auto_close_latex_begin_end,
            dashboard_sort_by, dashboard_layout, pinned_project_ids, quick_access_pinned_limit,
@@ -85,6 +94,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
   if (!row) {
     return {
       appearance: 'system',
+      theme: 'default',
       recentItemsLimit: 10,
       autoCompileDefault: false,
       autoCompileTimeoutSeconds: 2,
@@ -112,6 +122,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
 
   return {
     appearance: row.appearance as 'light' | 'dark' | 'system',
+    theme: normalizeThemeId(row.theme),
     recentItemsLimit: normalizeRecentLimit(row.recent_items_limit as number),
     autoCompileDefault: row.auto_compile_default as boolean,
     autoCompileTimeoutSeconds: normalizeAutoCompileTimeout((row.auto_compile_timeout_seconds as number) ?? 2),
@@ -132,6 +143,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
 
 export async function updateUserPreferences(userId: string, patch: {
   appearance?: 'light' | 'dark' | 'system'
+  theme?: string
   recentItemsLimit?: number
   autoCompileDefault?: boolean
   autoCompileTimeoutSeconds?: number
@@ -151,6 +163,9 @@ export async function updateUserPreferences(userId: string, patch: {
   const current = await getUserPreferences(userId)
   const next: UserPreferences = {
     appearance: patch.appearance ?? current.appearance,
+    theme: patch.theme != null
+      ? normalizeThemeId(patch.theme)
+      : current.theme,
     recentItemsLimit: patch.recentItemsLimit != null
       ? normalizeRecentLimit(patch.recentItemsLimit)
       : current.recentItemsLimit,
@@ -188,6 +203,7 @@ export async function updateUserPreferences(userId: string, patch: {
     INSERT INTO user_preferences (
         user_id,
         appearance,
+        theme,
         recent_items_limit,
         auto_compile_default,
         auto_compile_timeout_seconds,
@@ -205,9 +221,10 @@ export async function updateUserPreferences(userId: string, patch: {
         auto_save_on_export,
         updated_at
       )
-    VALUES (${userId}, ${next.appearance}, ${next.recentItemsLimit}, ${next.autoCompileDefault}, ${next.autoCompileTimeoutSeconds}, ${next.editorBraceMatching}, ${next.editorHighlightSelectionMatches}, ${next.editorInEditorFind}, ${next.editorAutocomplete}, ${next.editorAutoCloseLatexBeginEnd}, ${next.dashboardSortBy}, ${next.dashboardLayout}, ${JSON.stringify(next.pinnedProjectIds)}, ${next.quickAccessPinnedLimit}, ${next.autoVersionIntervalMinutes}, ${next.autoSaveOnCompile}, ${next.autoSaveOnExport}, extract(epoch from now())::integer)
+    VALUES (${userId}, ${next.appearance}, ${next.theme}, ${next.recentItemsLimit}, ${next.autoCompileDefault}, ${next.autoCompileTimeoutSeconds}, ${next.editorBraceMatching}, ${next.editorHighlightSelectionMatches}, ${next.editorInEditorFind}, ${next.editorAutocomplete}, ${next.editorAutoCloseLatexBeginEnd}, ${next.dashboardSortBy}, ${next.dashboardLayout}, ${JSON.stringify(next.pinnedProjectIds)}, ${next.quickAccessPinnedLimit}, ${next.autoVersionIntervalMinutes}, ${next.autoSaveOnCompile}, ${next.autoSaveOnExport}, extract(epoch from now())::integer)
     ON CONFLICT(user_id)
     DO UPDATE SET appearance = excluded.appearance,
+            theme = excluded.theme,
                   recent_items_limit = excluded.recent_items_limit,
                   auto_compile_default = excluded.auto_compile_default,
                   auto_compile_timeout_seconds = excluded.auto_compile_timeout_seconds,

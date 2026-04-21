@@ -68,7 +68,7 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border border-cz-border text-cz-text hover:bg-cz-surface-hover transition-all"
+        className="flex items-center gap-1.5 rounded-md h-7 px-2 text-xs font-medium border border-cz-border text-cz-text hover:bg-cz-surface-hover transition-all"
         title="File version history"
         aria-label="File version history"
         aria-haspopup="menu"

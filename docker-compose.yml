@@ -18,6 +18,8 @@ services:
       DATA_DIR: /app/data
       DATABASE_URL: ${DATABASE_URL:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      BACKEND_URL: ${BACKEND_URL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
       API_BASE_PATH: ${API_BASE_PATH:-/api}
       SERVE_FRONTEND: ${SERVE_FRONTEND:-true}
       COMPILERS: http://compiler-1:4000,http://compiler-2:4000

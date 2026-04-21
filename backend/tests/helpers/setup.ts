@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import type { FastifyInstance } from 'fastify'
 import { connectDatabase, applySchema, sql } from '../../src/db/connection.js'
+import { runMigrations } from '../../src/db/migrate.js'
 import { buildApp } from '../../src/app.js'
 import { createToken, createUid } from '../../src/ids.js'
 import type { SessionUser } from '../../src/db/types.js'
@@ -38,6 +39,7 @@ export async function resetTestDatabase(): Promise<void> {
   connectDatabase({ max: 5 })
   await sql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
   await applySchema(sql)
+  await runMigrations()
 }
 
 /**

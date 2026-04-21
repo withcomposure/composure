@@ -49,10 +49,18 @@ import {
   updateUserPasswordHash,
   updateUserRole,
   updateUserSuspended,
+  listOAuthProviders,
+  upsertOAuthProvider,
+  getPasswordLoginEnabled,
+  setPasswordLoginEnabled,
+  getStrandedUserCounts,
+  getStrandedUserDetails,
 } from './db/index.js'
 import { isValidEmail, isValidUserId } from './security.js'
+import { parseUrlEnv } from './env.js'
 
 const sessionCookieName = 'composure_session'
+const frontendUrl = parseUrlEnv(process.env.FRONTEND_URL)
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -83,6 +91,8 @@ function normalizeRole(value: unknown): 'user' | 'admin' | null {
 }
 
 function getRequestOrigin(req: FastifyRequest): string {
+  if (frontendUrl) return frontendUrl
+
   const originHeader = req.headers.origin
   const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
   if (typeof origin === 'string' && origin.trim().length > 0) {
@@ -709,4 +719,194 @@ export async function listRecentJobsRoute(
   if (!ensureAdmin(req, reply)) return
   const seconds = Math.max(60, Math.min(86400, Number.parseInt(String(req.query?.seconds ?? '86400'), 10) || 86400))
   reply.send({ jobs: await listRecentJobs(seconds), health: await getHealthStatus(seconds) })
+}
+
+// ---------------------------------------------------------------------------
+// Login providers routes (admin)
+// ---------------------------------------------------------------------------
+
+export async function getLoginProvidersRoute(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!ensureAdmin(req, reply)) return
+  const providers = await listOAuthProviders()
+  const passwordEnabled = await getPasswordLoginEnabled()
+  reply.send({
+    providers: [
+      { provider: 'password', enabled: passwordEnabled, hasCredentials: true },
+      ...providers.map((p) => ({
+        provider: p.provider,
+        enabled: p.enabled,
+        hasCredentials: Boolean(p.client_id && p.client_secret),
+        clientId: p.client_id ?? '',
+      })),
+    ],
+  })
+}
+
+interface UpdateLoginProvidersBody {
+  providers: Array<{
+    provider: string
+    enabled: boolean
+    clientId?: string
+    clientSecret?: string
+  }>
+}
+
+export async function updateLoginProvidersRoute(
+  req: FastifyRequest<{ Body: UpdateLoginProvidersBody }>,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!ensureAdmin(req, reply)) return
+
+  const items = req.body?.providers
+  if (!Array.isArray(items)) {
+    reply.status(400).send({ error: 'providers array is required' })
+    return
+  }
+
+  const existingProviders = await listOAuthProviders()
+  const nextOAuthEnabled = new Map(existingProviders.map((provider) => [provider.provider, provider.enabled]))
+  let passwordEnabled = await getPasswordLoginEnabled()
+
+  for (const item of items) {
+    if (item.provider === 'password') {
+      passwordEnabled = Boolean(item.enabled)
+      continue
+    }
+    nextOAuthEnabled.set(item.provider, Boolean(item.enabled))
+  }
+
+  const enabledProviderCount =
+    (passwordEnabled ? 1 : 0) + Array.from(nextOAuthEnabled.values()).filter((enabled) => enabled).length
+
+  if (enabledProviderCount === 0) {
+    reply.status(400).send({ error: 'At least one login provider must remain enabled.' })
+    return
+  }
+
+  for (const item of items) {
+    if (item.provider === 'password') {
+      continue
+    }
+
+    await upsertOAuthProvider(
+      item.provider,
+      item.enabled,
+      item.clientId ?? null,
+      item.clientSecret ?? null,
+    )
+  }
+
+  await setPasswordLoginEnabled(passwordEnabled)
+
+  reply.send({ ok: true })
+}
+
+export async function checkStrandedUsersRoute(
+  req: FastifyRequest<{ Body: { providersToDisable: string[] } }>,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!ensureAdmin(req, reply)) return
+
+  const providersToDisable = req.body?.providersToDisable
+  if (!Array.isArray(providersToDisable)) {
+    reply.status(400).send({ error: 'providersToDisable array is required' })
+    return
+  }
+
+  const { strandedUserIds, totalUsers } = await getStrandedUserCounts(providersToDisable)
+
+  // Check if admin themselves would be stranded
+  const adminStranded = req.authUser ? strandedUserIds.includes(req.authUser.id) : false
+
+  reply.send({
+    strandedCount: strandedUserIds.length,
+    totalUsers,
+    adminStranded,
+    allStranded: strandedUserIds.length === totalUsers,
+    strandedUserIds,
+  })
+}
+
+export async function getStrandedUsersCsvRoute(
+  req: FastifyRequest<{ Body: { userIds: string[] } }>,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!ensureAdmin(req, reply)) return
+
+  const userIds = req.body?.userIds
+  if (!Array.isArray(userIds)) {
+    reply.status(400).send({ error: 'userIds array is required' })
+    return
+  }
+
+  const details = await getStrandedUserDetails(userIds)
+  const csv = ['id,email,displayName', ...details.map((d) => `${d.id},${d.email},"${d.displayName.replace(/"/g, '""')}"`)].join('\n')
+
+  reply.header('Content-Type', 'text/csv')
+  reply.header('Content-Disposition', 'attachment; filename="stranded-users.csv"')
+  reply.send(csv)
+}
+
+interface TestProviderBody {
+  provider: string
+  clientId: string
+  clientSecret: string
+}
+
+export async function testLoginProviderRoute(
+  req: FastifyRequest<{ Body: TestProviderBody }>,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!ensureAdmin(req, reply)) return
+
+  const { provider, clientId, clientSecret } = req.body ?? {}
+  if (!provider || !clientId || !clientSecret) {
+    reply.status(400).send({ error: 'provider, clientId and clientSecret are required' })
+    return
+  }
+
+  try {
+    if (provider === 'github') {
+      const res = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code: '__test__' }),
+      })
+      const body = (await res.json()) as { error?: string }
+      if (body.error === 'bad_verification_code') {
+        reply.send({ ok: true })
+        return
+      }
+      reply.send({ ok: false, error: body.error ?? 'Unknown error from GitHub' })
+      return
+    }
+
+    if (provider === 'google') {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: '__test__',
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: 'https://localhost/callback',
+          grant_type: 'authorization_code',
+        }),
+      })
+      const body = (await res.json()) as { error?: string; error_description?: string }
+      if (body.error === 'invalid_grant' || body.error === 'redirect_uri_mismatch') {
+        reply.send({ ok: true })
+        return
+      }
+      reply.send({ ok: false, error: body.error_description ?? body.error ?? 'Unknown error from Google' })
+      return
+    }
+
+    reply.status(400).send({ error: `Unknown provider: ${provider}` })
+  } catch (err) {
+    reply.send({ ok: false, error: err instanceof Error ? err.message : 'Connection failed' })
+  }
 }

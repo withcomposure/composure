@@ -16,16 +16,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         ws: true,
-        changeOrigin: true,
       },
       '/v1': {
         target: 'http://localhost:8080',
         ws: true,
-        changeOrigin: true,
       },
       '/assets': {
         target: 'http://localhost:8080',
-        changeOrigin: true,
       },
     },
   },

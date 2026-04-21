@@ -37,6 +37,28 @@ import {
   loadDashboardPreferences,
   saveDashboardPreferences,
 } from '@/dashboard/dashboard-prefs'
+import { applyTheme } from '@/themes/apply-theme'
+import { DEFAULT_THEME_ID } from '@/themes/themes'
+
+const authErrorMessages: Record<string, string> = {
+  link_session_mismatch: 'Linking could not be completed because your session was not recognized. Please try again.',
+  link_user_not_found: 'The account used to start linking no longer exists. Sign in again and retry.',
+  provider_already_linked: 'This provider is already linked to another account.',
+  invalid_state: 'Authentication state validation failed. Please retry the sign-in flow.',
+  state_expired: 'Authentication took too long and expired. Please retry.',
+  exchange_failed: 'Failed to complete provider authentication. Please try again.',
+  provider_not_configured: 'This login provider is not configured correctly on the server.',
+  missing_code_or_state: 'Authentication callback was incomplete. Please retry.',
+  unknown_provider: 'Unknown login provider.',
+  account_suspended_or_conflict: 'Sign-in failed due to account conflict or suspension.',
+}
+
+function providerLabel(provider: string): string {
+  if (provider === 'github') return 'GitHub'
+  if (provider === 'google') return 'Google'
+  if (provider === 'password') return 'Password'
+  return provider
+}
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
@@ -53,6 +75,7 @@ export default function App() {
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>([])
   const [preferences, setPreferences] = useState<UserPreferences>({
     appearance: 'system',
+    theme: DEFAULT_THEME_ID,
     recentItemsLimit: 10,
     autoCompileDefault: false,
     autoCompileTimeoutSeconds: 2,
@@ -147,6 +170,7 @@ export default function App() {
     } catch {
       setPreferences({
         appearance: 'system',
+        theme: DEFAULT_THEME_ID,
         recentItemsLimit: 10,
         autoCompileDefault: false,
         autoCompileTimeoutSeconds: 2,
@@ -297,16 +321,25 @@ export default function App() {
   }, [projects, sharedProjects])
 
   useEffect(() => {
-    const root = document.documentElement
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const effective =
-      preferences.appearance === 'system'
-        ? systemDark
-          ? 'dark'
-          : 'light'
-        : preferences.appearance
-    root.dataset.theme = effective
-  }, [preferences.appearance])
+    applyTheme(preferences.theme ?? DEFAULT_THEME_ID, preferences.appearance)
+  }, [preferences.theme, preferences.appearance])
+
+  useEffect(() => {
+    if (preferences.appearance !== 'system') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onSystemAppearanceChange = () => {
+      applyTheme(preferences.theme ?? DEFAULT_THEME_ID, 'system')
+    }
+
+    media.addEventListener('change', onSystemAppearanceChange)
+
+    return () => {
+      media.removeEventListener('change', onSystemAppearanceChange)
+    }
+  }, [preferences.theme, preferences.appearance])
 
   useEffect(() => {
     if (sessionLoading) return
@@ -551,6 +584,30 @@ export default function App() {
     setPopupInput('')
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const authError = params.get('auth_error')
+    const linkedProvider = params.get('oauth_linked')
+    if (!authError && !linkedProvider) {
+      return
+    }
+
+    if (authError) {
+      openAlertPopup(
+        authErrorMessages[authError] ?? 'Authentication provider action failed. Please try again.',
+        'Authentication Error',
+      )
+    } else if (linkedProvider) {
+      openAlertPopup(`${providerLabel(linkedProvider)} linked successfully.`, 'Login Provider Linked')
+    }
+
+    params.delete('auth_error')
+    params.delete('oauth_linked')
+    const nextQuery = params.toString()
+    const nextUrl = `${window.location.pathname}${nextQuery.length > 0 ? `?${nextQuery}` : ''}${window.location.hash}`
+    history.replaceState(null, '', nextUrl)
+  }, [openAlertPopup, route.kind])
+
   const closePopup = useCallback(() => {
     if (popupBusy) return
     setPopup(null)
@@ -745,6 +802,7 @@ export default function App() {
         userCount={session?.userCount ?? 0}
         signupMode={session?.signupMode ?? 'open'}
         initialMode={authEntryMode}
+        enabledLoginProviders={session?.enabledLoginProviders ?? []}
         inviteToken={route.kind === 'invite' ? route.token : undefined}
         resetToken={route.kind === 'reset-password' ? route.token : undefined}
         resetEmail={route.kind === 'reset-password' ? passwordResetEmail ?? undefined : undefined}

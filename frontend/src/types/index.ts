@@ -47,6 +47,7 @@ export type DashboardLayout = 'grid' | 'list'
 
 export interface UserPreferences {
   appearance: 'light' | 'dark' | 'system'
+  theme: string
   recentItemsLimit: number
   autoCompileDefault: boolean
   autoCompileTimeoutSeconds: number
@@ -89,6 +90,7 @@ export interface AuthSession {
   userCount: number
   signupMode: 'open' | 'invite-only'
   guestSignupsEnabled: boolean
+  enabledLoginProviders: string[]
 }
 
 export type RouteState =

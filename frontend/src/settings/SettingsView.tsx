@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, AlertTriangle, Camera, History, Lock, Palette, Shield, Type, User } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Camera, History, KeyRound, Lock, Palette, Shield, Type, User } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { BackToProjectsButton } from './BackToProjectsButton'
+import { CustomDropdown } from '@/components/CustomDropdown'
 import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'
+import { PopupDialog } from '@/components/PopupDialog'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { SideDrawer } from '@/components/SideDrawer'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { useSectionObserver } from '@/hooks/use-section-observer'
+import { THEMES } from '@/themes/themes'
 import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
-import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { apiUrl, fetchJson, getErrorMessage } from '@/utils/fetch'
 import { fmtTime } from '@/utils/format-time'
 import { navigateToAdmin, navigateToProjects } from '@/utils/route'
 import {
@@ -41,6 +44,19 @@ const settingsSectionItems: Array<{ id: SettingsSectionId; label: string; icon: 
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ]
 
+const providerLabels: Record<string, string> = {
+  password: 'Password',
+  github: 'GitHub',
+  google: 'Google',
+}
+
+const themeOptions = THEMES.map((theme) => ({
+  value: theme.id,
+  label: theme.label,
+  icon: Palette,
+  iconColor: theme.swatch,
+}))
+
 export function SettingsView({
   session,
   preferences,
@@ -54,12 +70,8 @@ export function SettingsView({
   onBeginAuthFlow,
   onLogout,
 }: SettingsViewProps) {
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false)
   const [profileName, setProfileName] = useState(session?.user?.displayName ?? '')
   const [profileEmail, setProfileEmail] = useState(session?.user?.email ?? '')
@@ -76,6 +88,141 @@ export function SettingsView({
   })
 
   useSectionObserver(sectionRefs, setActiveSection)
+
+  // Login providers state
+  interface LinkedProvider {
+    provider: string
+    email: string | null
+  }
+  const [availableProviders, setAvailableProviders] = useState<string[]>([])
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([])
+  const [providersBusy, setProvidersBusy] = useState<string | null>(null)
+  const [providersError, setProvidersError] = useState<string | null>(null)
+  const [passwordDialogMode, setPasswordDialogMode] = useState<'enable' | 'change' | null>(null)
+  const [passwordCurrentValue, setPasswordCurrentValue] = useState('')
+  const [passwordNewValue, setPasswordNewValue] = useState('')
+  const [passwordConfirmValue, setPasswordConfirmValue] = useState('')
+  const [passwordDialogBusy, setPasswordDialogBusy] = useState(false)
+  const [passwordDialogError, setPasswordDialogError] = useState<string | null>(null)
+
+  const loadProviders = useCallback(async () => {
+    try {
+      const res = await fetchJson<{
+        providers: Array<{ provider: string; enabled: boolean }>
+        linked: Array<{ provider: string; email: string | null }>
+      }>('/auth/providers')
+      const enabledProviderSet = new Set(res.providers.filter((p) => p.enabled).map((p) => p.provider))
+      const orderedProviders = Array.from(enabledProviderSet).sort((a, b) => {
+        if (a === 'password') return -1
+        if (b === 'password') return 1
+        return a.localeCompare(b)
+      })
+      setAvailableProviders(orderedProviders)
+      setLinkedProviders(res.linked.filter((provider) => enabledProviderSet.has(provider.provider)))
+    } catch {
+      // silent
+    }
+  }, [])
+
+  useEffect(() => {
+    if (session?.authenticated) {
+      void loadProviders()
+    }
+  }, [session?.authenticated, loadProviders])
+
+  const unlinkProvider = useCallback(async (provider: string) => {
+    setProvidersBusy(provider)
+    setProvidersError(null)
+    try {
+      await fetchJson(`/auth/via/${provider}/unlink`, { method: 'DELETE' })
+      await loadProviders()
+    } catch (err) {
+      setProvidersError(getErrorMessage(err))
+    } finally {
+      setProvidersBusy(null)
+    }
+  }, [loadProviders])
+
+  const disablePasswordProvider = useCallback(async () => {
+    setProvidersBusy('password')
+    setProvidersError(null)
+    try {
+      await fetchJson('/auth/password', { method: 'DELETE' })
+      await loadProviders()
+    } catch (err) {
+      setProvidersError(getErrorMessage(err))
+    } finally {
+      setProvidersBusy(null)
+    }
+  }, [loadProviders])
+
+  const openChangePasswordDialog = useCallback(() => {
+    setPasswordDialogMode('change')
+    setPasswordCurrentValue('')
+    setPasswordNewValue('')
+    setPasswordConfirmValue('')
+    setPasswordDialogError(null)
+  }, [])
+
+  const openEnablePasswordDialog = useCallback(() => {
+    setPasswordDialogMode('enable')
+    setPasswordCurrentValue('')
+    setPasswordNewValue('')
+    setPasswordConfirmValue('')
+    setPasswordDialogError(null)
+  }, [])
+
+  const closePasswordDialog = useCallback(() => {
+    if (passwordDialogBusy) return
+    setPasswordDialogMode(null)
+    setPasswordCurrentValue('')
+    setPasswordNewValue('')
+    setPasswordConfirmValue('')
+    setPasswordDialogError(null)
+  }, [passwordDialogBusy])
+
+  const submitPasswordDialog = useCallback(async () => {
+    if (!passwordDialogMode) return
+
+    const current = passwordCurrentValue.trim()
+    const password = passwordNewValue
+    const confirm = passwordConfirmValue
+
+    if (passwordDialogMode === 'change' && current.length === 0) {
+      setPasswordDialogError('Current password is required.')
+      return
+    }
+
+    if (password.length < 8) {
+      setPasswordDialogError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== confirm) {
+      setPasswordDialogError('Password and confirmation do not match.')
+      return
+    }
+
+    setPasswordDialogBusy(true)
+    setPasswordDialogError(null)
+    setProvidersError(null)
+    try {
+      await fetchJson<{ ok: boolean }>('/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          passwordDialogMode === 'change'
+            ? { currentPassword: current, newPassword: password }
+            : { newPassword: password },
+        ),
+      })
+      closePasswordDialog()
+      await loadProviders()
+    } catch (err) {
+      setPasswordDialogError(getErrorMessage(err))
+    } finally {
+      setPasswordDialogBusy(false)
+    }
+  }, [passwordDialogMode, passwordCurrentValue, passwordNewValue, passwordConfirmValue, closePasswordDialog, loadProviders])
 
   useEffect(() => {
     setProfileName(session?.user?.displayName ?? '')
@@ -96,11 +243,6 @@ export function SettingsView({
     hasProfileChanges &&
     normalizedProfileName.length >= 2 &&
     /^\S+@\S+\.\S+$/.test(normalizedProfileEmail)
-  const canSubmitPassword =
-    currentPassword.trim().length > 0 &&
-    newPassword.trim().length >= 8 &&
-    confirmPassword.trim().length > 0 &&
-    newPassword === confirmPassword
 
   const updateProfile = useCallback(async () => {
     setBusy(true)
@@ -118,52 +260,6 @@ export function SettingsView({
       setBusy(false)
     }
   }, [profileEmail, profileName, profileImageUrl, onSessionChange])
-
-  const changePassword = useCallback(async () => {
-    if (!session?.authenticated) return
-    const current = currentPassword.trim()
-    const next = newPassword.trim()
-    const confirmation = confirmPassword.trim()
-
-    if (!current) {
-      setPasswordError('Enter your current password.')
-      return
-    }
-    if (!next) {
-      setPasswordError('Enter a new password.')
-      return
-    }
-    if (next.length < 8) {
-      setPasswordError('New password must be at least 8 characters.')
-      return
-    }
-    if (!confirmation) {
-      setPasswordError('Confirm your new password.')
-      return
-    }
-    if (next !== confirmation) {
-      setPasswordError('New password and confirmation do not match.')
-      return
-    }
-
-    setBusy(true)
-    setGlobalError(null)
-    setPasswordError(null)
-    try {
-      await fetchJson<{ ok: boolean }>('/auth/password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      })
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch (err) {
-      setPasswordError(getErrorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }, [session?.authenticated, currentPassword, newPassword, confirmPassword])
 
   const logout = useCallback(async () => {
     setBusy(true)
@@ -395,47 +491,97 @@ export function SettingsView({
 
             {session?.authenticated ? (
               <>
-                <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Change password</div>
-                <div className="mb-4 rounded-lg border border-cz-border bg-cz-bg/50 p-4">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                      placeholder="Current password"
-                      className="rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-                    />
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                      placeholder="New password"
-                      className="rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-                    />
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      placeholder="Confirm new password"
-                      className="rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-                    />
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wider text-cz-text-muted">
+                    <KeyRound size={12} /> Login methods
                   </div>
-                  {passwordError && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-red-300">
-                      <AlertCircle size={14} />
-                      {passwordError}
+                  {availableProviders.length > 0 ? (
+                    <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/50">
+                      {availableProviders.map((provider, index) => {
+                        const linked = linkedProviders.find((lp) => lp.provider === provider)
+                        const linkedMethodCount = linkedProviders.filter((lp) => availableProviders.includes(lp.provider)).length
+                        const canRemoveLinkedProvider = linkedMethodCount > 1
+                        const isPasswordProvider = provider === 'password'
+                        const providerLabel = providerLabels[provider] ?? provider
+                        return (
+                          <div key={provider} className={`flex items-center justify-between gap-3 px-3 py-3 ${index === 0 ? '' : 'border-t border-cz-border'}`}>
+                            <div className="min-w-0">
+                              <div className="text-sm text-cz-text">{providerLabel}</div>
+                              {linked && (
+                                <div className="text-xs text-cz-text-muted">
+                                  {isPasswordProvider ? 'Linked to your account password.' : linked.email ?? 'Linked'}
+                                </div>
+                              )}
+                            </div>
+                            {linked ? (
+                              isPasswordProvider ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={openChangePasswordDialog}
+                                    disabled={providersBusy === provider || passwordDialogBusy}
+                                    className="rounded border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                                  >
+                                    Change Password
+                                  </button>
+                                  {canRemoveLinkedProvider && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { void disablePasswordProvider() }}
+                                      disabled={providersBusy === provider}
+                                      className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                                    >
+                                      {providersBusy === provider ? 'Disabling...' : 'Disable'}
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => { void unlinkProvider(provider) }}
+                                  disabled={providersBusy === provider || !canRemoveLinkedProvider}
+                                  className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {providersBusy === provider ? 'Unlinking...' : 'Unlink'}
+                                </button>
+                              )
+                            ) : (
+                              isPasswordProvider ? (
+                                <button
+                                  type="button"
+                                  onClick={openEnablePasswordDialog}
+                                  className="rounded-md bg-cz-accent px-2 py-1 text-xs text-white hover:bg-cz-accent-hover"
+                                >
+                                  Enable
+                                </button>
+                              ) : (
+                                <a
+                                  href={apiUrl(`/auth/via/${provider}/link`)}
+                                  className="rounded-md bg-cz-accent px-2 py-1 text-xs text-white hover:bg-cz-accent-hover"
+                                >
+                                  Link
+                                </a>
+                              )
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-cz-border bg-cz-bg/50 px-3 py-3 text-sm text-cz-text-muted">
+                      No additional login providers are configured on this server.
                     </div>
                   )}
-                  <button
-                    onClick={changePassword}
-                    disabled={busy || !canSubmitPassword}
-                    className={`mt-3 rounded-md px-3 py-2 text-sm transition ${canSubmitPassword ? 'bg-cz-accent text-white hover:bg-cz-accent-hover disabled:opacity-60' : 'border border-cz-border text-cz-text-muted'}`}
-                  >
-                    Update password
-                  </button>
+
+                  {providersError && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-red-300">
+                      <AlertCircle size={14} />
+                      {providersError}
+                    </div>
+                  )}
                 </div>
 
-                <div>
+                <div className="mt-5">
                   <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Active sessions</div>
                   <div className="overflow-hidden rounded-xl border border-cz-border bg-cz-bg/40">
                     {sessions.map((item) => (
@@ -465,15 +611,16 @@ export function SettingsView({
               <div className="text-sm text-cz-text-muted">Log in to manage security settings and sessions.</div>
             )}
           </section>
+
           <section id="appearance" ref={(node) => { sectionRefs.current.appearance = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium">
               <Palette size={14} /> Appearance
             </div>
-            <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Theme</div>
+            <div className="mb-2 text-xs uppercase tracking-wider text-cz-text-muted">Display</div>
             <div className="rounded-md border border-cz-border bg-cz-bg/50 px-3 py-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="text-sm text-cz-text">Display mode</div>
+                  <div className="text-sm text-cz-text">Dark mode</div>
                   <div className="text-xs text-cz-text-muted">Choose a light or dark appearance across the app.</div>
                 </div>
                 <SegmentedControl
@@ -486,6 +633,21 @@ export function SettingsView({
                   }}
                   ariaLabel="Display mode"
                 />
+              </div>
+
+              <div className="mt-3 border-t border-cz-border pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-cz-text">Theme</div>
+                  <CustomDropdown
+                    value={preferences.theme ?? 'default'}
+                    options={themeOptions}
+                    onChange={(nextTheme) => {
+                      void onUpdatePreferences({ theme: nextTheme }).catch(() => {
+                        setGlobalError('Something went wrong. Please try again.')
+                      })
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -717,25 +879,101 @@ export function SettingsView({
             </div>
           </section>
 
-          <section id="danger" ref={(node) => { sectionRefs.current.danger = node }} className="scroll-mt-6 rounded-xl border border-cz-border bg-cz-surface p-5">
+          <section id="danger" ref={(node) => { sectionRefs.current.danger = node }} className="scroll-mt-6 rounded-xl border border-red-400/60 bg-cz-surface p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-red-300">
               <AlertTriangle size={14} /> Danger Zone
             </div>
             <div className="rounded-lg border border-cz-border bg-cz-bg/50 p-4">
-              <div className="text-sm font-medium">Delete account</div>
-              <div className="mt-1 text-xs text-cz-text-muted">
-                Permanently deletes your account, signs you out of all sessions, and soft-deletes projects you own.
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium">Delete account</div>
+                  <div className="mt-1 text-xs text-cz-text-muted">
+                    Permanently deletes your account, signs you out of all sessions, and soft-deletes projects you own.
+                  </div>
+                </div>
+                <button
+                  onClick={onDeleteAccount}
+                  className="shrink-0 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20"
+                >
+                  Delete account
+                </button>
               </div>
-              <button
-                onClick={onDeleteAccount}
-                className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20"
-              >
-                Delete account
-              </button>
             </div>
           </section>
         </div>
         </main>
+
+        <PopupDialog
+          open={passwordDialogMode !== null}
+          title={passwordDialogMode === 'change' ? 'Change Password' : 'Enable Password Login'}
+          dismiss={{
+            label: 'Cancel',
+            onClick: closePasswordDialog,
+            disabled: passwordDialogBusy,
+          }}
+          actions={[
+            {
+              label: passwordDialogBusy
+                ? (passwordDialogMode === 'change' ? 'Updating...' : 'Enabling...')
+                : (passwordDialogMode === 'change' ? 'Update Password' : 'Enable Password'),
+              onClick: () => {
+                void submitPasswordDialog()
+              },
+              variant: 'primary',
+              disabled: passwordDialogBusy,
+            },
+          ]}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-cz-text-muted mb-7">
+              {passwordDialogMode === 'change'
+                ? 'Enter your current password, then set a new one.'
+                : 'Set a password for your account to enable password login.'}
+            </p>
+            {passwordDialogMode === 'change' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium uppercase tracking-wider text-cz-text-muted" htmlFor="password-current-input">
+                  Current password
+                </label>
+                <input
+                  id="password-current-input"
+                  type="password"
+                  value={passwordCurrentValue}
+                  onChange={(event) => setPasswordCurrentValue(event.target.value)}
+                  className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  disabled={passwordDialogBusy}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium uppercase tracking-wider text-cz-text-muted" htmlFor="password-new-input">
+                New password
+              </label>
+              <input
+                id="password-new-input"
+                type="password"
+                value={passwordNewValue}
+                onChange={(event) => setPasswordNewValue(event.target.value)}
+                className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                disabled={passwordDialogBusy}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium uppercase tracking-wider text-cz-text-muted" htmlFor="password-confirm-input">
+                Confirm password
+              </label>
+              <input
+                id="password-confirm-input"
+                type="password"
+                value={passwordConfirmValue}
+                onChange={(event) => setPasswordConfirmValue(event.target.value)}
+                className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                disabled={passwordDialogBusy}
+              />
+            </div>
+            {passwordDialogError && <div className="text-sm text-red-300">{passwordDialogError}</div>}
+          </div>
+        </PopupDialog>
       </div>
     </div>
   )

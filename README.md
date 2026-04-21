@@ -42,6 +42,8 @@ docker compose -f docker-compose.yml -f docker-compose.db.yml up --build
 
 For split mode, copy `.env.split.example` to `.env.split` and set at least:
 - `CORS_ORIGIN=https://your-app.pages.dev`
+- `BACKEND_URL=https://api.yourdomain.com`
+- `FRONTEND_URL=https://your-app.pages.dev`
 - `API_BASE_PATH=/`
 - `SERVE_FRONTEND=false`
 
@@ -103,6 +105,8 @@ Use this when frontend and backend are separate services:
 Recommended app env alignment:
 - Backend: `SERVE_FRONTEND=false`
 - Backend: `CORS_ORIGIN=https://${COMPOSURE_APP_DOMAIN}`
+- Backend: `BACKEND_URL=https://${COMPOSURE_API_DOMAIN}`
+- Backend: `FRONTEND_URL=https://${COMPOSURE_APP_DOMAIN}`
 - Backend: `API_BASE_PATH=/` (or `/api`, but then include that in `VITE_API_URL`)
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}` when `API_BASE_PATH=/`
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}/api` when `API_BASE_PATH=/api`
@@ -160,6 +164,8 @@ Useful for split deployments where frontend is on Cloudflare Pages, Vercel, Netl
 Recommended backend env alignment:
 - `SERVE_FRONTEND=false`
 - `CORS_ORIGIN=https://${COMPOSURE_FRONTEND_ORIGIN}`
+- `BACKEND_URL=https://${COMPOSURE_API_DOMAIN}`
+- `FRONTEND_URL=https://${COMPOSURE_FRONTEND_ORIGIN}`
 - `API_BASE_PATH=/` (common for split mode) or `/api`
 - Ensure frontend `VITE_API_URL` points to this API origin (including any API base path).
 

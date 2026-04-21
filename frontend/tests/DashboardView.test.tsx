@@ -51,6 +51,7 @@ function makeSession(): AuthSession {
     userCount: 2,
     signupMode: 'open',
     guestSignupsEnabled: true,
+    enabledLoginProviders: [],
   }
 }
 

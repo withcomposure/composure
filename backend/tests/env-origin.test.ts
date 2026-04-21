@@ -4,6 +4,7 @@ import {
   normalizeOriginHeader,
   parseBooleanEnv,
   parseTrustedOrigins,
+  parseUrlEnv,
 } from '../src/env.js'
 
 describe('parseBooleanEnv', () => {
@@ -108,5 +109,38 @@ describe('isTrustedRequestOrigin', () => {
       trustedOrigins: trusted,
     })
     expect(allowed).toBe(true)
+  })
+})
+
+describe('parseUrlEnv', () => {
+  it('returns null for undefined or empty values', () => {
+    expect(parseUrlEnv(undefined)).toBeNull()
+    expect(parseUrlEnv('')).toBeNull()
+    expect(parseUrlEnv('   ')).toBeNull()
+  })
+
+  it('parses valid http and https URLs and returns only the origin', () => {
+    expect(parseUrlEnv('https://example.com')).toBe('https://example.com')
+    expect(parseUrlEnv('http://localhost:8080')).toBe('http://localhost:8080')
+    expect(parseUrlEnv('https://app.pages.dev/')).toBe('https://app.pages.dev')
+  })
+
+  it('strips paths and returns only the origin', () => {
+    expect(parseUrlEnv('https://example.com/some/path')).toBe('https://example.com')
+    expect(parseUrlEnv('http://localhost:5173/api')).toBe('http://localhost:5173')
+  })
+
+  it('trims whitespace', () => {
+    expect(parseUrlEnv('  https://example.com  ')).toBe('https://example.com')
+  })
+
+  it('rejects non-http protocols', () => {
+    expect(parseUrlEnv('ftp://example.com')).toBeNull()
+    expect(parseUrlEnv('file:///etc/passwd')).toBeNull()
+  })
+
+  it('rejects invalid URLs', () => {
+    expect(parseUrlEnv('not-a-url')).toBeNull()
+    expect(parseUrlEnv('://missing-protocol')).toBeNull()
   })
 })
