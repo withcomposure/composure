@@ -1,9 +1,118 @@
 import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
+import { getRequestContext, runWithTransactionContext, type RequestUserRole } from './request-context.js'
 
 const databaseUrl = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
 
 export let sql: postgres.Sql
+let rawSql: postgres.Sql
+
+type SqlClient = postgres.Sql | postgres.TransactionSql
+
+interface IdentityInput {
+  userId: string | null
+  userRole: RequestUserRole | 'system'
+}
+
+function resolveCurrentIdentity(): IdentityInput {
+  const store = getRequestContext()
+  if (!store) {
+    return { userId: null, userRole: 'system' }
+  }
+
+  return {
+    userId: store.userId,
+    userRole: store.userRole,
+  }
+}
+
+async function withIdentityTransaction<T>(
+  identity: IdentityInput,
+  fn: (client: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  const store = getRequestContext()
+  if (store?.tx) {
+    return await fn(store.tx)
+  }
+
+  if (!rawSql) {
+    throw new Error('Database is not connected.')
+  }
+
+  return (await rawSql.begin(async (tx) => {
+    await tx`SELECT set_config('app.current_user_id', ${identity.userId ?? ''}, true)`
+    await tx`SELECT set_config('app.current_user_role', ${identity.userRole ?? ''}, true)`
+
+    if (!store) {
+      return await fn(tx)
+    }
+
+    return await runWithTransactionContext(tx, async () => await fn(tx))
+  })) as T
+}
+
+async function runContextAware<T>(
+  execute: (client: SqlClient) => Promise<T>,
+): Promise<T> {
+  const store = getRequestContext()
+  if (store?.tx) {
+    return await execute(store.tx)
+  }
+
+  return await withIdentityTransaction(resolveCurrentIdentity(), async (tx) => await execute(tx))
+}
+
+function createContextAwareSql(base: postgres.Sql): postgres.Sql {
+  const callable = base as unknown as (...args: unknown[]) => unknown
+
+  return new Proxy(callable, {
+    apply(_target, _thisArg, argArray) {
+      return runContextAware(async (client) => {
+        const fn = client as unknown as (...args: unknown[]) => Promise<unknown>
+        return await fn(...argArray)
+      })
+    },
+    get(_target, property) {
+      if (typeof property === 'symbol') {
+        return (base as unknown as Record<string | symbol, unknown>)[property]
+      }
+
+      if (property === 'begin') {
+        return async <T>(fn: (tx: postgres.TransactionSql) => Promise<T>): Promise<T> => {
+          return await withIdentityTransaction(resolveCurrentIdentity(), fn)
+        }
+      }
+
+      if (property === 'end') {
+        return base.end.bind(base)
+      }
+
+      if (property === 'reserve') {
+        return base.reserve.bind(base)
+      }
+
+      const baseMember = (base as unknown as Record<string, unknown>)[property]
+      if (typeof baseMember !== 'function') {
+        return baseMember
+      }
+
+      return (...args: unknown[]) => {
+        return runContextAware(async (client) => {
+          const method = (client as unknown as Record<string, unknown>)[property as string]
+          if (typeof method !== 'function') {
+            throw new Error(`sql.${String(property)} is not callable`)
+          }
+          const bound = (method as (...methodArgs: unknown[]) => Promise<unknown>).bind(client)
+          return await bound(...args)
+        })
+      }
+    },
+  }) as unknown as postgres.Sql
+}
+
+export async function withUserTransaction<T>(fn: (tx: postgres.TransactionSql) => Promise<T>): Promise<T> {
+  return await withIdentityTransaction(resolveCurrentIdentity(), fn)
+}
 
 function maskDatabaseUrl(databaseUrl: string): string {
   return databaseUrl.replace(/\/\/.*@/, '//<credentials>@')
@@ -14,7 +123,8 @@ export function connectDatabase(options?: { max?: number }): void {
   if (sql) {
     sql.end({ timeout: 1 }).catch(() => {})
   }
-  sql = postgres(databaseUrl, { ...(options?.max != null && { max: options.max }), transform: { undefined: null } })
+  rawSql = postgres(databaseUrl, { ...(options?.max != null && { max: options.max }), transform: { undefined: null } })
+  sql = createContextAwareSql(rawSql)
 }
 
 /** Apply the full schema to a postgres instance */
@@ -23,20 +133,27 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
+      password_hash TEXT,
       display_name TEXT NOT NULL,
       profile_image_url TEXT,
       role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+      is_guest BOOLEAN NOT NULL DEFAULT FALSE,
+      guest_cookie_id TEXT UNIQUE,
       is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
       max_projects INTEGER,
       last_login_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer
     );
 
-    CREATE TABLE IF NOT EXISTS sessions (
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      family_id TEXT NOT NULL,
+      last_used_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL,
+      rotated_at INTEGER,
+      revoked_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -52,32 +169,28 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
       title TEXT NOT NULL DEFAULT 'Untitled',
       root_file TEXT NOT NULL DEFAULT 'main.tex',
       engine TEXT,
-      owner_user_id TEXT,
-      owner_guest_id TEXT,
+      owner_user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       last_active_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       deleted_at INTEGER,
-      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_projects_owner_user
       ON projects(owner_user_id, last_active_at DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_projects_owner_guest
-      ON projects(owner_guest_id, last_active_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
+      ON refresh_tokens(user_id);
 
-    CREATE INDEX IF NOT EXISTS idx_sessions_user_id
-      ON sessions(user_id);
-
-    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
-      ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires
+      ON refresh_tokens(expires_at);
 
     CREATE TABLE IF NOT EXISTS project_members (
       id SERIAL PRIMARY KEY,
       project_id TEXT NOT NULL,
       user_id TEXT,
       invited_email TEXT,
-      role TEXT NOT NULL CHECK (role IN ('view', 'comment', 'edit')),
+      role TEXT NOT NULL CHECK (role IN ('owner', 'view', 'comment', 'edit')),
       status TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
       invited_by_user_id TEXT,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
@@ -132,14 +245,12 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
       end_line INTEGER,
       parent_comment_id TEXT,
       body TEXT NOT NULL,
-      author_user_id TEXT,
-      author_guest_id TEXT,
+      author_user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       updated_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE SET NULL,
-      FOREIGN KEY (parent_comment_id) REFERENCES project_comments(id) ON DELETE CASCADE,
-      CHECK (author_user_id IS NOT NULL OR author_guest_id IS NOT NULL)
+      FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_comment_id) REFERENCES project_comments(id) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_project_comments_project
@@ -154,57 +265,37 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
     CREATE TABLE IF NOT EXISTS project_recents (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
-      user_id TEXT,
-      guest_id TEXT,
+      user_id TEXT NOT NULL,
       opened_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       share_token TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      CHECK (user_id IS NOT NULL OR guest_id IS NOT NULL)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_project_recents_user_project
       ON project_recents(user_id, project_id)
       WHERE user_id IS NOT NULL;
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_project_recents_guest_project
-      ON project_recents(guest_id, project_id)
-      WHERE guest_id IS NOT NULL;
-
     CREATE INDEX IF NOT EXISTS idx_project_recents_user_opened
       ON project_recents(user_id, opened_at DESC)
       WHERE user_id IS NOT NULL;
 
-    CREATE INDEX IF NOT EXISTS idx_project_recents_guest_opened
-      ON project_recents(guest_id, opened_at DESC)
-      WHERE guest_id IS NOT NULL;
-
     CREATE TABLE IF NOT EXISTS project_workspace_states (
       project_id TEXT NOT NULL,
-      user_id TEXT,
-      guest_id TEXT,
+      user_id TEXT NOT NULL,
       state_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      CHECK (user_id IS NOT NULL OR guest_id IS NOT NULL)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_states_user_project
       ON project_workspace_states(project_id, user_id)
       WHERE user_id IS NOT NULL;
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_states_guest_project
-      ON project_workspace_states(project_id, guest_id)
-      WHERE guest_id IS NOT NULL;
-
     CREATE INDEX IF NOT EXISTS idx_workspace_states_user_updated
       ON project_workspace_states(user_id, updated_at DESC)
       WHERE user_id IS NOT NULL;
-
-    CREATE INDEX IF NOT EXISTS idx_workspace_states_guest_updated
-      ON project_workspace_states(guest_id, updated_at DESC)
-      WHERE guest_id IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS user_preferences (
       user_id TEXT PRIMARY KEY,
@@ -311,13 +402,6 @@ export async function initDatabase(): Promise<void> {
   if (stalledOnRestart.count > 0) {
     console.info(`[db] marked ${stalledOnRestart.count} in-flight jobs as stalled on startup`)
   }
-
-  // Claim unowned legacy projects for a pseudo guest owner so they remain visible.
-  await sql`
-    UPDATE projects
-    SET owner_guest_id = 'legacy:' || id
-    WHERE owner_user_id IS NULL AND owner_guest_id IS NULL
-  `
 
   scheduleCleanupTasks(sql)
   console.info('[db] schema-ready and cleanup tasks scheduled')

@@ -3,14 +3,14 @@ import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastif
 import type { Principal, SessionUser } from './db/index.js'
 import {
   countUsers,
-  createSession,
   createUser,
   countUserAuthMethods,
   deleteUserAccount,
-  deleteSession,
-  deleteUserSession,
   disableUserPasswordAuthMethod,
   findUserByEmail,
+  findUserById,
+  findOrCreateGuestUserByCookieId,
+  findGuestUserByCookieId,
   getEnabledOAuthProviders,
   getGuestSignupsEnabled,
   getInviteTokenState,
@@ -18,14 +18,20 @@ import {
   getPasswordResetTokenState,
   getSignupMode,
   getUserPreferences,
-  listSessionsForUser,
+  listRefreshTokensForUser,
   markInviteTokenUsed,
   markPasswordResetTokenUsed,
   markUserLoggedIn,
   migrateGuestProjectsToUser,
   migrateGuestRecentsToUser,
   migrateGuestWorkspaceStatesToUser,
-  resolveSession,
+  redeemShareTokenForUser,
+  revokeAllUserRefreshTokens,
+  revokeRefreshTokenByRawToken,
+  revokeUserRefreshToken,
+  findActiveRefreshTokenId,
+  rotateRefreshToken,
+  issueRefreshToken,
   softDeleteProjectsOwnedByUser,
   updatePendingInvitesForUser,
   updateUserPasswordHash,
@@ -33,20 +39,36 @@ import {
   updateUserDisplayName,
   updateUserEmail,
   updateUserProfileImage,
+  setRequestIdentity,
 } from './db/index.js'
-import { areOriginsSameSite, inferRequestOrigin, isProductionEnv, parseUrlEnv } from './env.js'
+import {
+  areOriginsSameSite,
+  inferRequestOrigin,
+  isProductionEnv,
+  isTrustedRequestOrigin,
+  parseTrustedOrigins,
+  parseUrlEnv,
+} from './env.js'
 import { createUid } from './ids.js'
 import { isValidEmail } from './security.js'
+import {
+  getRefreshTokenTtlSeconds,
+  setJwtIssuer,
+  signAccessToken,
+  verifyAccessToken,
+  tokenExpiresInSeconds,
+} from './auth/jwt.js'
+import { pathnameFromRawUrl } from './routing.js'
 
 const isProd = isProductionEnv(process.env.NODE_ENV)
 
 export const GUEST_COOKIE_NAME = 'guest_id'
-export const SESSION_COOKIE_NAME = 'composure_session'
+export const ACCESS_COOKIE_NAME = 'composure_access'
+export const REFRESH_COOKIE_NAME = 'composure_refresh'
 
 const guestCookieMaxAgeSeconds = 90 * 24 * 60 * 60
-const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
 const maxAvatarImageBytes = Number.parseInt(process.env.MAX_AVATAR_IMAGE_BYTES ?? '262144', 10)
-let warnedSessionNoneWithoutSecure = false
+let warnedAuthNoneWithoutSecure = false
 let warnedGuestNoneWithoutSecure = false
 
 type CookieSameSite = 'strict' | 'lax' | 'none'
@@ -111,7 +133,7 @@ function shouldUseCrossSiteCookies(req: FastifyRequest): boolean {
 function normalizeSameSiteForRequest(
   req: FastifyRequest,
   value: CookieSameSite,
-  kind: 'session' | 'guest',
+  kind: 'auth' | 'guest',
 ): CookieSameSite {
   if (value !== 'none') {
     return value
@@ -121,9 +143,9 @@ function normalizeSameSiteForRequest(
     return value
   }
 
-  if (kind === 'session' && !warnedSessionNoneWithoutSecure) {
+  if (kind === 'auth' && !warnedAuthNoneWithoutSecure) {
     console.warn('[auth] SESSION_COOKIE_SAME_SITE=none requires HTTPS in production; falling back to SameSite=lax.')
-    warnedSessionNoneWithoutSecure = true
+    warnedAuthNoneWithoutSecure = true
   }
 
   if (kind === 'guest' && !warnedGuestNoneWithoutSecure) {
@@ -134,17 +156,17 @@ function normalizeSameSiteForRequest(
   return 'lax'
 }
 
-function resolveCookieSameSite(req: FastifyRequest, kind: 'session' | 'guest'): CookieSameSite {
-  const envName = kind === 'session' ? 'SESSION_COOKIE_SAME_SITE' : 'GUEST_COOKIE_SAME_SITE'
+function resolveCookieSameSite(req: FastifyRequest, kind: 'auth' | 'guest'): CookieSameSite {
+  const envName = kind === 'auth' ? 'SESSION_COOKIE_SAME_SITE' : 'GUEST_COOKIE_SAME_SITE'
   const override = parseCookieSameSiteEnv(process.env[envName], envName)
 
-  const defaultValue: CookieSameSite = kind === 'session' ? 'lax' : 'strict'
+  const defaultValue: CookieSameSite = kind === 'auth' ? 'lax' : 'strict'
   const autoValue = shouldUseCrossSiteCookies(req) ? 'none' : defaultValue
   return normalizeSameSiteForRequest(req, override ?? autoValue, kind)
 }
 
-export function getSessionCookieSameSite(req: FastifyRequest): CookieSameSite {
-  return resolveCookieSameSite(req, 'session')
+export function getAuthCookieSameSite(req: FastifyRequest): CookieSameSite {
+  return resolveCookieSameSite(req, 'auth')
 }
 
 function getGuestCookieSameSite(req: FastifyRequest): CookieSameSite {
@@ -166,6 +188,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     authUser: SessionUser | null
     principal: Principal
+    currentRefreshTokenId?: string | null
   }
 }
 
@@ -252,15 +275,165 @@ export function maybeSetGuestCookie(req: FastifyRequest, reply: FastifyReply, al
   return guestId
 }
 
+function parseBearerToken(req: FastifyRequest): string | null {
+  const header = req.headers.authorization
+  if (!header) {
+    return null
+  }
+
+  const value = Array.isArray(header) ? header[0] : header
+  if (!value) {
+    return null
+  }
+
+  const match = /^Bearer\s+(.+)$/i.exec(value.trim())
+  return match?.[1]?.trim() || null
+}
+
+function getAccessTokenFromRequest(req: FastifyRequest): { token: string | null; source: 'cookie' | 'header' | null } {
+  const cookieToken = getCookieValue(req, ACCESS_COOKIE_NAME)?.trim()
+  if (cookieToken) {
+    return { token: cookieToken, source: 'cookie' }
+  }
+
+  const bearer = parseBearerToken(req)
+  if (bearer) {
+    return { token: bearer, source: 'header' }
+  }
+
+  return { token: null, source: null }
+}
+
+function isIdentityRequiredRoute(req: FastifyRequest): boolean {
+  const path = pathnameFromRawUrl(req.url)
+  if (path === '/health') {
+    return false
+  }
+
+  if (
+    path.endsWith('/auth/session')
+    || path.endsWith('/auth/login')
+    || path.endsWith('/auth/signup')
+    || path.endsWith('/auth/providers')
+    || path.includes('/auth/password-reset/')
+    || path.includes('/auth/via/')
+    || path.endsWith('/templates')
+  ) {
+    return false
+  }
+
+  return true
+}
+
+function getShareTokenFromRequest(req: FastifyRequest): string | undefined {
+  const headerValueRaw = req.headers['x-share-token']
+  const headerValue = typeof headerValueRaw === 'string' ? headerValueRaw : undefined
+  const query = req.query as { share?: string } | undefined
+  const queryValue = typeof query?.share === 'string' ? query.share : undefined
+  return headerValue ?? queryValue
+}
+
+function clearAuthCookies(reply: FastifyReply): void {
+  reply.clearCookie(ACCESS_COOKIE_NAME, { path: '/' })
+  reply.clearCookie(REFRESH_COOKIE_NAME, { path: '/' })
+}
+
+function setAuthCookies(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: {
+    accessToken: string
+    accessExpiresAt: number
+    refreshToken: string
+    refreshExpiresAt: number
+  },
+): void {
+  const sameSite = getAuthCookieSameSite(req)
+  const secure = shouldUseSecureCookies(req)
+
+  reply.setCookie(ACCESS_COOKIE_NAME, input.accessToken, {
+    httpOnly: true,
+    sameSite,
+    maxAge: tokenExpiresInSeconds(input.accessExpiresAt),
+    secure,
+    path: '/',
+  })
+
+  reply.setCookie(REFRESH_COOKIE_NAME, input.refreshToken, {
+    httpOnly: true,
+    sameSite,
+    maxAge: tokenExpiresInSeconds(input.refreshExpiresAt),
+    secure,
+    path: '/',
+  })
+}
+
+async function issueAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
+  const access = await signAccessToken(userId)
+  const refresh = await issueRefreshToken(userId, getRefreshTokenTtlSeconds())
+  setAuthCookies(req, reply, {
+    accessToken: access.token,
+    accessExpiresAt: access.expiresAt,
+    refreshToken: refresh.token,
+    refreshExpiresAt: refresh.expiresAt,
+  })
+}
+
+function shouldEnforceCsrf(req: FastifyRequest): boolean {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return false
+  }
+  return Boolean(getCookieValue(req, ACCESS_COOKIE_NAME) || getCookieValue(req, REFRESH_COOKIE_NAME))
+}
+
+function isCsrfOriginAllowed(req: FastifyRequest): boolean {
+  const trustedOrigins = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
+  return isTrustedRequestOrigin({
+    originHeader: req.headers.origin,
+    hostHeader: req.headers.host,
+    forwardedProtoHeader: req.headers['x-forwarded-proto'],
+    trustedOrigins,
+  })
+}
+
+async function resolveAccessUser(req: FastifyRequest): Promise<{ user: SessionUser | null; source: 'cookie' | 'header' | null }> {
+  const { token, source } = getAccessTokenFromRequest(req)
+  if (!token) {
+    return { user: null, source: null }
+  }
+
+  const payload = await verifyAccessToken(token)
+  if (!payload?.sub || typeof payload.sub !== 'string') {
+    return { user: null, source }
+  }
+
+  const user = await findUserById(payload.sub)
+  if (!user) {
+    return { user: null, source }
+  }
+
+  return { user, source }
+}
+
 export async function resolvePrincipalFromCookieHeader(cookieHeader: string | undefined): Promise<Principal> {
   const cookies = parseCookieHeader(cookieHeader)
   const guestId = cookies[GUEST_COOKIE_NAME] ?? null
-  const sessionId = cookies[SESSION_COOKIE_NAME]
 
-  if (sessionId) {
-    const user = await resolveSession(sessionId)
-    if (user) {
-      return { userId: user.id, guestId }
+  const accessToken = cookies[ACCESS_COOKIE_NAME]
+  if (accessToken) {
+    const payload = await verifyAccessToken(accessToken)
+    if (payload?.sub && typeof payload.sub === 'string') {
+      const user = await findUserById(payload.sub)
+      if (user) {
+        return { userId: user.id, guestId }
+      }
+    }
+  }
+
+  if (guestId) {
+    const guestUser = await findGuestUserByCookieId(guestId)
+    if (guestUser) {
+      return { userId: guestUser.id, guestId }
     }
   }
 
@@ -268,20 +441,78 @@ export async function resolvePrincipalFromCookieHeader(cookieHeader: string | un
 }
 
 export const authHook: preHandlerHookHandler = async (req, reply) => {
+  const backendUrl = parseUrlEnv(process.env.BACKEND_URL)
+  if (backendUrl) {
+    setJwtIssuer(backendUrl)
+  } else {
+    setJwtIssuer(inferRequestOrigin({
+      hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
+      forwardedProtoHeader: req.headers['x-forwarded-proto'],
+    }) ?? null)
+  }
+
   const guestSignupsEnabled = await getGuestSignupsEnabled()
   const guestId = maybeSetGuestCookie(req, reply, guestSignupsEnabled)
-  const sessionId = getCookieValue(req, SESSION_COOKIE_NAME) ?? ''
 
-  let authUser: SessionUser | null = null
-  if (sessionId) {
-    authUser = await resolveSession(sessionId)
+  const accessResolved = await resolveAccessUser(req)
+  let user = accessResolved.user
+
+  const refreshRaw = getCookieValue(req, REFRESH_COOKIE_NAME)?.trim() ?? ''
+  let currentRefreshTokenId: string | null = null
+
+  if (!user && refreshRaw) {
+    const rotated = await rotateRefreshToken(refreshRaw, getRefreshTokenTtlSeconds())
+    if (rotated.status === 'ok') {
+      const access = await signAccessToken(rotated.user.id)
+      setAuthCookies(req, reply, {
+        accessToken: access.token,
+        accessExpiresAt: access.expiresAt,
+        refreshToken: rotated.token.token,
+        refreshExpiresAt: rotated.token.expiresAt,
+      })
+      user = rotated.user
+      currentRefreshTokenId = rotated.token.id
+    } else {
+      clearAuthCookies(reply)
+      user = null
+    }
+  } else if (refreshRaw) {
+    currentRefreshTokenId = await findActiveRefreshTokenId(refreshRaw)
   }
 
-  req.authUser = authUser
+  if (accessResolved.source === 'cookie' && shouldEnforceCsrf(req) && !isCsrfOriginAllowed(req)) {
+    reply.status(403).send({ error: 'Forbidden (CSRF origin check failed)' })
+    return
+  }
+
+  if (!user && guestId) {
+    user = await findGuestUserByCookieId(guestId)
+  }
+
+  if (!user && guestId && isIdentityRequiredRoute(req) && guestSignupsEnabled) {
+    const guestUser = await findOrCreateGuestUserByCookieId(guestId)
+    user = guestUser
+    await issueAuthCookies(req, reply, guestUser.id)
+    currentRefreshTokenId = null
+  }
+
+  const principalUserId = user?.id ?? null
   req.principal = {
-    userId: authUser?.id ?? null,
+    userId: principalUserId,
     guestId,
   }
+
+  req.authUser = user && !user.isGuest ? user : null
+
+  const role = req.authUser?.role ?? (user?.isGuest ? 'guest' : null)
+  setRequestIdentity(principalUserId, role)
+
+  const shareToken = getShareTokenFromRequest(req)
+  if (shareToken && principalUserId) {
+    await redeemShareTokenForUser(shareToken, principalUserId)
+  }
+
+  req.currentRefreshTokenId = currentRefreshTokenId
 }
 
 async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionResponse> {
@@ -370,26 +601,18 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
     await markInviteTokenUsed(inviteToken)
   }
 
-  const session = await createSession(created.id, sessionMaxAgeSeconds)
+  await issueAuthCookies(req, reply, created.id)
   await markUserLoggedIn(created.id)
-  reply.setCookie(SESSION_COOKIE_NAME, session.id, {
-    httpOnly: true,
-    sameSite: getSessionCookieSameSite(req),
-    maxAge: sessionMaxAgeSeconds,
-    secure: shouldUseSecureCookies(req),
-    path: '/',
-  })
 
-  const guestId = req.principal.guestId
-  if (guestId) {
-    const moved = await migrateGuestProjectsToUser(guestId, created.id)
-    const movedRecents = await migrateGuestRecentsToUser(guestId, created.id)
-    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(guestId, created.id)
-    console.info(`[auth] migrated guest projects guestId=${guestId} userId=${created.id} count=${moved}`)
-    console.info(`[auth] migrated guest recents guestId=${guestId} userId=${created.id} count=${movedRecents}`)
-    console.info(`[auth] migrated guest workspace states guestId=${guestId} userId=${created.id} count=${movedWorkspaceStates}`)
-    reply.clearCookie(GUEST_COOKIE_NAME, { path: '/' })
-    req.principal.guestId = null
+  const principalUserId = req.principal.userId
+  if (principalUserId && principalUserId !== created.id) {
+    const moved = await migrateGuestProjectsToUser(principalUserId, created.id)
+    const movedRecents = await migrateGuestRecentsToUser(principalUserId, created.id)
+    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(principalUserId, created.id)
+    console.info(`[auth] migrated guest projects userId=${principalUserId} targetUserId=${created.id} count=${moved}`)
+    console.info(`[auth] migrated guest recents userId=${principalUserId} targetUserId=${created.id} count=${movedRecents}`)
+    console.info(`[auth] migrated guest workspace states userId=${principalUserId} targetUserId=${created.id} count=${movedWorkspaceStates}`)
+    await deleteUserAccount(principalUserId)
   }
 
   const acceptedInvites = await updatePendingInvitesForUser(created.id, created.email)
@@ -399,6 +622,8 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
 
   req.authUser = created
   req.principal.userId = created.id
+  setRequestIdentity(created.id, created.role)
+  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
 
   reply.status(201).send(await makeSessionPayload(req))
 }
@@ -428,26 +653,18 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
     return
   }
 
-  const session = await createSession(user.id, sessionMaxAgeSeconds)
+  await issueAuthCookies(req, reply, user.id)
   await markUserLoggedIn(user.id)
-  reply.setCookie(SESSION_COOKIE_NAME, session.id, {
-    httpOnly: true,
-    sameSite: getSessionCookieSameSite(req),
-    maxAge: sessionMaxAgeSeconds,
-    secure: shouldUseSecureCookies(req),
-    path: '/',
-  })
 
-  const guestId = req.principal.guestId
-  if (guestId) {
-    const moved = await migrateGuestProjectsToUser(guestId, user.id)
-    const movedRecents = await migrateGuestRecentsToUser(guestId, user.id)
-    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(guestId, user.id)
-    console.info(`[auth] migrated guest projects on-login guestId=${guestId} userId=${user.id} count=${moved}`)
-    console.info(`[auth] migrated guest recents on-login guestId=${guestId} userId=${user.id} count=${movedRecents}`)
-    console.info(`[auth] migrated guest workspace states on-login guestId=${guestId} userId=${user.id} count=${movedWorkspaceStates}`)
-    reply.clearCookie(GUEST_COOKIE_NAME, { path: '/' })
-    req.principal.guestId = null
+  const principalUserId = req.principal.userId
+  if (principalUserId && principalUserId !== user.id) {
+    const moved = await migrateGuestProjectsToUser(principalUserId, user.id)
+    const movedRecents = await migrateGuestRecentsToUser(principalUserId, user.id)
+    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(principalUserId, user.id)
+    console.info(`[auth] migrated guest projects on-login userId=${principalUserId} targetUserId=${user.id} count=${moved}`)
+    console.info(`[auth] migrated guest recents on-login userId=${principalUserId} targetUserId=${user.id} count=${movedRecents}`)
+    console.info(`[auth] migrated guest workspace states on-login userId=${principalUserId} targetUserId=${user.id} count=${movedWorkspaceStates}`)
+    await deleteUserAccount(principalUserId)
   }
 
   const acceptedInvites = await updatePendingInvitesForUser(user.id, user.email)
@@ -461,21 +678,26 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
     displayName: user.display_name,
     profileImageUrl: user.profile_image_url,
     role: user.role,
+    isGuest: false,
   }
   req.principal.userId = user.id
+  setRequestIdentity(user.id, user.role)
+  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
 
   reply.send(await makeSessionPayload(req))
 }
 
 export async function logoutRoute(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const sessionId = getCookieValue(req, SESSION_COOKIE_NAME) ?? ''
-  if (sessionId) {
-    await deleteSession(sessionId)
+  const refreshToken = getCookieValue(req, REFRESH_COOKIE_NAME) ?? ''
+  if (refreshToken) {
+    await revokeRefreshTokenByRawToken(refreshToken)
   }
 
-  reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' })
+  clearAuthCookies(reply)
   req.authUser = null
   req.principal.userId = null
+  req.currentRefreshTokenId = null
+  setRequestIdentity(null, null)
 
   // Keep/refresh guest identity after logout so guest dashboards keep working.
   const guestSignupsEnabled = await getGuestSignupsEnabled()
@@ -635,8 +857,9 @@ export async function listSessionsRoute(req: FastifyRequest, reply: FastifyReply
     return
   }
 
-  const currentSessionId = getCookieValue(req, SESSION_COOKIE_NAME) ?? null
-  const sessions = await listSessionsForUser(req.authUser.id, currentSessionId)
+  const currentSessionId = req.currentRefreshTokenId
+    ?? await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
+  const sessions = await listRefreshTokensForUser(req.authUser.id, currentSessionId)
   reply.send({ sessions })
 }
 
@@ -655,13 +878,14 @@ export async function revokeSessionRoute(
     return
   }
 
-  const currentSessionId = getCookieValue(req, SESSION_COOKIE_NAME) ?? ''
+  const currentSessionId = req.currentRefreshTokenId
+    ?? await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
   if (sessionId === currentSessionId) {
     reply.status(400).send({ error: 'Use log out to end the current session' })
     return
   }
 
-  const removed = await deleteUserSession(req.authUser.id, sessionId)
+  const removed = await revokeUserRefreshToken(req.authUser.id, sessionId)
   if (!removed) {
     reply.status(404).send({ error: 'Session not found' })
     return
@@ -797,9 +1021,12 @@ export async function deleteAccountRoute(
     return
   }
 
-  reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' })
+  await revokeAllUserRefreshTokens(req.authUser.id)
+  clearAuthCookies(reply)
   req.authUser = null
   req.principal.userId = null
+  req.currentRefreshTokenId = null
+  setRequestIdentity(null, null)
   const guestEnabled = await getGuestSignupsEnabled()
   req.principal.guestId = maybeSetGuestCookie(req, reply, guestEnabled)
   reply.send(await makeSessionPayload(req))
@@ -887,14 +1114,7 @@ export async function applyPasswordResetRoute(
     return
   }
 
-  const session = await createSession(user.id, sessionMaxAgeSeconds)
-  reply.setCookie(SESSION_COOKIE_NAME, session.id, {
-    httpOnly: true,
-    sameSite: getSessionCookieSameSite(req),
-    maxAge: sessionMaxAgeSeconds,
-    secure: shouldUseSecureCookies(req),
-    path: '/',
-  })
+  await issueAuthCookies(req, reply, user.id)
 
   req.authUser = {
     id: user.id,
@@ -902,8 +1122,11 @@ export async function applyPasswordResetRoute(
     displayName: user.display_name,
     profileImageUrl: user.profile_image_url,
     role: user.role,
+    isGuest: false,
   }
   req.principal.userId = user.id
+  setRequestIdentity(user.id, user.role)
+  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
 
   reply.send(await makeSessionPayload(req))
 }

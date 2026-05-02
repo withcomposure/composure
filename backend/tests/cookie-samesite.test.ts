@@ -39,7 +39,7 @@ afterEach(() => {
 })
 
 describe('cookie SameSite policy', () => {
-  it('uses strict guest and lax session cookies by default', async () => {
+  it('uses strict guest and lax auth cookies by default', async () => {
     const app = await createTestApp()
     try {
       const sessionRes = await app.inject({ method: 'GET', url: '/api/v1/auth/session' })
@@ -51,8 +51,10 @@ describe('cookie SameSite policy', () => {
         url: '/api/v1/auth/signup',
         payload: { email: 'default-cookie@test.com', password: 'password123', displayName: 'Default Cookie' },
       })
-      const sessionCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_session')
-      expect(sessionCookie).toContain('SameSite=Lax')
+      const accessCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_access')
+      const refreshCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_refresh')
+      expect(accessCookie).toContain('SameSite=Lax')
+      expect(refreshCookie).toContain('SameSite=Lax')
     } finally {
       await app.close()
     }
@@ -73,8 +75,10 @@ describe('cookie SameSite policy', () => {
         url: '/api/v1/auth/signup',
         payload: { email: 'cross-site@test.com', password: 'password123', displayName: 'Cross Site' },
       })
-      const sessionCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_session')
-      expect(sessionCookie).toContain('SameSite=None')
+      const accessCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_access')
+      const refreshCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_refresh')
+      expect(accessCookie).toContain('SameSite=None')
+      expect(refreshCookie).toContain('SameSite=None')
     } finally {
       await app.close()
     }
@@ -97,8 +101,10 @@ describe('cookie SameSite policy', () => {
         url: '/api/v1/auth/signup',
         payload: { email: 'override@test.com', password: 'password123', displayName: 'Override' },
       })
-      const sessionCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_session')
-      expect(sessionCookie).toContain('SameSite=Lax')
+      const accessCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_access')
+      const refreshCookie = findCookie(asCookieList(signupRes.headers['set-cookie']), 'composure_refresh')
+      expect(accessCookie).toContain('SameSite=Lax')
+      expect(refreshCookie).toContain('SameSite=Lax')
     } finally {
       await app.close()
     }

@@ -94,7 +94,7 @@ export async function createProjectRoute(
   req: FastifyRequest<{ Body: CreateProjectBody }>,
   reply: FastifyReply,
 ): Promise<void> {
-  if (!req.principal.userId && !req.principal.guestId) {
+  if (!req.principal.userId) {
     reply.status(401).send({ error: 'Please create an account to continue.' })
     return
   }
@@ -244,8 +244,7 @@ export async function restoreProjectRoute(
   }
 
   // Only owner can restore
-  const isOwner = (req.principal.userId && project.owner_user_id === req.principal.userId)
-    || (req.principal.guestId && project.owner_guest_id === req.principal.guestId)
+  const isOwner = req.principal.userId != null && project.owner_user_id === req.principal.userId
   if (!isOwner) {
     reply.status(403).send({ error: 'Forbidden' })
     return
@@ -272,8 +271,7 @@ export async function permanentDeleteProjectRoute(
     return
   }
 
-  const isOwner = (req.principal.userId && project.owner_user_id === req.principal.userId)
-    || (req.principal.guestId && project.owner_guest_id === req.principal.guestId)
+  const isOwner = req.principal.userId != null && project.owner_user_id === req.principal.userId
   if (!isOwner) {
     reply.status(403).send({ error: 'Forbidden' })
     return

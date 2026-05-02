@@ -4,9 +4,12 @@ import { connectDatabase, applySchema, sql } from '../../src/db/connection.js'
 import { runMigrations } from '../../src/db/migrate.js'
 import { buildApp } from '../../src/app.js'
 import { createToken, createUid } from '../../src/ids.js'
+import { issueRefreshToken } from '../../src/db/refresh-tokens.js'
+import { setJwtIssuer, signAccessToken } from '../../src/auth/jwt.js'
 import type { SessionUser } from '../../src/db/types.js'
 
 const TEST_DB_NAME_PATTERN = /(^|[_-])test([_-]|$)/i
+const testSessionCookies = new Map<string, { accessToken: string; refreshToken: string }>()
 
 /**
  * Guard: ensure DATABASE_URL points to a test-like database.
@@ -48,6 +51,7 @@ export async function resetTestDatabase(): Promise<void> {
  */
 export async function createTestApp(): Promise<FastifyInstance> {
   await resetTestDatabase()
+  testSessionCookies.clear()
   const app = await buildApp({ hocuspocus: null, isProduction: false })
   return app
 }
@@ -72,10 +76,13 @@ export async function createTestUser(overrides: {
   const passwordHash = `${salt}:${hash}`
 
   // Determine role: first user is always admin
-  const [{ count }] = await sql`SELECT COUNT(1)::integer AS count FROM users`
+  const [{ count }] = await sql`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
   const role = count === 0 ? 'admin' : (overrides.role ?? 'user')
 
-  await sql`INSERT INTO users (id, email, password_hash, display_name, role, created_at) VALUES (${id}, ${email}, ${passwordHash}, ${displayName}, ${role}, extract(epoch from now())::integer)`
+  await sql`
+    INSERT INTO users (id, email, password_hash, display_name, role, is_guest, created_at)
+    VALUES (${id}, ${email}, ${passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
+  `
 
   return { id, email, displayName, profileImageUrl: null, role, passwordHash }
 }
@@ -84,12 +91,16 @@ export async function createTestUser(overrides: {
  * Create a session for a user and return the session ID.
  */
 export async function createTestSession(userId: string, maxAgeSeconds = 30 * 24 * 60 * 60): Promise<string> {
-  const sessionId = createUid()
-  const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds
-
-  await sql`INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (${sessionId}, ${userId}, ${expiresAt}, extract(epoch from now())::integer)`
-
-  return sessionId
+  setJwtIssuer('http://localhost')
+  const access = maxAgeSeconds > 0
+    ? await signAccessToken(userId)
+    : { token: 'invalid', expiresAt: 0 }
+  const refresh = await issueRefreshToken(userId, maxAgeSeconds)
+  testSessionCookies.set(refresh.id, {
+    accessToken: access.token,
+    refreshToken: refresh.token,
+  })
+  return refresh.id
 }
 
 /**
@@ -104,11 +115,27 @@ export async function createTestProject(ownerId: string, overrides: {
   const title = overrides.title ?? 'Test Project'
   const rootFile = overrides.rootFile ?? 'main.tex'
 
-  if (overrides.isGuest) {
-    await sql`INSERT INTO projects (id, title, root_file, owner_guest_id, created_at, last_active_at) VALUES (${projectId}, ${title}, ${rootFile}, ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
-  } else {
-    await sql`INSERT INTO projects (id, title, root_file, owner_user_id, created_at, last_active_at) VALUES (${projectId}, ${title}, ${rootFile}, ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
-  }
+  void overrides.isGuest
+  await sql`
+    INSERT INTO projects (id, title, root_file, owner_user_id, created_at, last_active_at)
+    VALUES (${projectId}, ${title}, ${rootFile}, ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+  `
+  await sql`
+    INSERT INTO project_members (
+      project_id,
+      user_id,
+      invited_email,
+      role,
+      status,
+      invited_by_user_id,
+      created_at,
+      updated_at
+    )
+    VALUES (${projectId}, ${ownerId}, NULL, 'owner', 'accepted', ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    ON CONFLICT (project_id, user_id)
+    WHERE user_id IS NOT NULL
+    DO UPDATE SET role = 'owner', status = 'accepted', updated_at = excluded.updated_at
+  `
 
   return projectId
 }
@@ -151,7 +178,12 @@ export async function setTestGuestSignups(enabled: boolean): Promise<void> {
  * Helper to make a request with a session cookie.
  */
 export function sessionCookie(sessionId: string): string {
-  return `composure_session=${sessionId}`
+  const pair = testSessionCookies.get(sessionId)
+  if (!pair) {
+    return `composure_access=invalid; composure_refresh=${sessionId}`
+  }
+
+  return `composure_access=${pair.accessToken}; composure_refresh=${pair.refreshToken}`
 }
 
 /**

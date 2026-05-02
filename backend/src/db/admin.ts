@@ -53,7 +53,8 @@ export async function listUsersForAdmin(search: string): Promise<AdminUserSummar
   }>>`
     SELECT id, email, display_name, role, is_suspended, max_projects, last_login_at, created_at
     FROM users
-    WHERE (${normalized} = '' OR LOWER(email) LIKE ${pattern} OR LOWER(display_name) LIKE ${pattern})
+    WHERE is_guest = FALSE
+      AND (${normalized} = '' OR LOWER(email) LIKE ${pattern} OR LOWER(display_name) LIKE ${pattern})
     ORDER BY created_at DESC
   `
 
@@ -82,7 +83,7 @@ export async function findUserForAdmin(userId: string): Promise<AdminUserSummary
   }?]>`
     SELECT id, email, display_name, role, is_suspended, max_projects, last_login_at, created_at
     FROM users
-    WHERE id = ${userId}
+    WHERE id = ${userId} AND is_guest = FALSE
     LIMIT 1
   `
 

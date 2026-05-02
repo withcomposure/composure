@@ -2,7 +2,7 @@ import { normalizeRelativePath } from '../security.js'
 import { sql } from './connection.js'
 import { findUserById } from './users.js'
 import type { Principal, ProjectRow, ProjectSummary } from './types.js'
-import { guestDisplayName, normalizeTitle, nowUnix } from './internal.js'
+import { normalizeTitle, nowUnix } from './internal.js'
 
 export async function findProjectById(projectId: string): Promise<ProjectRow | null> {
   const [row] = await sql`SELECT * FROM projects WHERE id = ${projectId}`
@@ -11,51 +11,33 @@ export async function findProjectById(projectId: string): Promise<ProjectRow | n
 
 export async function listProjectsForPrincipal(principal: Principal): Promise<ProjectSummary[]> {
   const userId = principal.userId
-  const guestId = principal.guestId
-  if (userId) {
-    const rows = await sql`
-      SELECT p.id, p.title, p.root_file, p.engine, p.created_at, p.last_active_at,
-             (
-               SELECT COUNT(1)::integer
-               FROM project_comments pc
-               WHERE pc.project_id = p.id AND pc.parent_comment_id IS NULL
-             ) AS top_level_comment_count,
-             COALESCE(u.display_name, 'Deleted User') AS owner_display_name,
-             u.profile_image_url AS owner_profile_image_url
-      FROM projects p
-      LEFT JOIN users u ON u.id = p.owner_user_id
-      WHERE owner_user_id = ${userId} AND deleted_at IS NULL
-      ORDER BY last_active_at DESC
-    `
-
-    return rows.map((row) => ({
-      id: row.id as string,
-      title: row.title as string,
-      rootFile: row.root_file as string,
-      engine: row.engine as string | null,
-      createdAt: row.created_at as number,
-      lastActiveAt: row.last_active_at as number,
-      topLevelCommentCount: row.top_level_comment_count as number,
-      ownerType: 'user' as const,
-      ownerDisplayName: row.owner_display_name as string,
-      ownerProfileImageUrl: row.owner_profile_image_url as string | null,
-    }))
-  }
-
-  if (!guestId) {
+  if (!userId) {
     return []
   }
 
   const rows = await sql`
-    SELECT id, title, root_file, engine, created_at, last_active_at,
-           (
-             SELECT COUNT(1)::integer
-             FROM project_comments pc
-             WHERE pc.project_id = projects.id AND pc.parent_comment_id IS NULL
-           ) AS top_level_comment_count
-    FROM projects
-    WHERE owner_guest_id = ${guestId} AND deleted_at IS NULL
-    ORDER BY last_active_at DESC
+    SELECT
+      p.id,
+      p.title,
+      p.root_file,
+      p.engine,
+      p.created_at,
+      p.last_active_at,
+      (
+        SELECT COUNT(1)::integer
+        FROM project_comments pc
+        WHERE pc.project_id = p.id AND pc.parent_comment_id IS NULL
+      ) AS top_level_comment_count,
+      COALESCE(owner.display_name, 'Deleted User') AS owner_display_name,
+      owner.profile_image_url AS owner_profile_image_url,
+      COALESCE(owner.is_guest, FALSE) AS owner_is_guest
+    FROM projects p
+    LEFT JOIN users owner ON owner.id = p.owner_user_id
+    JOIN project_members pm ON pm.project_id = p.id
+    WHERE pm.user_id = ${userId}
+      AND pm.status = 'accepted'
+      AND p.deleted_at IS NULL
+    ORDER BY p.last_active_at DESC
   `
 
   return rows.map((row) => ({
@@ -66,9 +48,9 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
     topLevelCommentCount: row.top_level_comment_count as number,
-    ownerType: 'guest' as const,
-    ownerDisplayName: guestDisplayName(guestId),
-    ownerProfileImageUrl: null,
+    ownerType: (row.owner_is_guest as boolean) ? 'guest' : 'user',
+    ownerDisplayName: row.owner_display_name as string,
+    ownerProfileImageUrl: row.owner_profile_image_url as string | null,
   }))
 }
 
@@ -81,7 +63,9 @@ export async function createProjectForPrincipal(input: {
 }): Promise<ProjectSummary> {
   const { projectId, principal } = input
   const userId = principal.userId
-  const guestId = principal.guestId
+  if (!userId) {
+    throw new Error('Authenticated principal is required to create a project')
+  }
 
   const title = normalizeTitle(input.title)
   const rootFile = normalizeRelativePath(input.rootFile) ?? 'main.tex'
@@ -89,9 +73,28 @@ export async function createProjectForPrincipal(input: {
 
   await sql`
     INSERT INTO projects (
-      id, title, root_file, engine, owner_user_id, owner_guest_id, created_at, last_active_at
-    ) VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${userId}, ${userId ? null : guestId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+      id, title, root_file, engine, owner_user_id, created_at, last_active_at
+    ) VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
   `
+
+  await sql`
+    INSERT INTO project_members (
+      project_id,
+      user_id,
+      invited_email,
+      role,
+      status,
+      invited_by_user_id,
+      created_at,
+      updated_at
+    )
+    VALUES (${projectId}, ${userId}, NULL, 'owner', 'accepted', ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    ON CONFLICT (project_id, user_id)
+    WHERE user_id IS NOT NULL
+    DO UPDATE SET role = 'owner', status = 'accepted', updated_at = excluded.updated_at
+  `
+
+  const owner = await findUserById(userId)
 
   return {
     id: projectId,
@@ -101,9 +104,9 @@ export async function createProjectForPrincipal(input: {
     createdAt: nowUnix(),
     lastActiveAt: nowUnix(),
     topLevelCommentCount: 0,
-    ownerType: userId ? 'user' : 'guest',
-    ownerDisplayName: userId ? ((await findUserById(userId))?.displayName ?? 'User') : guestDisplayName(guestId),
-    ownerProfileImageUrl: userId ? ((await findUserById(userId))?.profileImageUrl ?? null) : null,
+    ownerType: owner?.isGuest ? 'guest' : 'user',
+    ownerDisplayName: owner?.displayName ?? 'User',
+    ownerProfileImageUrl: owner?.profileImageUrl ?? null,
   }
 }
 
@@ -133,13 +136,27 @@ export async function softDeleteProjectsOwnedByUser(userId: string): Promise<num
   return result.count
 }
 
-export async function migrateGuestProjectsToUser(guestId: string, userId: string): Promise<number> {
-  if (!guestId) return 0
+export async function migrateGuestProjectsToUser(fromUserId: string, userId: string): Promise<number> {
+  if (!fromUserId || fromUserId === userId) return 0
 
   const result = await sql`
     UPDATE projects
-    SET owner_user_id = ${userId}, owner_guest_id = NULL, last_active_at = extract(epoch from now())::integer
-    WHERE owner_guest_id = ${guestId} AND deleted_at IS NULL
+    SET owner_user_id = ${userId}, last_active_at = extract(epoch from now())::integer
+    WHERE owner_user_id = ${fromUserId} AND deleted_at IS NULL
+  `
+
+  await sql`
+    DELETE FROM project_members pm
+    USING project_members existing
+    WHERE pm.project_id = existing.project_id
+      AND pm.user_id = ${fromUserId}
+      AND existing.user_id = ${userId}
+  `
+
+  await sql`
+    UPDATE project_members
+    SET user_id = ${userId}, updated_at = extract(epoch from now())::integer
+    WHERE user_id = ${fromUserId}
   `
 
   return result.count
@@ -164,41 +181,29 @@ export async function permanentDeleteProject(projectId: string): Promise<boolean
 
 export async function listTrashForPrincipal(principal: Principal): Promise<Array<ProjectSummary & { deletedAt: number }>> {
   const userId = principal.userId
-  const guestId = principal.guestId
-
-  if (userId) {
-    const rows = await sql`
-      SELECT p.id, p.title, p.root_file, p.engine, p.created_at, p.last_active_at, p.deleted_at,
-             COALESCE(u.display_name, 'Deleted User') AS owner_display_name,
-             u.profile_image_url AS owner_profile_image_url
-      FROM projects p
-      LEFT JOIN users u ON u.id = p.owner_user_id
-      WHERE owner_user_id = ${userId} AND deleted_at IS NOT NULL
-      ORDER BY deleted_at DESC
-    `
-
-    return rows.map((row) => ({
-      id: row.id as string,
-      title: row.title as string,
-      rootFile: row.root_file as string,
-      engine: row.engine as string | null,
-      createdAt: row.created_at as number,
-      lastActiveAt: row.last_active_at as number,
-      topLevelCommentCount: 0,
-      ownerType: 'user' as const,
-      ownerDisplayName: row.owner_display_name as string,
-      ownerProfileImageUrl: row.owner_profile_image_url as string | null,
-      deletedAt: row.deleted_at as number,
-    }))
+  if (!userId) {
+    return []
   }
 
-  if (!guestId) return []
-
   const rows = await sql`
-    SELECT id, title, root_file, engine, created_at, last_active_at, deleted_at
-    FROM projects
-    WHERE owner_guest_id = ${guestId} AND deleted_at IS NOT NULL
-    ORDER BY deleted_at DESC
+    SELECT
+      p.id,
+      p.title,
+      p.root_file,
+      p.engine,
+      p.created_at,
+      p.last_active_at,
+      p.deleted_at,
+      COALESCE(owner.display_name, 'Deleted User') AS owner_display_name,
+      owner.profile_image_url AS owner_profile_image_url,
+      COALESCE(owner.is_guest, FALSE) AS owner_is_guest
+    FROM projects p
+    LEFT JOIN users owner ON owner.id = p.owner_user_id
+    JOIN project_members pm ON pm.project_id = p.id
+    WHERE pm.user_id = ${userId}
+      AND pm.status = 'accepted'
+      AND p.deleted_at IS NOT NULL
+    ORDER BY p.deleted_at DESC
   `
 
   return rows.map((row) => ({
@@ -209,9 +214,9 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
     topLevelCommentCount: 0,
-    ownerType: 'guest' as const,
-    ownerDisplayName: guestDisplayName(guestId),
-    ownerProfileImageUrl: null,
+    ownerType: (row.owner_is_guest as boolean) ? 'guest' : 'user',
+    ownerDisplayName: row.owner_display_name as string,
+    ownerProfileImageUrl: row.owner_profile_image_url as string | null,
     deletedAt: row.deleted_at as number,
   }))
 }

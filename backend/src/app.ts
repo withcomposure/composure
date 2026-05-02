@@ -116,6 +116,8 @@ import {
   resolveApiRouting,
 } from './routing.js'
 import { registerAllStrategies, registerOAuthRoutes } from './auth/oauth.js'
+import { beginRequestContext } from './db/request-context.js'
+import { getJwksResponse } from './auth/jwt.js'
 
 function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
   const filesMap = doc.getMap<string>('files')
@@ -206,6 +208,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(fastifyCookie)
   await app.register(fastifyMultipart)
+  app.addHook('onRequest', async () => {
+    beginRequestContext()
+  })
   app.addHook('preHandler', authHook)
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff')
@@ -243,6 +248,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, async () => ({ status: 'ok', uptime: process.uptime() }))
+
+  app.get('/.well-known/jwks.json', async (_req, reply) => {
+    reply.send(await getJwksResponse())
+  })
 
   // Protected static asset serving for uploaded project files.
   app.get('/assets/:projectId(^[a-f0-9]{32}$)/*', {

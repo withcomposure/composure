@@ -189,7 +189,7 @@ describe('admin — invite tokens', () => {
     expect(url).not.toContain('/#/invite')
   })
 
-  it('ignores untrusted origin headers for invite URLs', async () => {
+  it('rejects untrusted origin headers for cookie-auth invite creation', async () => {
     const admin = await createTestUser({ email: 'admin@test.com' })
     const sessionId = await createTestSession(admin.id)
 
@@ -205,8 +205,7 @@ describe('admin — invite tokens', () => {
       payload: {},
     })
 
-    expect(res.statusCode).toBe(201)
-    expect(res.json().url).toMatch(/^https:\/\/api\.withcomposure\.test\/invite\?token=/)
+    expect(res.statusCode).toBe(403)
   })
 
   it('lists invite tokens', async () => {

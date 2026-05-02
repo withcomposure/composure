@@ -30,7 +30,7 @@ describe('login', () => {
     expect(body.user.email).toBe('user@test.com')
   })
 
-  it('session cookie Max-Age is 30 days in seconds', async () => {
+  it('refresh cookie Max-Age is 30 days in seconds', async () => {
     await app.inject({
       method: 'POST',
       url: '/api/v1/auth/signup',
@@ -45,9 +45,9 @@ describe('login', () => {
 
     const setCookieHeader = res.headers['set-cookie']
     const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader]
-    const sessionCookieVal = cookies.find((c) => c?.includes('composure_session='))
-    expect(sessionCookieVal).toBeDefined()
-    const maxAgeMatch = sessionCookieVal!.match(/Max-Age=(\d+)/)
+    const refreshCookieVal = cookies.find((c) => c?.includes('composure_refresh='))
+    expect(refreshCookieVal).toBeDefined()
+    const maxAgeMatch = refreshCookieVal!.match(/Max-Age=(\d+)/)
     expect(maxAgeMatch).not.toBeNull()
     const maxAge = Number(maxAgeMatch![1])
     // Should be exactly 30 days in seconds (2,592,000)
@@ -128,6 +128,10 @@ describe('login', () => {
     const guestId = '750e8400e29b41d4a716446655440000'
     const owner = await createTestUser({ email: 'owner-recents-login@test.com' })
     const projectId = '22222222bbbbccccddddeeeeeeeeeeee'
+    const guestUserId = 'guestlogin111111111111111111111111'
+
+    await sql`INSERT INTO users (id, email, password_hash, display_name, role, is_guest, guest_cookie_id, created_at)
+       VALUES (${guestUserId}, ${`guest+${guestId}@guest.local`}, ${null}, 'Guest Login', 'user', true, ${guestId}, extract(epoch from now())::integer)`
 
     await app.inject({
       method: 'POST',
@@ -141,8 +145,8 @@ describe('login', () => {
     await sql`INSERT INTO share_tokens (id, project_id, token, role, created_by_user_id, created_at, updated_at)
        VALUES (${'login-share-token-id'}, ${projectId}, ${'login-share-token'}, 'view', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
 
-    await sql`INSERT INTO project_recents (id, project_id, user_id, guest_id, opened_at, share_token)
-       VALUES (${'login-recent-id'}, ${projectId}, ${null}, ${guestId}, extract(epoch from now())::integer, ${'login-share-token'})`
+     await sql`INSERT INTO project_recents (id, project_id, user_id, opened_at, share_token)
+       VALUES (${'login-recent-id'}, ${projectId}, ${guestUserId}, extract(epoch from now())::integer, ${'login-share-token'})`
 
     const res = await app.inject({
       method: 'POST',
@@ -154,13 +158,12 @@ describe('login', () => {
     expect(res.statusCode).toBe(200)
     const userId = res.json().user.id as string
 
-    const [migrated] = await sql`SELECT user_id, guest_id, share_token
+     const [migrated] = await sql`SELECT user_id, share_token
        FROM project_recents
-       WHERE project_id = ${projectId} AND user_id = ${userId}` as unknown as [{ user_id: string | null; guest_id: string | null; share_token: string | null } | undefined]
+       WHERE project_id = ${projectId} AND user_id = ${userId}` as unknown as [{ user_id: string | null; share_token: string | null } | undefined]
 
     expect(migrated).toBeDefined()
     expect(migrated?.user_id).toBe(userId)
-    expect(migrated?.guest_id).toBeNull()
     expect(migrated?.share_token).toBe('login-share-token')
   })
 })

@@ -16,10 +16,9 @@ export async function listProjectComments(projectId: string, filePath?: string):
         c.parent_comment_id,
         c.body,
         c.author_user_id,
-        c.author_guest_id,
         c.created_at,
         c.updated_at,
-        COALESCE(u.display_name, 'Guest') AS author_display_name,
+        COALESCE(u.display_name, 'Deleted User') AS author_display_name,
         COALESCE(u.profile_image_url, NULL) AS author_profile_image_url
        FROM project_comments c
        LEFT JOIN users u ON u.id = c.author_user_id
@@ -36,10 +35,9 @@ export async function listProjectComments(projectId: string, filePath?: string):
         c.parent_comment_id,
         c.body,
         c.author_user_id,
-        c.author_guest_id,
         c.created_at,
         c.updated_at,
-        COALESCE(u.display_name, 'Guest') AS author_display_name,
+        COALESCE(u.display_name, 'Deleted User') AS author_display_name,
         COALESCE(u.profile_image_url, NULL) AS author_profile_image_url
        FROM project_comments c
        LEFT JOIN users u ON u.id = c.author_user_id
@@ -56,7 +54,7 @@ export async function listProjectComments(projectId: string, filePath?: string):
     parentCommentId: row.parent_comment_id as string | null,
     body: row.body as string,
     authorUserId: row.author_user_id as string | null,
-    authorGuestId: row.author_guest_id as string | null,
+    authorGuestId: null,
     authorDisplayName: row.author_display_name as string,
     authorProfileImageUrl: row.author_profile_image_url as string | null,
     createdAt: row.created_at as number,
@@ -100,8 +98,8 @@ export async function addProjectComment(input: {
 
   await sql`
     INSERT INTO project_comments (
-      id, project_id, file_path, start_line, end_line, parent_comment_id, body, author_user_id, author_guest_id, created_at, updated_at
-    ) VALUES (${id}, ${input.projectId}, ${normalizedPath}, ${startLine}, ${endLine}, ${parentCommentId}, ${normalizedBody}, ${input.principal.userId}, ${input.principal.guestId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+      id, project_id, file_path, start_line, end_line, parent_comment_id, body, author_user_id, created_at, updated_at
+    ) VALUES (${id}, ${input.projectId}, ${normalizedPath}, ${startLine}, ${endLine}, ${parentCommentId}, ${normalizedBody}, ${input.principal.userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
   `
 
   const all = await listProjectComments(input.projectId)
@@ -119,13 +117,7 @@ export async function getProjectCommentById(projectId: string, commentId: string
 }
 
 export function canPrincipalModifyComment(comment: ProjectComment, principal: Principal): boolean {
-  if (comment.authorUserId && principal.userId) {
-    return comment.authorUserId === principal.userId
-  }
-  if (comment.authorGuestId && principal.guestId) {
-    return comment.authorGuestId === principal.guestId
-  }
-  return false
+  return Boolean(comment.authorUserId && principal.userId && comment.authorUserId === principal.userId)
 }
 
 export async function updateProjectCommentBody(input: {

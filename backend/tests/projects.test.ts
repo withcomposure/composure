@@ -89,6 +89,9 @@ describe('project CRUD', () => {
 
   it('allows existing guest to create projects even when guest signups are disabled', async () => {
     const guestId = '550e8400e29b41d4a716446655440000'
+    const guestUserId = 'guestprojects1111111111111111111111'
+    await sql`INSERT INTO users (id, email, password_hash, display_name, role, is_guest, guest_cookie_id, created_at)
+       VALUES (${guestUserId}, ${`guest+${guestId}@guest.local`}, ${null}, 'Existing Guest', 'user', true, ${guestId}, extract(epoch from now())::integer)`
     await setTestGuestSignups(false)
 
     const res = await app.inject({

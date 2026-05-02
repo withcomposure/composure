@@ -6,19 +6,28 @@ import type {
   ProjectRow,
   ProjectSummary,
 } from './types.js'
-import { ROLE_RANK, guestDisplayName, guestIdLabel } from './internal.js'
+import { ROLE_RANK } from './internal.js'
 import { sql } from './connection.js'
 import { createProjectForPrincipal, findProjectById } from './projects.js'
 import { findUserByEmail, findUserById } from './users.js'
 
 async function projectBelongsToPrincipal(projectId: string, principal: Principal): Promise<boolean> {
+  if (!principal.userId) {
+    return false
+  }
+
   const row = await findProjectById(projectId)
   if (!row || row.deleted_at != null) return false
 
-  if (principal.userId && row.owner_user_id === principal.userId) return true
-  if (principal.guestId && row.owner_guest_id === principal.guestId) return true
-
-  return false
+  const [membership] = await sql`
+    SELECT role
+    FROM project_members
+    WHERE project_id = ${projectId}
+      AND user_id = ${principal.userId}
+      AND status = 'accepted'
+    LIMIT 1
+  `
+  return Boolean(membership)
 }
 
 function roleAtLeast(role: ProjectRole, minimumRole: ProjectRole): boolean {
@@ -42,44 +51,28 @@ export async function updatePendingInvitesForUser(userId: string, email: string)
 }
 
 export async function getProjectRoleForPrincipal(projectId: string, principal: Principal, shareToken?: string): Promise<ProjectRole | null> {
+  void shareToken
+
+  if (!principal.userId) {
+    return null
+  }
+
   const project = await findProjectById(projectId)
   if (!project || project.deleted_at != null) {
     return null
   }
 
-  if (principal.userId && project.owner_user_id === principal.userId) {
-    return 'owner'
-  }
+  const [member] = await sql`
+    SELECT role
+    FROM project_members
+    WHERE project_id = ${projectId}
+      AND user_id = ${principal.userId}
+      AND status = 'accepted'
+    LIMIT 1
+  `
 
-  if (principal.guestId && project.owner_guest_id === principal.guestId) {
-    return 'owner'
-  }
-
-  if (principal.userId) {
-    const [member] = await sql`
-      SELECT role
-      FROM project_members
-      WHERE project_id = ${projectId} AND user_id = ${principal.userId} AND status = 'accepted'
-      LIMIT 1
-    `
-
-    if (member) {
-      return member.role as Exclude<ProjectRole, 'owner'>
-    }
-  }
-
-  const token = (shareToken ?? '').trim()
-  if (token) {
-    const [shared] = await sql`
-      SELECT role
-      FROM share_tokens
-      WHERE project_id = ${projectId} AND token = ${token}
-      LIMIT 1
-    `
-
-    if (shared) {
-      return shared.role as Exclude<ProjectRole, 'owner'>
-    }
+  if (member) {
+    return member.role as ProjectRole
   }
 
   return null
@@ -171,8 +164,8 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
   } else {
     people.push({
       userId: null,
-      email: guestIdLabel(project.owner_guest_id),
-      displayName: guestDisplayName(project.owner_guest_id),
+      email: 'Unknown owner',
+      displayName: 'Unknown owner',
       profileImageUrl: null,
       role: 'owner',
       status: 'accepted',
@@ -260,16 +253,17 @@ export async function listSharedProjectsForUser(userId: string): Promise<Project
              FROM project_comments pc
              WHERE pc.project_id = p.id AND pc.parent_comment_id IS NULL
            ) AS top_level_comment_count,
-           p.owner_user_id, p.owner_guest_id,
+           p.owner_user_id,
            owner.display_name AS owner_display_name,
-           owner.profile_image_url AS owner_profile_image_url
+           owner.profile_image_url AS owner_profile_image_url,
+           COALESCE(owner.is_guest, FALSE) AS owner_is_guest
     FROM project_members pm
     JOIN projects p ON p.id = pm.project_id
     LEFT JOIN users owner ON owner.id = p.owner_user_id
     WHERE pm.user_id = ${userId}
       AND pm.status = 'accepted'
+      AND pm.role != 'owner'
       AND p.deleted_at IS NULL
-      AND (p.owner_user_id IS NULL OR p.owner_user_id != ${userId})
     ORDER BY p.last_active_at DESC
   `
 
@@ -281,8 +275,52 @@ export async function listSharedProjectsForUser(userId: string): Promise<Project
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
     topLevelCommentCount: row.top_level_comment_count as number,
-    ownerType: row.owner_user_id ? 'user' as const : 'guest' as const,
-    ownerDisplayName: row.owner_user_id ? ((row.owner_display_name as string) ?? 'Deleted User') : guestDisplayName(row.owner_guest_id as string | null),
+    ownerType: (row.owner_is_guest as boolean) ? 'guest' : 'user',
+    ownerDisplayName: (row.owner_display_name as string) ?? 'Deleted User',
     ownerProfileImageUrl: row.owner_profile_image_url as string | null,
   }))
+}
+
+export async function redeemShareTokenForUser(token: string, userId: string): Promise<{ projectId: string; role: Exclude<ProjectRole, 'owner'> } | null> {
+  const normalizedToken = token.trim()
+  if (!normalizedToken || !userId) {
+    return null
+  }
+
+  const [shared] = await sql`
+    SELECT project_id, role
+    FROM share_tokens
+    WHERE token = ${normalizedToken}
+    LIMIT 1
+  `
+
+  if (!shared) {
+    return null
+  }
+
+  const projectId = shared.project_id as string
+  const role = shared.role as Exclude<ProjectRole, 'owner'>
+
+  await sql`
+    INSERT INTO project_members (
+      project_id,
+      user_id,
+      invited_email,
+      role,
+      status,
+      invited_by_user_id,
+      created_at,
+      updated_at
+    )
+    VALUES (${projectId}, ${userId}, NULL, ${role}, 'accepted', NULL, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    ON CONFLICT (project_id, user_id)
+    WHERE user_id IS NOT NULL
+    DO UPDATE SET
+      role = excluded.role,
+      status = 'accepted',
+      invited_email = NULL,
+      updated_at = excluded.updated_at
+  `
+
+  return { projectId, role }
 }

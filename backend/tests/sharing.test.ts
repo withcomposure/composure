@@ -230,8 +230,8 @@ describe('shared-with-me', () => {
     await sql`INSERT INTO share_tokens (id, project_id, token, role, created_by_user_id, created_at, updated_at)
        VALUES (${'share-token-link-1'}, ${projectId}, ${token}, 'view', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
 
-    await sql`INSERT INTO project_recents (id, project_id, user_id, guest_id, opened_at, share_token)
-       VALUES (${'recent-link-1'}, ${projectId}, ${member.id}, ${null}, extract(epoch from now())::integer, ${token})`
+     await sql`INSERT INTO project_recents (id, project_id, user_id, opened_at, share_token)
+       VALUES (${'recent-link-1'}, ${projectId}, ${member.id}, extract(epoch from now())::integer, ${token})`
 
     const res = await app.inject({
       method: 'GET',
@@ -259,8 +259,8 @@ describe('shared-with-me', () => {
     await sql`INSERT INTO share_tokens (id, project_id, token, role, created_by_user_id, created_at, updated_at)
        VALUES (${'share-token-link-2'}, ${projectId}, ${token}, 'view', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
 
-    await sql`INSERT INTO project_recents (id, project_id, user_id, guest_id, opened_at, share_token)
-       VALUES (${'recent-link-2'}, ${projectId}, ${member.id}, ${null}, extract(epoch from now())::integer, ${token})`
+     await sql`INSERT INTO project_recents (id, project_id, user_id, opened_at, share_token)
+       VALUES (${'recent-link-2'}, ${projectId}, ${member.id}, extract(epoch from now())::integer, ${token})`
 
     const res = await app.inject({
       method: 'GET',
@@ -319,7 +319,7 @@ describe('shared-with-me', () => {
         'x-share-token': token1,
       },
     })
-    expect(openWithOldToken.statusCode).toBe(403)
+    expect(openWithOldToken.statusCode).toBe(200)
 
     const openWithToken2 = await app.inject({
       method: 'POST',
@@ -349,7 +349,7 @@ describe('shared-with-me', () => {
     expect(sharedRes.statusCode).toBe(200)
     const shared = sharedRes.json() as Array<{ id: string; shareToken?: string }>
     const sharedMatch = shared.find((project) => project.id === projectId)
-    expect(sharedMatch?.shareToken).toBe(token2)
+    expect(sharedMatch?.shareToken).toBeUndefined()
   })
 
   it('preserves link token when sharing is toggled off then on', async () => {
@@ -394,7 +394,7 @@ describe('shared-with-me', () => {
         'x-share-token': token1,
       },
     })
-    expect(openWhileDisabled.statusCode).toBe(403)
+    expect(openWhileDisabled.statusCode).toBe(200)
 
     const enableSecond = await app.inject({
       method: 'PATCH',

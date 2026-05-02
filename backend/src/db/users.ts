@@ -20,23 +20,23 @@ export async function createUser(input: {
   const displayName = input.displayName.trim() || 'Composure User'
   const explicitRole = input.role === 'admin' ? 'admin' : 'user'
 
-  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users`
+  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
   const role = count === 0 ? 'admin' : explicitRole
 
   try {
     await sql`
-      INSERT INTO users (id, email, password_hash, display_name, role, created_at)
-      VALUES (${id}, ${email}, ${input.passwordHash}, ${displayName}, ${role}, extract(epoch from now())::integer)
+      INSERT INTO users (id, email, password_hash, display_name, role, is_guest, created_at)
+      VALUES (${id}, ${email}, ${input.passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
     `
   } catch {
     return null
   }
 
-  return { id, email, displayName, profileImageUrl: null, role }
+  return { id, email, displayName, profileImageUrl: null, role, isGuest: false }
 }
 
 export async function countUsers(): Promise<number> {
-  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users`
+  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
   return count
 }
 
@@ -48,10 +48,11 @@ export async function findUserByEmail(email: string): Promise<{
   profile_image_url: string | null
   role: 'user' | 'admin'
   is_suspended: boolean
+  is_guest: boolean
 } | null> {
   const [row] = await sql`
-    SELECT id, email, display_name, password_hash, profile_image_url, role, is_suspended
-    FROM users WHERE email = ${email.trim().toLowerCase()}
+    SELECT id, email, display_name, password_hash, profile_image_url, role, is_suspended, is_guest
+    FROM users WHERE email = ${email.trim().toLowerCase()} AND is_guest = FALSE
   `
   return (row as typeof row & {
     id: string
@@ -61,12 +62,13 @@ export async function findUserByEmail(email: string): Promise<{
     profile_image_url: string | null
     role: 'user' | 'admin'
     is_suspended: boolean
+    is_guest: boolean
   }) ?? null
 }
 
 export async function findUserById(id: string): Promise<SessionUser | null> {
   const [row] = await sql`
-    SELECT id, email, display_name, profile_image_url, role
+    SELECT id, email, display_name, profile_image_url, role, is_guest
     FROM users WHERE id = ${id}
   `
   if (!row) return null
@@ -76,7 +78,80 @@ export async function findUserById(id: string): Promise<SessionUser | null> {
     displayName: (row as Record<string, string>).display_name,
     profileImageUrl: (row as Record<string, string | null>).profile_image_url,
     role: (row as Record<string, string>).role as 'user' | 'admin',
+    isGuest: (row as Record<string, boolean>).is_guest,
   }
+}
+
+export async function findGuestUserByCookieId(guestCookieId: string): Promise<SessionUser | null> {
+  const [row] = await sql`
+    SELECT id, email, display_name, profile_image_url, role, is_guest
+    FROM users
+    WHERE guest_cookie_id = ${guestCookieId}
+      AND is_guest = TRUE
+    LIMIT 1
+  `
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    id: row.id as string,
+    email: row.email as string,
+    displayName: row.display_name as string,
+    profileImageUrl: row.profile_image_url as string | null,
+    role: row.role as 'user' | 'admin',
+    isGuest: true,
+  }
+}
+
+export async function createGuestUser(guestCookieId: string): Promise<SessionUser> {
+  const id = createUid()
+  const guestKey = guestCookieId.trim() || createUid()
+  const email = `guest+${id}@guest.local`
+  const displayName = `Guest ${guestKey.slice(0, 8)}`
+
+  await sql`
+    INSERT INTO users (
+      id,
+      email,
+      password_hash,
+      display_name,
+      role,
+      is_guest,
+      guest_cookie_id,
+      created_at
+    )
+    VALUES (
+      ${id},
+      ${email},
+      NULL,
+      ${displayName},
+      'user',
+      TRUE,
+      ${guestKey},
+      extract(epoch from now())::integer
+    )
+    ON CONFLICT (guest_cookie_id)
+    WHERE guest_cookie_id IS NOT NULL
+    DO NOTHING
+  `
+
+  const existing = await findGuestUserByCookieId(guestKey)
+  if (!existing) {
+    throw new Error('Failed to create guest user')
+  }
+
+  return existing
+}
+
+export async function findOrCreateGuestUserByCookieId(guestCookieId: string): Promise<SessionUser> {
+  const existing = await findGuestUserByCookieId(guestCookieId)
+  if (existing) {
+    return existing
+  }
+
+  return await createGuestUser(guestCookieId)
 }
 
 export async function updateUserDisplayName(userId: string, displayName: string): Promise<boolean> {
@@ -117,7 +192,7 @@ export async function markUserLoggedIn(userId: string): Promise<void> {
 }
 
 export async function countAdminUsers(): Promise<number> {
-  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE role = 'admin'`
+  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE role = 'admin' AND is_guest = FALSE`
   return count
 }
 

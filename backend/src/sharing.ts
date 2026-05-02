@@ -145,7 +145,7 @@ export async function inviteProjectMemberRoute(
   }
 
   const userId = req.principal.userId
-  if (!userId) {
+  if (!req.authUser || !userId) {
     reply.status(401).send({ error: 'Sign in to manage sharing' })
     return
   }
@@ -193,7 +193,7 @@ export async function patchProjectMemberRoute(
     return
   }
 
-  if (!req.principal.userId) {
+  if (!req.authUser || !req.principal.userId) {
     reply.status(401).send({ error: 'Sign in to manage sharing' })
     return
   }
@@ -234,7 +234,7 @@ export async function patchProjectLinkSharingRoute(
     return
   }
 
-  if (!req.principal.userId) {
+  if (!req.authUser || !req.principal.userId) {
     reply.status(401).send({ error: 'Sign in to manage link sharing' })
     return
   }
@@ -296,7 +296,7 @@ export async function addProjectCommentRoute(
     return
   }
 
-  if (!req.principal.userId && !req.principal.guestId) {
+  if (!req.principal.userId) {
     reply.status(401).send({ error: 'Please create an account to comment.' })
     return
   }
@@ -427,10 +427,8 @@ export async function deleteProjectCommentRoute(
 
 export async function sharedWithMeRoute(req: FastifyRequest): Promise<unknown[]> {
   const userId = req.principal.userId
-
-  // For unauthenticated (guest) users, only show link-shared projects
   if (!userId) {
-    return await listLinkSharedProjectsForPrincipal(req.principal)
+    return []
   }
 
   const memberShared = await listSharedProjectsForUser(userId)

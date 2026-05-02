@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import {
   countUserAuthMethods,
-  createSession,
+  deleteUserAccount,
   findOAuthAccount,
   findUserById,
   findUserByOAuth,
@@ -20,13 +20,15 @@ import {
   userHasPasswordAuthMethod,
 } from '../db/index.js'
 import {
+  ACCESS_COOKIE_NAME,
   GUEST_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-  getSessionCookieSameSite,
+  REFRESH_COOKIE_NAME,
+  getAuthCookieSameSite,
   shouldUseSecureCookies,
 } from '../auth.js'
 import { inferRequestOrigin } from '../env.js'
-const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
+import { getRefreshTokenTtlSeconds, signAccessToken, tokenExpiresInSeconds } from './jwt.js'
+import { issueRefreshToken } from '../db/index.js'
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -186,24 +188,35 @@ async function getProviderConfig(provider: string): Promise<OAuthProviderRow | n
   return enabled.find((p) => p.provider === provider) ?? null
 }
 
-async function setSessionCookie(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
-  const session = await createSession(userId, sessionMaxAgeSeconds)
+async function setAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
+  const access = await signAccessToken(userId)
+  const refresh = await issueRefreshToken(userId, getRefreshTokenTtlSeconds())
   await markUserLoggedIn(userId)
-  reply.setCookie(SESSION_COOKIE_NAME, session.id, {
+
+  reply.setCookie(ACCESS_COOKIE_NAME, access.token, {
     httpOnly: true,
-    sameSite: getSessionCookieSameSite(req),
-    maxAge: sessionMaxAgeSeconds,
+    sameSite: getAuthCookieSameSite(req),
+    maxAge: tokenExpiresInSeconds(access.expiresAt),
+    secure: shouldUseSecureCookies(req),
+    path: '/',
+  })
+
+  reply.setCookie(REFRESH_COOKIE_NAME, refresh.token, {
+    httpOnly: true,
+    sameSite: getAuthCookieSameSite(req),
+    maxAge: tokenExpiresInSeconds(refresh.expiresAt),
     secure: shouldUseSecureCookies(req),
     path: '/',
   })
 }
 
 async function migrateGuestData(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
-  const guestId = req.principal.guestId
-  if (guestId) {
-    await migrateGuestProjectsToUser(guestId, userId)
-    await migrateGuestRecentsToUser(guestId, userId)
-    await migrateGuestWorkspaceStatesToUser(guestId, userId)
+  const guestUserId = req.principal.userId
+  if (guestUserId && guestUserId !== userId) {
+    await migrateGuestProjectsToUser(guestUserId, userId)
+    await migrateGuestRecentsToUser(guestUserId, userId)
+    await migrateGuestWorkspaceStatesToUser(guestUserId, userId)
+    await deleteUserAccount(guestUserId)
     reply.clearCookie(GUEST_COOKIE_NAME, { path: '/' })
   }
 }
@@ -489,7 +502,7 @@ export function registerOAuthRoutes(
       return
     }
 
-    await setSessionCookie(req, reply, result.user.id)
+    await setAuthCookies(req, reply, result.user.id)
     await migrateGuestData(req, reply, result.user.id)
 
     const acceptedInvites = await updatePendingInvitesForUser(result.user.id, result.user.email)

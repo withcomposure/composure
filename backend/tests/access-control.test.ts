@@ -23,8 +23,10 @@ describe('canAccessProjectWithRole', () => {
 
   it('guest owner can access their own project', async () => {
     const guestId = 'guest-1234'
-    const projectId = await createTestProject(guestId, { isGuest: true })
-    const principal: Principal = { userId: null, guestId }
+    const guest = await createTestUser({ email: 'guest-owner@test.com' })
+    await sql`UPDATE users SET is_guest = true, guest_cookie_id = ${guestId} WHERE id = ${guest.id}`
+    const projectId = await createTestProject(guest.id, { isGuest: true })
+    const principal: Principal = { userId: guest.id, guestId }
 
     expect((await canAccessProjectWithRole(projectId, principal, 'view')).ok).toBe(true)
     expect((await canAccessProjectWithRole(projectId, principal, 'owner')).ok).toBe(true)
@@ -69,7 +71,7 @@ describe('canAccessProjectWithRole', () => {
     expect((await canAccessProjectWithRole(projectId, principal, 'view')).ok).toBe(false)
   })
 
-  it('share token grants the token role', async () => {
+  it('share token alone does not grant access without user membership', async () => {
     const owner = await createTestUser()
     const projectId = await createTestProject(owner.id)
     const linkState = await setLinkSharingState({
@@ -80,8 +82,8 @@ describe('canAccessProjectWithRole', () => {
     })
     const stranger: Principal = { userId: null, guestId: 'guest-stranger' }
 
-    expect((await canAccessProjectWithRole(projectId, stranger, 'view', linkState.token!)).ok).toBe(true)
-    expect((await canAccessProjectWithRole(projectId, stranger, 'comment', linkState.token!)).ok).toBe(true)
+    expect((await canAccessProjectWithRole(projectId, stranger, 'view', linkState.token!)).ok).toBe(false)
+    expect((await canAccessProjectWithRole(projectId, stranger, 'comment', linkState.token!)).ok).toBe(false)
     expect((await canAccessProjectWithRole(projectId, stranger, 'edit', linkState.token!)).ok).toBe(false)
   })
 

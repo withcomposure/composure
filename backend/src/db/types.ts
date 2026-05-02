@@ -8,8 +8,7 @@ export interface ProjectRow {
   title: string
   root_file: string
   engine: string | null
-  owner_user_id: string | null
-  owner_guest_id: string | null
+  owner_user_id: string
   created_at: number
   last_active_at: number
   deleted_at: number | null
@@ -35,6 +34,7 @@ export interface SessionUser {
   displayName: string
   profileImageUrl: string | null
   role: 'user' | 'admin'
+  isGuest?: boolean
 }
 
 export interface AdminUserSummary {
@@ -87,6 +87,7 @@ export interface SessionSummary {
   id: string
   createdAt: number
   expiresAt: number
+  lastUsedAt?: number
   isCurrent: boolean
 }
 

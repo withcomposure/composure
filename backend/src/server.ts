@@ -9,6 +9,7 @@ import {
   canAccessProjectWithRole,
   getMaxConcurrentJobs,
   getMaxTextFileSize,
+  redeemShareTokenForUser,
   type Principal,
 } from './db/index.js'
 import { getUserPreferences } from './db/preferences.js'
@@ -163,6 +164,11 @@ const hocuspocus = new Hocuspocus({
 
     const principal = await resolveHocuspocusPrincipal(data)
     const shareToken = getShareTokenFromUrl(data.request.url)
+
+    if (shareToken && principal.userId) {
+      await redeemShareTokenForUser(shareToken, principal.userId)
+    }
+
     console.info(
       `[hocuspocus] authenticate document=${data.documentName} socket=${data.socketId} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'} shareToken=${shareToken ? 'present' : 'none'} cookieLen=${String(data.request.headers.cookie ?? '').length}`,
     )

@@ -17,29 +17,18 @@ export async function getProjectWorkspaceState(
   projectId: string,
   principal: Principal,
 ): Promise<Record<string, unknown> | null> {
-  if (principal.userId) {
-    const [row] = await sql`
-      SELECT state_json
-      FROM project_workspace_states
-      WHERE project_id = ${projectId} AND user_id = ${principal.userId}
-      LIMIT 1
-    `
-
-    return row ? parseStateJson(row.state_json as string) : null
+  if (!principal.userId) {
+    return null
   }
 
-  if (principal.guestId) {
-    const [row] = await sql`
-      SELECT state_json
-      FROM project_workspace_states
-      WHERE project_id = ${projectId} AND guest_id = ${principal.guestId}
-      LIMIT 1
-    `
+  const [row] = await sql`
+    SELECT state_json
+    FROM project_workspace_states
+    WHERE project_id = ${projectId} AND user_id = ${principal.userId}
+    LIMIT 1
+  `
 
-    return row ? parseStateJson(row.state_json as string) : null
-  }
-
-  return null
+  return row ? parseStateJson(row.state_json as string) : null
 }
 
 export async function setProjectWorkspaceState(
@@ -47,83 +36,69 @@ export async function setProjectWorkspaceState(
   principal: Principal,
   state: Record<string, unknown>,
 ): Promise<void> {
-  const stateJson = JSON.stringify(state)
-
-  if (principal.userId) {
-    const updated = await sql`
-      UPDATE project_workspace_states
-      SET state_json = ${stateJson}, updated_at = extract(epoch from now())::integer
-      WHERE project_id = ${projectId} AND user_id = ${principal.userId}
-    `
-
-    if (updated.count === 0) {
-      await sql`
-        INSERT INTO project_workspace_states (project_id, user_id, guest_id, state_json, updated_at)
-        VALUES (${projectId}, ${principal.userId}, NULL, ${stateJson}, extract(epoch from now())::integer)
-      `
-    }
+  if (!principal.userId) {
     return
   }
 
-  if (principal.guestId) {
-    const updated = await sql`
-      UPDATE project_workspace_states
-      SET state_json = ${stateJson}, updated_at = extract(epoch from now())::integer
-      WHERE project_id = ${projectId} AND guest_id = ${principal.guestId}
-    `
+  const stateJson = JSON.stringify(state)
 
-    if (updated.count === 0) {
-      await sql`
-        INSERT INTO project_workspace_states (project_id, user_id, guest_id, state_json, updated_at)
-        VALUES (${projectId}, NULL, ${principal.guestId}, ${stateJson}, extract(epoch from now())::integer)
-      `
-    }
+  const updated = await sql`
+    UPDATE project_workspace_states
+    SET state_json = ${stateJson}, updated_at = extract(epoch from now())::integer
+    WHERE project_id = ${projectId} AND user_id = ${principal.userId}
+  `
+
+  if (updated.count === 0) {
+    await sql`
+      INSERT INTO project_workspace_states (project_id, user_id, state_json, updated_at)
+      VALUES (${projectId}, ${principal.userId}, ${stateJson}, extract(epoch from now())::integer)
+    `
   }
 }
 
-export async function migrateGuestWorkspaceStatesToUser(guestId: string, userId: string): Promise<number> {
-  if (!guestId || !userId) {
+export async function migrateGuestWorkspaceStatesToUser(fromUserId: string, userId: string): Promise<number> {
+  if (!fromUserId || !userId || fromUserId === userId) {
     return 0
   }
 
-  const guestRows = await sql`
+  const sourceRows = await sql`
     SELECT project_id, state_json, updated_at
     FROM project_workspace_states
-    WHERE guest_id = ${guestId}
+    WHERE user_id = ${fromUserId}
     ORDER BY updated_at DESC
   `
 
   let migrated = 0
 
-  for (const guestRow of guestRows) {
-    const [existingUserRow] = await sql`
+  for (const sourceRow of sourceRows) {
+    const [targetRow] = await sql`
       SELECT project_id, updated_at
       FROM project_workspace_states
-      WHERE project_id = ${guestRow.project_id} AND user_id = ${userId}
+      WHERE project_id = ${sourceRow.project_id} AND user_id = ${userId}
       LIMIT 1
     `
 
-    if (!existingUserRow) {
+    if (!targetRow) {
       await sql`
         UPDATE project_workspace_states
-        SET user_id = ${userId}, guest_id = NULL
-        WHERE project_id = ${guestRow.project_id} AND guest_id = ${guestId}
+        SET user_id = ${userId}
+        WHERE project_id = ${sourceRow.project_id} AND user_id = ${fromUserId}
       `
       migrated += 1
       continue
     }
 
-    if ((guestRow.updated_at as number) > (existingUserRow.updated_at as number)) {
+    if ((sourceRow.updated_at as number) > (targetRow.updated_at as number)) {
       await sql`
         UPDATE project_workspace_states
-        SET state_json = ${guestRow.state_json}, updated_at = ${guestRow.updated_at}, user_id = ${userId}, guest_id = NULL
-        WHERE project_id = ${guestRow.project_id} AND user_id = ${userId}
+        SET state_json = ${sourceRow.state_json}, updated_at = ${sourceRow.updated_at}
+        WHERE project_id = ${sourceRow.project_id} AND user_id = ${userId}
       `
     }
 
     await sql`
       DELETE FROM project_workspace_states
-      WHERE project_id = ${guestRow.project_id} AND guest_id = ${guestId}
+      WHERE project_id = ${sourceRow.project_id} AND user_id = ${fromUserId}
     `
     migrated += 1
   }

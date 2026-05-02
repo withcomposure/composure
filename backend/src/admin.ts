@@ -7,7 +7,7 @@ import {
   createInviteToken,
   createPasswordResetToken,
   createUser,
-  deleteAllUserSessions,
+  revokeAllUserRefreshTokens,
   deleteUserAccount,
   expirePasswordResetTokenEarly,
   findUserById,
@@ -59,7 +59,8 @@ import {
 import { isValidEmail, isValidUserId } from './security.js'
 import { inferRequestOrigin, normalizeOriginHeader, parseTrustedOrigins, parseUrlEnv } from './env.js'
 
-const sessionCookieName = 'composure_session'
+const accessCookieName = 'composure_access'
+const refreshCookieName = 'composure_refresh'
 
 function getConfiguredFrontendOrigin(): string | null {
   return parseUrlEnv(process.env.FRONTEND_URL)
@@ -283,10 +284,11 @@ export async function updateAdminUserRoute(
 
   let forceRelogin = false
   if (passwordChanged) {
-    await deleteAllUserSessions(userId)
+    await revokeAllUserRefreshTokens(userId)
     forceRelogin = req.authUser?.id === userId
     if (forceRelogin) {
-      reply.clearCookie(sessionCookieName, { path: '/' })
+      reply.clearCookie(accessCookieName, { path: '/' })
+      reply.clearCookie(refreshCookieName, { path: '/' })
     }
   }
 

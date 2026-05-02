@@ -191,10 +191,16 @@ describe('signup — validation', () => {
 describe('signup — guest migration', () => {
   it('migrates guest projects to new user on signup', async () => {
     const guestId = '550e8400e29b41d4a716446655440000'
+   const guestUserId = 'guestsignup11111111111111111111111'
+
+   await sql`INSERT INTO users (id, email, password_hash, display_name, role, is_guest, guest_cookie_id, created_at)
+     VALUES (${guestUserId}, ${`guest+${guestId}@guest.local`}, ${null}, 'Guest Signup', 'user', true, ${guestId}, extract(epoch from now())::integer)`
 
     // Create a project owned by this guest
-    await sql`INSERT INTO projects (id, title, root_file, owner_guest_id, created_at, last_active_at)
-       VALUES (${'aaaaaaaabbbbccccddddeeeeeeeeeeee'}, 'Guest Project', 'main.tex', ${guestId}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
+   await sql`INSERT INTO projects (id, title, root_file, owner_user_id, created_at, last_active_at)
+     VALUES (${'aaaaaaaabbbbccccddddeeeeeeeeeeee'}, 'Guest Project', 'main.tex', ${guestUserId}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
+   await sql`INSERT INTO project_members (project_id, user_id, role, status, created_at, updated_at)
+     VALUES (${'aaaaaaaabbbbccccddddeeeeeeeeeeee'}, ${guestUserId}, 'owner', 'accepted', extract(epoch from now())::integer, extract(epoch from now())::integer)`
 
     const res = await app.inject({
       method: 'POST',
@@ -207,15 +213,18 @@ describe('signup — guest migration', () => {
     const userId = res.json().user.id
 
     // Check that the project was migrated
-    const [project] = await sql`SELECT owner_user_id, owner_guest_id FROM projects WHERE id = ${'aaaaaaaabbbbccccddddeeeeeeeeeeee'}` as unknown as [{ owner_user_id: string | null; owner_guest_id: string | null }]
+    const [project] = await sql`SELECT owner_user_id FROM projects WHERE id = ${'aaaaaaaabbbbccccddddeeeeeeeeeeee'}` as unknown as [{ owner_user_id: string | null }]
     expect(project.owner_user_id).toBe(userId)
-    expect(project.owner_guest_id).toBeNull()
   })
 
   it('migrates guest recents (with share token) to new user on signup', async () => {
     const guestId = '650e8400e29b41d4a716446655440000'
+    const guestUserId = 'guestsignup22222222222222222222222'
     const owner = await createTestUser({ email: 'owner-recents-signup@test.com' })
     const projectId = '11111111bbbbccccddddeeeeeeeeeeee'
+
+    await sql`INSERT INTO users (id, email, password_hash, display_name, role, is_guest, guest_cookie_id, created_at)
+       VALUES (${guestUserId}, ${`guest+${guestId}@guest.local`}, ${null}, 'Guest Signup Two', 'user', true, ${guestId}, extract(epoch from now())::integer)`
 
     await sql`INSERT INTO projects (id, title, root_file, owner_user_id, created_at, last_active_at)
        VALUES (${projectId}, 'Shared Project', 'main.tex', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
@@ -223,8 +232,8 @@ describe('signup — guest migration', () => {
     await sql`INSERT INTO share_tokens (id, project_id, token, role, created_by_user_id, created_at, updated_at)
        VALUES (${'signup-share-token-id'}, ${projectId}, ${'signup-share-token'}, 'view', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)`
 
-    await sql`INSERT INTO project_recents (id, project_id, user_id, guest_id, opened_at, share_token)
-       VALUES (${'signup-recent-id'}, ${projectId}, ${null}, ${guestId}, extract(epoch from now())::integer, ${'signup-share-token'})`
+     await sql`INSERT INTO project_recents (id, project_id, user_id, opened_at, share_token)
+       VALUES (${'signup-recent-id'}, ${projectId}, ${guestUserId}, extract(epoch from now())::integer, ${'signup-share-token'})`
 
     const res = await app.inject({
       method: 'POST',
@@ -236,13 +245,12 @@ describe('signup — guest migration', () => {
     expect(res.statusCode).toBe(201)
     const userId = res.json().user.id as string
 
-    const [migrated] = await sql`SELECT user_id, guest_id, share_token
+     const [migrated] = await sql`SELECT user_id, share_token
        FROM project_recents
-       WHERE project_id = ${projectId} AND user_id = ${userId}` as unknown as [{ user_id: string | null; guest_id: string | null; share_token: string | null } | undefined]
+       WHERE project_id = ${projectId} AND user_id = ${userId}` as unknown as [{ user_id: string | null; share_token: string | null } | undefined]
 
     expect(migrated).toBeDefined()
     expect(migrated?.user_id).toBe(userId)
-    expect(migrated?.guest_id).toBeNull()
     expect(migrated?.share_token).toBe('signup-share-token')
   })
 })

@@ -53,7 +53,7 @@ export async function patchProjectWorkspaceStateRoute(
     return
   }
 
-  if (!req.principal.userId && !req.principal.guestId) {
+  if (!req.principal.userId) {
     reply.status(401).send({ error: 'Please create an account to continue.' })
     return
   }
