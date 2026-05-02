@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import type postgres from 'postgres'
 import { sql, withUserTransaction } from './connection.js'
 import type { SessionSummary, SessionUser } from './types.js'
 import { createToken, createUid } from '../ids.js'
@@ -32,6 +33,15 @@ export async function issueRefreshToken(
   maxAgeSeconds: number,
   familyId?: string,
 ): Promise<IssuedRefreshToken> {
+  return await insertRefreshToken(sql, userId, maxAgeSeconds, familyId)
+}
+
+async function insertRefreshToken(
+  client: postgres.Sql | postgres.TransactionSql,
+  userId: string,
+  maxAgeSeconds: number,
+  familyId?: string,
+): Promise<IssuedRefreshToken> {
   const id = createUid()
   const token = createToken(48)
   const tokenHash = hashToken(token)
@@ -39,7 +49,7 @@ export async function issueRefreshToken(
   const expiresAt = now + maxAgeSeconds
   const resolvedFamilyId = familyId ?? createUid()
 
-  await sql`
+  await client`
     INSERT INTO refresh_tokens (
       id,
       user_id,
@@ -128,6 +138,7 @@ export async function rotateRefreshToken(rawToken: string, maxAgeSeconds: number
       FROM refresh_tokens
       WHERE token_hash = ${tokenHash}
       LIMIT 1
+      FOR UPDATE
     `
 
     if (!row) {
@@ -171,7 +182,7 @@ export async function rotateRefreshToken(rawToken: string, maxAgeSeconds: number
       return { status: 'invalid' }
     }
 
-    const issued = await issueRefreshToken(userId, maxAgeSeconds, familyId)
+    const issued = await insertRefreshToken(tx, userId, maxAgeSeconds, familyId)
 
     await tx`
       UPDATE refresh_tokens

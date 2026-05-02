@@ -2,7 +2,8 @@ import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
 import { getRequestContext, runWithTransactionContext, type RequestUserRole } from './request-context.js'
 
-const databaseUrl = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/composure'
+export const defaultDatabaseUrl = 'postgres://composure_app:composure_app@localhost:5433/composure'
+const databaseUrl = process.env.DATABASE_URL ?? defaultDatabaseUrl
 
 export let sql: postgres.Sql
 let rawSql: postgres.Sql
@@ -11,13 +12,13 @@ type SqlClient = postgres.Sql | postgres.TransactionSql
 
 interface IdentityInput {
   userId: string | null
-  userRole: RequestUserRole | 'system'
+  userRole: RequestUserRole
 }
 
 function resolveCurrentIdentity(): IdentityInput {
   const store = getRequestContext()
   if (!store) {
-    return { userId: null, userRole: 'system' }
+    return { userId: null, userRole: null }
   }
 
   return {
@@ -391,7 +392,18 @@ export async function initDatabase(): Promise<void> {
 
   connectDatabase()
 
-  await applySchema(sql)
+  const migrationDatabaseUrl = process.env.MIGRATION_DATABASE_URL
+  const schemaSql = migrationDatabaseUrl
+    ? postgres(migrationDatabaseUrl, { max: 1, transform: { undefined: null } })
+    : null
+
+  try {
+    await applySchema(schemaSql ?? sql)
+  } finally {
+    if (schemaSql) {
+      await schemaSql.end({ timeout: 5 })
+    }
+  }
 
   // On startup, mark any 'running' or 'waiting' jobs as 'stalled' since the server restarted.
   const stalledOnRestart = await sql`

@@ -191,6 +191,30 @@ describe('logout', () => {
 })
 
 describe('session listing and revocation', () => {
+  it('rejects unsafe refresh-only cookie requests from untrusted origins', async () => {
+    const user = await createTestUser({ email: 'csrf-refresh@test.com' })
+    const sessionId = await createTestSession(user.id)
+    const refreshOnlyCookie = sessionCookie(sessionId)
+      .split('; ')
+      .find((cookie) => cookie.startsWith('composure_refresh='))
+    expect(refreshOnlyCookie).toBeDefined()
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects',
+      headers: {
+        cookie: refreshOnlyCookie ?? '',
+        origin: 'https://evil.example.com',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'api.withcomposure.test',
+      },
+      payload: { title: 'Cross-site refresh' },
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error).toMatch(/csrf/i)
+  })
+
   it('lists sessions for authenticated user', async () => {
     const signupRes = await app.inject({
       method: 'POST',

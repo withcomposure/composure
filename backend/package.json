@@ -9,8 +9,8 @@
     "start": "node dist/server.js",
     "lint": "eslint src/",
     "check": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "NODE_OPTIONS='--import tsx' vitest run",
+    "test:watch": "NODE_OPTIONS='--import tsx' vitest"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

@@ -40,6 +40,7 @@ import {
   updateUserEmail,
   updateUserProfileImage,
   setRequestIdentity,
+  runWithIdentityContext,
 } from './db/index.js'
 import {
   areOriginsSameSite,
@@ -370,7 +371,11 @@ function setAuthCookies(
 
 async function issueAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
   const access = await signAccessToken(userId)
-  const refresh = await issueRefreshToken(userId, getRefreshTokenTtlSeconds())
+  const refresh = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await issueRefreshToken(userId, getRefreshTokenTtlSeconds()),
+  )
   setAuthCookies(req, reply, {
     accessToken: access.token,
     accessExpiresAt: access.expiresAt,
@@ -454,14 +459,23 @@ export const authHook: preHandlerHookHandler = async (req, reply) => {
   const guestSignupsEnabled = await getGuestSignupsEnabled()
   const guestId = maybeSetGuestCookie(req, reply, guestSignupsEnabled)
 
-  const accessResolved = await resolveAccessUser(req)
-  let user = accessResolved.user
-
   const refreshRaw = getCookieValue(req, REFRESH_COOKIE_NAME)?.trim() ?? ''
   let currentRefreshTokenId: string | null = null
 
+  if (shouldEnforceCsrf(req) && !isCsrfOriginAllowed(req)) {
+    reply.status(403).send({ error: 'Forbidden (CSRF origin check failed)' })
+    return
+  }
+
+  const accessResolved = await runWithIdentityContext(null, 'system', async () => await resolveAccessUser(req))
+  let user = accessResolved.user
+
   if (!user && refreshRaw) {
-    const rotated = await rotateRefreshToken(refreshRaw, getRefreshTokenTtlSeconds())
+    const rotated = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await rotateRefreshToken(refreshRaw, getRefreshTokenTtlSeconds()),
+    )
     if (rotated.status === 'ok') {
       const access = await signAccessToken(rotated.user.id)
       setAuthCookies(req, reply, {
@@ -477,20 +491,19 @@ export const authHook: preHandlerHookHandler = async (req, reply) => {
       user = null
     }
   } else if (refreshRaw) {
-    currentRefreshTokenId = await findActiveRefreshTokenId(refreshRaw)
-  }
-
-  if (accessResolved.source === 'cookie' && shouldEnforceCsrf(req) && !isCsrfOriginAllowed(req)) {
-    reply.status(403).send({ error: 'Forbidden (CSRF origin check failed)' })
-    return
+    currentRefreshTokenId = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await findActiveRefreshTokenId(refreshRaw),
+    )
   }
 
   if (!user && guestId) {
-    user = await findGuestUserByCookieId(guestId)
+    user = await runWithIdentityContext(null, 'system', async () => await findGuestUserByCookieId(guestId))
   }
 
   if (!user && guestId && isIdentityRequiredRoute(req) && guestSignupsEnabled) {
-    const guestUser = await findOrCreateGuestUserByCookieId(guestId)
+    const guestUser = await runWithIdentityContext(null, 'system', async () => await findOrCreateGuestUserByCookieId(guestId))
     user = guestUser
     await issueAuthCookies(req, reply, guestUser.id)
     currentRefreshTokenId = null
@@ -522,7 +535,7 @@ async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionRespo
     user: req.authUser,
     principal: req.principal,
     guestRetentionDays: Math.round(guestCookieMaxAgeSeconds / (24 * 60 * 60)),
-    userCount: await countUsers(),
+    userCount: await runWithIdentityContext(null, 'system', async () => await countUsers()),
     signupMode: await getSignupMode(),
     guestSignupsEnabled: await getGuestSignupsEnabled(),
     enabledLoginProviders: enabledProviders.map((p) => p.provider),
@@ -552,13 +565,13 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   const inviteToken = req.body?.inviteToken ? String(req.body.inviteToken).trim() : null
 
   // Enforce invite-only mode (skip for first-ever user bootstrap)
-  const userCount = await countUsers()
+  const userCount = await runWithIdentityContext(null, 'system', async () => await countUsers())
   if (userCount > 0 && (await getSignupMode()) === 'invite-only') {
     if (!inviteToken) {
       reply.status(403).send({ error: 'Signups are currently invite-only.' })
       return
     }
-    const tokenState = await getInviteTokenState(inviteToken)
+    const tokenState = await runWithIdentityContext(null, 'system', async () => await getInviteTokenState(inviteToken))
     if (!tokenState || tokenState.usedAt != null || tokenState.expiresAt <= Math.floor(Date.now() / 1000)) {
       reply.status(403).send({ error: 'Invalid or expired invite token.' })
       return
@@ -585,11 +598,11 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   }
 
   const passwordHash = hashPassword(password)
-  const created = await createUser({
+  const created = await runWithIdentityContext(null, 'system', async () => await createUser({
     email,
     passwordHash,
     displayName,
-  })
+  }))
 
   if (!created) {
     reply.status(409).send({ error: 'Email is already registered' })
@@ -598,24 +611,24 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
 
   // Consume invite token after successful account creation
   if (inviteToken) {
-    await markInviteTokenUsed(inviteToken)
+    await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(inviteToken))
   }
 
   await issueAuthCookies(req, reply, created.id)
-  await markUserLoggedIn(created.id)
+  await runWithIdentityContext(null, 'system', async () => await markUserLoggedIn(created.id))
 
   const principalUserId = req.principal.userId
   if (principalUserId && principalUserId !== created.id) {
-    const moved = await migrateGuestProjectsToUser(principalUserId, created.id)
-    const movedRecents = await migrateGuestRecentsToUser(principalUserId, created.id)
-    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(principalUserId, created.id)
+    const moved = await runWithIdentityContext(null, 'system', async () => await migrateGuestProjectsToUser(principalUserId, created.id))
+    const movedRecents = await runWithIdentityContext(null, 'system', async () => await migrateGuestRecentsToUser(principalUserId, created.id))
+    const movedWorkspaceStates = await runWithIdentityContext(null, 'system', async () => await migrateGuestWorkspaceStatesToUser(principalUserId, created.id))
     console.info(`[auth] migrated guest projects userId=${principalUserId} targetUserId=${created.id} count=${moved}`)
     console.info(`[auth] migrated guest recents userId=${principalUserId} targetUserId=${created.id} count=${movedRecents}`)
     console.info(`[auth] migrated guest workspace states userId=${principalUserId} targetUserId=${created.id} count=${movedWorkspaceStates}`)
-    await deleteUserAccount(principalUserId)
+    await runWithIdentityContext(null, 'system', async () => await deleteUserAccount(principalUserId))
   }
 
-  const acceptedInvites = await updatePendingInvitesForUser(created.id, created.email)
+  const acceptedInvites = await runWithIdentityContext(null, 'system', async () => await updatePendingInvitesForUser(created.id, created.email))
   if (acceptedInvites > 0) {
     console.info(`[auth] accepted pending invites userId=${created.id} count=${acceptedInvites}`)
   }
@@ -623,7 +636,11 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   req.authUser = created
   req.principal.userId = created.id
   setRequestIdentity(created.id, created.role)
-  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
+  req.currentRefreshTokenId = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? ''),
+  )
 
   reply.status(201).send(await makeSessionPayload(req))
 }
@@ -642,7 +659,7 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
     return
   }
 
-  const user = await findUserByEmail(email)
+  const user = await runWithIdentityContext(null, 'system', async () => await findUserByEmail(email))
   if (user?.is_suspended === true) {
     reply.status(403).send({ error: 'Credentials expired. Contact a server administrator.' })
     return
@@ -654,20 +671,20 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
   }
 
   await issueAuthCookies(req, reply, user.id)
-  await markUserLoggedIn(user.id)
+  await runWithIdentityContext(null, 'system', async () => await markUserLoggedIn(user.id))
 
   const principalUserId = req.principal.userId
   if (principalUserId && principalUserId !== user.id) {
-    const moved = await migrateGuestProjectsToUser(principalUserId, user.id)
-    const movedRecents = await migrateGuestRecentsToUser(principalUserId, user.id)
-    const movedWorkspaceStates = await migrateGuestWorkspaceStatesToUser(principalUserId, user.id)
+    const moved = await runWithIdentityContext(null, 'system', async () => await migrateGuestProjectsToUser(principalUserId, user.id))
+    const movedRecents = await runWithIdentityContext(null, 'system', async () => await migrateGuestRecentsToUser(principalUserId, user.id))
+    const movedWorkspaceStates = await runWithIdentityContext(null, 'system', async () => await migrateGuestWorkspaceStatesToUser(principalUserId, user.id))
     console.info(`[auth] migrated guest projects on-login userId=${principalUserId} targetUserId=${user.id} count=${moved}`)
     console.info(`[auth] migrated guest recents on-login userId=${principalUserId} targetUserId=${user.id} count=${movedRecents}`)
     console.info(`[auth] migrated guest workspace states on-login userId=${principalUserId} targetUserId=${user.id} count=${movedWorkspaceStates}`)
-    await deleteUserAccount(principalUserId)
+    await runWithIdentityContext(null, 'system', async () => await deleteUserAccount(principalUserId))
   }
 
-  const acceptedInvites = await updatePendingInvitesForUser(user.id, user.email)
+  const acceptedInvites = await runWithIdentityContext(null, 'system', async () => await updatePendingInvitesForUser(user.id, user.email))
   if (acceptedInvites > 0) {
     console.info(`[auth] accepted pending invites on-login userId=${user.id} count=${acceptedInvites}`)
   }
@@ -682,7 +699,11 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
   }
   req.principal.userId = user.id
   setRequestIdentity(user.id, user.role)
-  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
+  req.currentRefreshTokenId = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? ''),
+  )
 
   reply.send(await makeSessionPayload(req))
 }
@@ -690,7 +711,7 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
 export async function logoutRoute(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const refreshToken = getCookieValue(req, REFRESH_COOKIE_NAME) ?? ''
   if (refreshToken) {
-    await revokeRefreshTokenByRawToken(refreshToken)
+    await runWithIdentityContext(null, 'system', async () => await revokeRefreshTokenByRawToken(refreshToken))
   }
 
   clearAuthCookies(reply)
@@ -720,6 +741,7 @@ export async function updateProfileRoute(
     reply.status(401).send({ error: 'Authentication required' })
     return
   }
+  const authUser = req.authUser
 
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   const displayName = String(req.body?.displayName ?? '').trim()
@@ -745,33 +767,33 @@ export async function updateProfileRoute(
     return
   }
 
-  const existing = await findUserByEmail(email)
-  if (existing && existing.id !== req.authUser.id) {
+  const existing = await runWithIdentityContext(null, 'system', async () => await findUserByEmail(email))
+  if (existing && existing.id !== authUser.id) {
     reply.status(409).send({ error: 'Email is already registered' })
     return
   }
 
-  const updated = await updateUserDisplayName(req.authUser.id, displayName)
+  const updated = await updateUserDisplayName(authUser.id, displayName)
   if (!updated) {
     reply.status(404).send({ error: 'User not found' })
     return
   }
 
-  await updateUserEmail(req.authUser.id, email)
+  await updateUserEmail(authUser.id, email)
 
   // Update profile image if field was explicitly included in the request body
   const profileImageExplicit = req.body != null && Object.prototype.hasOwnProperty.call(req.body, 'profileImageUrl')
   if (profileImageExplicit) {
-    await updateUserProfileImage(req.authUser.id, profileImageUrl)
+    await updateUserProfileImage(authUser.id, profileImageUrl)
   }
 
-  const acceptedInvites = await updatePendingInvitesForUser(req.authUser.id, email)
+  const acceptedInvites = await runWithIdentityContext(null, 'system', async () => await updatePendingInvitesForUser(authUser.id, email))
   if (acceptedInvites > 0) {
-    console.info(`[auth] accepted pending invites on-profile-update userId=${req.authUser.id} count=${acceptedInvites}`)
+    console.info(`[auth] accepted pending invites on-profile-update userId=${authUser.id} count=${acceptedInvites}`)
   }
 
   req.authUser = {
-    ...req.authUser,
+    ...authUser,
     email,
     displayName,
     profileImageUrl: profileImageExplicit ? profileImageUrl : req.authUser.profileImageUrl,

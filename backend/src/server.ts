@@ -7,10 +7,13 @@ import {
   storeDocument,
   touchProjectActivity,
   canAccessProjectWithRole,
+  findUserById,
   getMaxConcurrentJobs,
   getMaxTextFileSize,
   redeemShareTokenForUser,
+  runWithIdentityContext,
   type Principal,
+  type RequestUserRole,
 } from './db/index.js'
 import { getUserPreferences } from './db/preferences.js'
 import { resolvePrincipalFromCookieHeader } from './auth.js'
@@ -87,8 +90,22 @@ async function resolveHocuspocusPrincipal(data: {
 
 interface HocuspocusAuthContext {
   principal: Principal
+  userRole: RequestUserRole
   documentName: string
   shareToken?: string
+}
+
+function identityForHocuspocusContext(context: unknown): { userId: string | null; userRole: RequestUserRole } {
+  const authContext = context as HocuspocusAuthContext | undefined
+  return {
+    userId: authContext?.principal?.userId ?? null,
+    userRole: authContext?.userRole ?? null,
+  }
+}
+
+async function runWithHocuspocusIdentity<T>(context: unknown, fn: () => Promise<T>): Promise<T> {
+  const identity = identityForHocuspocusContext(context)
+  return await runWithIdentityContext(identity.userId, identity.userRole, fn)
 }
 
 function readVarUint(buffer: Uint8Array, startOffset = 0): { value: number; nextOffset: number } | null {
@@ -137,16 +154,18 @@ async function assertHocuspocusContextAccess(documentName: string, context: unkn
     throw new Error('Unauthenticated')
   }
 
-  const shareToken = authContext?.shareToken
-  const access = await canAccessProjectWithRole(documentName, principal, 'view', shareToken)
-  if (!access.ok) {
-    console.warn(
-      `[hocuspocus] denied document=${documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'}`,
-    )
-    throw new Error('Forbidden')
-  }
+  await runWithHocuspocusIdentity(context, async () => {
+    const shareToken = authContext?.shareToken
+    const access = await canAccessProjectWithRole(documentName, principal, 'view', shareToken)
+    if (!access.ok) {
+      console.warn(
+        `[hocuspocus] denied document=${documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'}`,
+      )
+      throw new Error('Forbidden')
+    }
 
-  await touchProjectActivity(documentName)
+    await touchProjectActivity(documentName)
+  })
   return principal
 }
 
@@ -162,18 +181,26 @@ const hocuspocus = new Hocuspocus({
       throw new Error('Invalid project ID')
     }
 
-    const principal = await resolveHocuspocusPrincipal(data)
+    const principal = await runWithIdentityContext(null, 'system', async () => await resolveHocuspocusPrincipal(data))
     const shareToken = getShareTokenFromUrl(data.request.url)
+    const resolvedUser = principal.userId
+      ? await runWithIdentityContext(null, 'system', async () => await findUserById(principal.userId!))
+      : null
+    const userRole: RequestUserRole = resolvedUser?.isGuest ? 'guest' : (resolvedUser?.role ?? null)
 
     if (shareToken && principal.userId) {
-      await redeemShareTokenForUser(shareToken, principal.userId)
+      await runWithIdentityContext(null, 'system', async () => await redeemShareTokenForUser(shareToken, principal.userId!))
     }
 
     console.info(
       `[hocuspocus] authenticate document=${data.documentName} socket=${data.socketId} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'} shareToken=${shareToken ? 'present' : 'none'} cookieLen=${String(data.request.headers.cookie ?? '').length}`,
     )
 
-    const access = await canAccessProjectWithRole(data.documentName, principal, 'view', shareToken)
+    const access = await runWithIdentityContext(
+      principal.userId,
+      userRole,
+      async () => await canAccessProjectWithRole(data.documentName, principal, 'view', shareToken),
+    )
     if (!access.ok) {
       console.warn(
         `[hocuspocus] auth-denied document=${data.documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'} shareToken=${shareToken ? 'present' : 'none'}`,
@@ -181,9 +208,9 @@ const hocuspocus = new Hocuspocus({
       throw new Error('Forbidden')
     }
 
-    await touchProjectActivity(data.documentName)
+    await runWithIdentityContext(principal.userId, userRole, async () => await touchProjectActivity(data.documentName))
     console.info(`[hocuspocus] auth-ok document=${data.documentName} role=${access.role ?? 'none'}`)
-    return { principal, documentName: data.documentName, shareToken }
+    return { principal, userRole, documentName: data.documentName, shareToken }
   },
   async onConnect(data) {
     console.info(
@@ -214,7 +241,10 @@ const hocuspocus = new Hocuspocus({
     const principal = authContext?.principal
     const shareToken = authContext?.shareToken
     const canEdit = principal
-      ? (await canAccessProjectWithRole(data.documentName, principal, 'edit', shareToken)).ok
+      ? (await runWithHocuspocusIdentity(
+        data.context,
+        async () => await canAccessProjectWithRole(data.documentName, principal, 'edit', shareToken),
+      )).ok
       : false
 
     if (!canEdit && isIncomingYjsWriteSyncMessage(data.update)) {
@@ -262,7 +292,7 @@ const hocuspocus = new Hocuspocus({
   },
   async onLoadDocument(data) {
     console.info(`[hocuspocus] load document=${data.documentName}`)
-    const stored = await loadDocument(data.documentName)
+    const stored = await runWithHocuspocusIdentity(data.context, async () => await loadDocument(data.documentName))
     if (stored) {
       Y.applyUpdate(data.document, new Uint8Array(stored))
       const summary = summarizeDocState(data.document)
@@ -275,15 +305,17 @@ const hocuspocus = new Hocuspocus({
     return data.document
   },
   async onChange(data) {
-    await touchProjectActivity(data.documentName)
+    await runWithHocuspocusIdentity(data.context, async () => await touchProjectActivity(data.documentName))
     console.info(
       `[hocuspocus] change document=${data.documentName} updateBytes=${data.update.length} sharedTypes=${data.document.share.size} connections=${data.document.getConnectionsCount()}`,
     )
   },
   async onStoreDocument(data) {
     const update = Y.encodeStateAsUpdate(data.document)
-    await storeDocument(data.documentName, Buffer.from(update))
-    await touchProjectActivity(data.documentName)
+    await runWithHocuspocusIdentity(data.context, async () => {
+      await storeDocument(data.documentName, Buffer.from(update))
+      await touchProjectActivity(data.documentName)
+    })
     console.info(
       `[hocuspocus] store document=${data.documentName} bytes=${update.length} sharedTypes=${data.document.share.size}`,
     )
@@ -300,7 +332,7 @@ const hocuspocus = new Hocuspocus({
       const authContext = data.context as { principal?: Principal } | undefined
       const userId = authContext?.principal?.userId
       if (userId) {
-        const prefs = await getUserPreferences(userId)
+        const prefs = await runWithHocuspocusIdentity(data.context, async () => await getUserPreferences(userId))
         intervalMinutes = prefs.autoVersionIntervalMinutes
       }
     } catch {
@@ -310,7 +342,10 @@ const hocuspocus = new Hocuspocus({
     if (intervalMinutes > 0 && now - lastCommit >= intervalMinutes * 60 * 1000) {
       lastAutoCommitTimestamp.set(projectId, now)
       // Fire async, don't block Hocuspocus
-      void commitSnapshot(projectId, update, { skipEmpty: true }).then(() => {
+      void runWithHocuspocusIdentity(
+        data.context,
+        async () => await commitSnapshot(projectId, update, { skipEmpty: true }),
+      ).then(() => {
         // Notify connected clients so the history panel can refresh
         const doc = hocuspocus.documents.get(projectId)
         if (doc) {

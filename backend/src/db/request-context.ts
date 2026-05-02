@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type postgres from 'postgres'
 
-export type RequestUserRole = 'user' | 'admin' | 'guest' | null
+export type RequestUserRole = 'user' | 'admin' | 'guest' | 'system' | null
 
 interface RequestContextStore {
   userId: string | null
