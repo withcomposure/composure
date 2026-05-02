@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { AmbientBackground } from "@/components/AmbientBackground";
-import { apiUrl } from "@/utils/fetch";
+import { oauthIntentUrl } from "@/utils/oauth";
 
 const providerLabels: Record<string, string> = {
   github: "GitHub",
@@ -129,7 +129,7 @@ export function AuthEntryView({
     enabledLoginProviders.map((provider) => (
       <a
         key={provider}
-        href={apiUrl(`/auth/via/${provider}/login`)}
+        href={oauthIntentUrl(provider, "login")}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
       >
         {providerIcons[provider] ?? null}

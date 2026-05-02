@@ -25,6 +25,26 @@ import { isProductionEnv } from '../env.js'
 const isProd = isProductionEnv(process.env.NODE_ENV)
 const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
 
+function firstHeaderValue(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (typeof raw !== 'string') return null
+  const first = raw.split(',')[0]?.trim()
+  return first || null
+}
+
+function normalizeHttpOrigin(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    const parsed = new URL(value)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // State JWT helpers — lightweight signed JSON to pass intent through the
 // OAuth redirect cycle. We use HMAC-SHA256 rather than a library to keep deps
@@ -161,13 +181,13 @@ function shouldUseSecureCookies(req: FastifyRequest): boolean {
 }
 
 function inferOriginFromRequest(req: FastifyRequest): string {
-  const proto = isProd
-    ? (Array.isArray(req.headers['x-forwarded-proto'])
-        ? req.headers['x-forwarded-proto'][0]
-        : req.headers['x-forwarded-proto']) ?? req.protocol
-    : req.protocol
-  const host = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost'
-  return `${proto}://${host}`
+  const forwardedProto = firstHeaderValue(req.headers['x-forwarded-proto'])
+  const proto = isProd && forwardedProto ? forwardedProto.toLowerCase() : req.protocol
+  const normalizedProto = proto === 'https' ? 'https' : 'http'
+  const host = firstHeaderValue(req.headers['x-forwarded-host'])
+    ?? firstHeaderValue(req.headers.host)
+    ?? 'localhost'
+  return `${normalizedProto}://${host}`
 }
 
 async function getProviderConfig(provider: string): Promise<OAuthProviderRow | null> {
@@ -204,6 +224,7 @@ async function migrateGuestData(req: FastifyRequest, reply: FastifyReply, userId
 export interface OAuthRoutesOptions {
   backendUrl: string | null
   frontendUrl: string | null
+  trustedFrontendOrigins?: ReadonlySet<string>
 }
 
 export function registerOAuthRoutes(
@@ -211,7 +232,62 @@ export function registerOAuthRoutes(
   apiPath: (p: string) => string,
   opts: OAuthRoutesOptions = { backendUrl: null, frontendUrl: null },
 ): void {
-  const { backendUrl, frontendUrl } = opts
+  const {
+    backendUrl,
+    frontendUrl,
+    trustedFrontendOrigins = new Set<string>(),
+  } = opts
+  const configuredFrontendOrigin = normalizeHttpOrigin(frontendUrl)
+
+  function isAllowedFrontendOrigin(req: FastifyRequest, origin: string | null): origin is string {
+    if (!origin) return false
+    if (configuredFrontendOrigin && origin === configuredFrontendOrigin) {
+      return true
+    }
+    if (trustedFrontendOrigins.has(origin)) {
+      return true
+    }
+    return origin === inferOriginFromRequest(req)
+  }
+
+  function resolveFrontendOriginForInit(req: FastifyRequest): string | null {
+    const query = req.query as {
+      return_to?: string
+      returnTo?: string
+      frontend_origin?: string
+      frontendOrigin?: string
+    } | undefined
+
+    const hintedOrigins: Array<string | null> = [
+      normalizeHttpOrigin(query?.return_to ?? query?.returnTo),
+      normalizeHttpOrigin(query?.frontend_origin ?? query?.frontendOrigin),
+      normalizeHttpOrigin(firstHeaderValue(req.headers.origin)),
+      normalizeHttpOrigin(firstHeaderValue(req.headers.referer)),
+      configuredFrontendOrigin,
+      normalizeHttpOrigin(inferOriginFromRequest(req)),
+    ]
+
+    for (const origin of hintedOrigins) {
+      if (isAllowedFrontendOrigin(req, origin)) {
+        return origin
+      }
+    }
+
+    return null
+  }
+
+  function resolveFrontendOriginFromState(
+    req: FastifyRequest,
+    statePayload: Record<string, unknown> | null,
+  ): string | null {
+    const stateOrigin = typeof statePayload?.frontendOrigin === 'string'
+      ? normalizeHttpOrigin(statePayload.frontendOrigin)
+      : null
+    if (!isAllowedFrontendOrigin(req, stateOrigin)) {
+      return null
+    }
+    return stateOrigin
+  }
 
   function callbackUrl(req: FastifyRequest, provider: string): string {
     const path = apiPath(`/auth/via/${provider}/callback`)
@@ -219,9 +295,22 @@ export function registerOAuthRoutes(
     return `${origin}${path}`
   }
 
-  function frontendRedirect(path: string): string {
-    if (frontendUrl) return `${frontendUrl}${path}`
+  function frontendRedirect(path: string, frontendOrigin: string | null): string {
+    if (frontendOrigin) return `${frontendOrigin}${path}`
+    if (configuredFrontendOrigin) return `${configuredFrontendOrigin}${path}`
     return path
+  }
+
+  function redirectWithAuthError(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    statePayload: Record<string, unknown> | null,
+    errorCode: string,
+  ): void {
+    const intent = statePayload?.intent
+    const basePath = intent === 'link' ? '/settings' : '/'
+    const frontendOrigin = resolveFrontendOriginFromState(req, statePayload)
+    reply.redirect(frontendRedirect(`${basePath}?auth_error=${encodeURIComponent(errorCode)}`, frontendOrigin))
   }
   // GET /auth/providers — list configured login providers and user's linked methods
   app.get(apiPath('/auth/providers'), async (req) => {
@@ -263,7 +352,8 @@ export function registerOAuthRoutes(
       return
     }
 
-    const state = signState({ intent: 'login', provider, ts: Date.now() })
+    const frontendOrigin = resolveFrontendOriginForInit(req)
+    const state = signState({ intent: 'login', provider, frontendOrigin, ts: Date.now() })
     const url = strategy.authorizeUrl(state, callbackUrl(req, provider), config.client_id)
     reply.redirect(url)
   })
@@ -288,7 +378,8 @@ export function registerOAuthRoutes(
       return
     }
 
-    const state = signState({ intent: 'link', provider, userId: req.authUser.id, ts: Date.now() })
+    const frontendOrigin = resolveFrontendOriginForInit(req)
+    const state = signState({ intent: 'link', provider, userId: req.authUser.id, frontendOrigin, ts: Date.now() })
     const url = strategy.authorizeUrl(state, callbackUrl(req, provider), config.client_id)
     reply.redirect(url)
   })
@@ -297,39 +388,56 @@ export function registerOAuthRoutes(
   app.get(apiPath('/auth/via/:provider/callback'), async (req, reply) => {
     const provider = (req.params as { provider: string }).provider
     const query = req.query as { code?: string; state?: string; error?: string }
+    const statePayload = query.state ? verifyState(query.state) : null
+
+    const redirectWithStatePath = (path: string): void => {
+      const frontendOrigin = resolveFrontendOriginFromState(req, statePayload)
+      reply.redirect(frontendRedirect(path, frontendOrigin))
+    }
 
     if (query.error) {
-      reply.redirect(frontendRedirect(`/?auth_error=${encodeURIComponent(query.error)}`))
+      redirectWithAuthError(req, reply, statePayload, query.error)
       return
     }
 
     if (!query.code || !query.state) {
-      reply.redirect(frontendRedirect('/?auth_error=missing_code_or_state'))
+      redirectWithAuthError(req, reply, statePayload, 'missing_code_or_state')
       return
     }
 
-    const statePayload = verifyState(query.state)
     if (!statePayload || statePayload.provider !== provider) {
-      reply.redirect(frontendRedirect('/?auth_error=invalid_state'))
+      redirectWithAuthError(req, reply, statePayload, 'invalid_state')
+      return
+    }
+
+    const stateTimestamp = typeof statePayload.ts === 'number' ? statePayload.ts : Number.NaN
+    if (!Number.isFinite(stateTimestamp)) {
+      redirectWithAuthError(req, reply, statePayload, 'invalid_state')
       return
     }
 
     // Check if state is stale (10 minute window)
-    const stateAge = Date.now() - (statePayload.ts as number)
+    const stateAge = Date.now() - stateTimestamp
     if (stateAge > 10 * 60 * 1000) {
-      reply.redirect(frontendRedirect('/?auth_error=state_expired'))
+      redirectWithAuthError(req, reply, statePayload, 'state_expired')
+      return
+    }
+
+    const intent = statePayload.intent
+    if (intent !== 'login' && intent !== 'link') {
+      redirectWithAuthError(req, reply, statePayload, 'invalid_state')
       return
     }
 
     const strategy = strategies[provider]
     if (!strategy) {
-      reply.redirect(frontendRedirect('/?auth_error=unknown_provider'))
+      redirectWithAuthError(req, reply, statePayload, 'unknown_provider')
       return
     }
 
     const config = await getProviderConfig(provider)
     if (!config || !config.client_id || !config.client_secret) {
-      reply.redirect(frontendRedirect('/?auth_error=provider_not_configured'))
+      redirectWithAuthError(req, reply, statePayload, 'provider_not_configured')
       return
     }
 
@@ -338,29 +446,27 @@ export function registerOAuthRoutes(
       profile = await strategy.exchangeCode(query.code, callbackUrl(req, provider), config.client_id, config.client_secret)
     } catch (err) {
       console.error(`[oauth] ${provider} code exchange failed:`, err)
-      reply.redirect(frontendRedirect('/?auth_error=exchange_failed'))
+      redirectWithAuthError(req, reply, statePayload, 'exchange_failed')
       return
     }
 
-    const intent = statePayload.intent as string
-
     // ---- Link flow ----
     if (intent === 'link') {
-      const userId = statePayload.userId as string
+      const userId = typeof statePayload.userId === 'string' ? statePayload.userId : null
       if (!userId) {
-        reply.redirect(frontendRedirect('/settings?auth_error=link_session_mismatch'))
+        redirectWithAuthError(req, reply, statePayload, 'link_session_mismatch')
         return
       }
 
       if (req.authUser && req.authUser.id !== userId) {
-        reply.redirect(frontendRedirect('/settings?auth_error=link_session_mismatch'))
+        redirectWithAuthError(req, reply, statePayload, 'link_session_mismatch')
         return
       }
 
       if (!req.authUser) {
         const linkTarget = await findUserById(userId)
         if (!linkTarget) {
-          reply.redirect(frontendRedirect('/settings?auth_error=link_user_not_found'))
+          redirectWithAuthError(req, reply, statePayload, 'link_user_not_found')
           return
         }
       }
@@ -368,7 +474,7 @@ export function registerOAuthRoutes(
       // Check if this provider profile is already claimed by another user
       const existing = await findOAuthAccount(provider, profile.providerId)
       if (existing && existing.user_id !== userId) {
-        reply.redirect(frontendRedirect('/settings?auth_error=provider_already_linked'))
+        redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
         return
       }
 
@@ -376,19 +482,19 @@ export function registerOAuthRoutes(
         try {
           await linkOAuthAccount(userId, provider, profile.providerId, profile.email)
         } catch {
-          reply.redirect(frontendRedirect('/settings?auth_error=provider_already_linked'))
+          redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
           return
         }
       }
 
-      reply.redirect(frontendRedirect('/settings?oauth_linked=' + provider))
+      redirectWithStatePath(`/settings?oauth_linked=${encodeURIComponent(provider)}`)
       return
     }
 
     // ---- Login flow ----
     const result = await findUserByOAuth(provider, profile.providerId, profile.email)
     if (!result) {
-      reply.redirect(frontendRedirect('/?auth_error=account_suspended_or_conflict'))
+      redirectWithAuthError(req, reply, statePayload, 'account_suspended_or_conflict')
       return
     }
 
@@ -400,7 +506,7 @@ export function registerOAuthRoutes(
       console.info(`[oauth] accepted pending invites userId=${result.user.id} count=${acceptedInvites}`)
     }
 
-    reply.redirect(frontendRedirect('/'))
+    redirectWithStatePath('/')
   })
 
   // DELETE /auth/via/:provider/unlink — unlink an OAuth provider from the current user

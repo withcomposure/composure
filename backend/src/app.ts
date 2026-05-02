@@ -398,7 +398,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // OAuth routes
   registerAllStrategies()
-  registerOAuthRoutes(app, apiPath, { backendUrl, frontendUrl })
+  registerOAuthRoutes(app, apiPath, {
+    backendUrl,
+    frontendUrl,
+    trustedFrontendOrigins: trustedOrigins,
+  })
 
   // Project dashboard routes
   app.get(apiPath('/projects'), listProjectsRoute)

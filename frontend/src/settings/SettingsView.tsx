@@ -12,7 +12,8 @@ import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { useSectionObserver } from '@/hooks/use-section-observer'
 import { THEMES } from '@/themes/themes'
 import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
-import { apiUrl, fetchJson, getErrorMessage } from '@/utils/fetch'
+import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { oauthIntentUrl } from '@/utils/oauth'
 import { fmtTime } from '@/utils/format-time'
 import { navigateToAdmin, navigateToProjects } from '@/utils/route'
 import {
@@ -556,7 +557,7 @@ export function SettingsView({
                                 </button>
                               ) : (
                                 <a
-                                  href={apiUrl(`/auth/via/${provider}/link`)}
+                                  href={oauthIntentUrl(provider, 'link')}
                                   className="rounded-md bg-cz-accent px-2 py-1 text-xs text-white hover:bg-cz-accent-hover"
                                 >
                                   Link
