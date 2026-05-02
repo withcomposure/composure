@@ -57,10 +57,22 @@ import {
   getStrandedUserDetails,
 } from './db/index.js'
 import { isValidEmail, isValidUserId } from './security.js'
-import { parseUrlEnv } from './env.js'
+import { inferRequestOrigin, normalizeOriginHeader, parseTrustedOrigins, parseUrlEnv } from './env.js'
 
 const sessionCookieName = 'composure_session'
-const frontendUrl = parseUrlEnv(process.env.FRONTEND_URL)
+
+function getConfiguredFrontendOrigin(): string | null {
+  return parseUrlEnv(process.env.FRONTEND_URL)
+}
+
+function getTrustedFrontendOrigins(): Set<string> {
+  const trusted = new Set(parseTrustedOrigins(process.env.CORS_ORIGIN, process.env.NODE_ENV))
+  const configuredFrontendOrigin = getConfiguredFrontendOrigin()
+  if (configuredFrontendOrigin) {
+    trusted.add(configuredFrontendOrigin)
+  }
+  return trusted
+}
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -91,23 +103,28 @@ function normalizeRole(value: unknown): 'user' | 'admin' | null {
 }
 
 function getRequestOrigin(req: FastifyRequest): string {
-  if (frontendUrl) return frontendUrl
-
-  const originHeader = req.headers.origin
-  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
-  if (typeof origin === 'string' && origin.trim().length > 0) {
-    return origin.trim()
+  const configuredFrontendOrigin = getConfiguredFrontendOrigin()
+  if (configuredFrontendOrigin) {
+    return configuredFrontendOrigin
   }
 
-  const forwardedProtoRaw = req.headers['x-forwarded-proto']
-  const forwardedProto = Array.isArray(forwardedProtoRaw) ? forwardedProtoRaw[0] : forwardedProtoRaw
-  const proto = typeof forwardedProto === 'string' && forwardedProto.trim().length > 0
-    ? forwardedProto.split(',')[0].trim()
-    : req.protocol
+  const inferredRequestOrigin = inferRequestOrigin({
+    hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
+    forwardedProtoHeader: req.headers['x-forwarded-proto'],
+  })
+    ?? `${req.protocol === 'https' ? 'https' : 'http'}://localhost`
 
-  const hostHeader = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost'
-  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader
-  return `${proto}://${String(host)}`
+  const normalizedOrigin = normalizeOriginHeader(req.headers.origin)
+  if (!normalizedOrigin) {
+    return inferredRequestOrigin
+  }
+
+  const trustedFrontendOrigins = getTrustedFrontendOrigins()
+  if (trustedFrontendOrigins.has(normalizedOrigin) || normalizedOrigin === inferredRequestOrigin) {
+    return normalizedOrigin
+  }
+
+  return inferredRequestOrigin
 }
 
 export async function listAdminUsersRoute(
@@ -489,7 +506,7 @@ export async function generatePasswordResetLinkRoute(
 
   const expirySeconds = await getPasswordResetExpirySeconds()
   const token = await createPasswordResetToken(userId, expirySeconds)
-  const url = `${getRequestOrigin(req)}/#/reset-password?token=${encodeURIComponent(token.token)}`
+  const url = `${getRequestOrigin(req)}/reset-password?token=${encodeURIComponent(token.token)}`
 
   reply.send({
     url,
@@ -560,7 +577,7 @@ export async function createInviteTokenRoute(
   }
 
   const result = await createInviteToken(req.authUser!.id, email)
-  const url = `${getRequestOrigin(req)}/#/invite?token=${encodeURIComponent(result.token)}`
+  const url = `${getRequestOrigin(req)}/invite?token=${encodeURIComponent(result.token)}`
 
   reply.status(201).send({
     url,

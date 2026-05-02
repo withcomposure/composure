@@ -47,6 +47,12 @@ For split mode, copy `.env.split.example` to `.env.split` and set at least:
 - `API_BASE_PATH=/`
 - `SERVE_FRONTEND=false`
 
+Cookie behavior in split mode:
+- If `FRONTEND_URL` and `BACKEND_URL` are same-site (for example `app.example.com` + `api.example.com`), defaults are `SameSite=Lax` for sessions and `SameSite=Strict` for guest cookies.
+- If they are truly cross-site (for example `app.pages.dev` + `api.yourdomain.com`), cookies automatically switch to `SameSite=None`.
+- You can override explicitly with `SESSION_COOKIE_SAME_SITE` and `GUEST_COOKIE_SAME_SITE` (`strict`, `lax`, or `none`).
+- `SameSite=None` requires HTTPS in production.
+
 Requires Node 24.
 
 ## Caddyfile Deployment Examples
@@ -111,6 +117,7 @@ Recommended app env alignment:
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}` when `API_BASE_PATH=/`
 - Frontend: `VITE_API_URL=https://${COMPOSURE_API_DOMAIN}/api` when `API_BASE_PATH=/api`
 - Frontend: when `VITE_API_URL` is absolute, API requests are sent with credentials so session cookies persist between app/api subdomains.
+- Cookie defaults are already correct for same-site subdomains. For custom behavior, set `SESSION_COOKIE_SAME_SITE` / `GUEST_COOKIE_SAME_SITE`.
 
 ### 3) Host Frontend + Backend on One Domain (Path-Based Routing)
 
@@ -168,6 +175,7 @@ Recommended backend env alignment:
 - `FRONTEND_URL=https://${COMPOSURE_FRONTEND_ORIGIN}`
 - `API_BASE_PATH=/` (common for split mode) or `/api`
 - Ensure frontend `VITE_API_URL` points to this API origin (including any API base path).
+- For cross-site frontend/API pairs, run over HTTPS so `SameSite=None` cookies are accepted by browsers.
 
 ### 5) Private LAN / Homelab with Internal TLS
 

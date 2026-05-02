@@ -19,10 +19,13 @@ import {
   type OAuthProviderRow,
   userHasPasswordAuthMethod,
 } from '../db/index.js'
-import { SESSION_COOKIE_NAME, GUEST_COOKIE_NAME } from '../auth.js'
-import { isProductionEnv } from '../env.js'
-
-const isProd = isProductionEnv(process.env.NODE_ENV)
+import {
+  GUEST_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  getSessionCookieSameSite,
+  shouldUseSecureCookies,
+} from '../auth.js'
+import { inferRequestOrigin } from '../env.js'
 const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
@@ -170,24 +173,12 @@ export function registerAllStrategies(): void {
 // Route helpers
 // ---------------------------------------------------------------------------
 
-function shouldUseSecureCookies(req: FastifyRequest): boolean {
-  if (!isProd) return false
-  const forwardedProto = req.headers['x-forwarded-proto']
-  const protoHeader = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto
-  if (typeof protoHeader === 'string' && protoHeader.split(',')[0].trim().toLowerCase() === 'https') {
-    return true
-  }
-  return req.protocol === 'https'
-}
-
 function inferOriginFromRequest(req: FastifyRequest): string {
-  const forwardedProto = firstHeaderValue(req.headers['x-forwarded-proto'])
-  const proto = isProd && forwardedProto ? forwardedProto.toLowerCase() : req.protocol
-  const normalizedProto = proto === 'https' ? 'https' : 'http'
-  const host = firstHeaderValue(req.headers['x-forwarded-host'])
-    ?? firstHeaderValue(req.headers.host)
-    ?? 'localhost'
-  return `${normalizedProto}://${host}`
+  return inferRequestOrigin({
+    hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
+    forwardedProtoHeader: req.headers['x-forwarded-proto'],
+  })
+    ?? `${req.protocol === 'https' ? 'https' : 'http'}://localhost`
 }
 
 async function getProviderConfig(provider: string): Promise<OAuthProviderRow | null> {
@@ -200,7 +191,7 @@ async function setSessionCookie(req: FastifyRequest, reply: FastifyReply, userId
   await markUserLoggedIn(userId)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: getSessionCookieSameSite(req),
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',

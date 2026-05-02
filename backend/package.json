@@ -25,6 +25,7 @@
     "kysely-postgres-js": "^3.0.0",
     "nodemailer": "^7.0.10",
     "postgres": "^3.4.9",
+    "tldts": "^7.0.30",
     "uuid": "^11.1.0",
     "yjs": "^13.6.24"
   },

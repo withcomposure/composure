@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  areOriginsSameSite,
   isTrustedRequestOrigin,
   normalizeOriginHeader,
   parseBooleanEnv,
@@ -63,6 +64,24 @@ describe('normalizeOriginHeader', () => {
 
   it('returns null for invalid origin header', () => {
     expect(normalizeOriginHeader('not-an-origin')).toBeNull()
+  })
+})
+
+describe('areOriginsSameSite', () => {
+  it('treats same host and scheme as same-site', () => {
+    expect(areOriginsSameSite('https://app.example.com', 'https://app.example.com')).toBe(true)
+  })
+
+  it('treats sibling subdomains with same scheme as same-site', () => {
+    expect(areOriginsSameSite('https://app.example.com', 'https://api.example.com')).toBe(true)
+  })
+
+  it('treats different registrable domains as cross-site', () => {
+    expect(areOriginsSameSite('https://app.pages.dev', 'https://api.example.com')).toBe(false)
+  })
+
+  it('treats scheme differences as cross-site', () => {
+    expect(areOriginsSameSite('http://app.example.com', 'https://api.example.com')).toBe(false)
   })
 })
 

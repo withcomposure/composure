@@ -1366,7 +1366,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                           <button
                             type="button"
                             onClick={() => {
-                              const url = `${window.location.origin}/#/invite?token=${encodeURIComponent(invite.token)}`
+                              const url = `${window.location.origin}/invite?token=${encodeURIComponent(invite.token)}`
                               void navigator.clipboard.writeText(url)
                             }}
                             className="rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"

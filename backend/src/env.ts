@@ -1,3 +1,5 @@
+import { getDomain } from 'tldts'
+
 export type NodeEnv = 'development' | 'production' | 'test'
 
 const defaultDevTrustedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
@@ -102,18 +104,69 @@ export function parseTrustedOrigins(
   return [...trusted]
 }
 
-function inferRequestOrigin(headers: {
-  host: string | string[] | undefined
-  forwardedProto: string | string[] | undefined
+export function inferRequestOrigin(input: {
+  hostHeader: string | string[] | undefined
+  forwardedProtoHeader: string | string[] | undefined
 }): string | null {
-  const host = firstHeaderValue(headers.host)?.trim()
+  const host = firstHeaderValue(input.hostHeader)?.trim()
   if (!host) {
     return null
   }
 
-  const forwardedProto = firstHeaderValue(headers.forwardedProto)
+  const forwardedProto = firstHeaderValue(input.forwardedProtoHeader)
   const proto = forwardedProto?.split(',')[0]?.trim().toLowerCase() === 'https' ? 'https' : 'http'
   return normalizeOrigin(`${proto}://${host}`)
+}
+
+function isLocalOrIpHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1') {
+    return true
+  }
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) {
+    return true
+  }
+
+  return normalized.includes(':')
+}
+
+export function areOriginsSameSite(leftOrigin: string, rightOrigin: string): boolean {
+  try {
+    const left = new URL(leftOrigin)
+    const right = new URL(rightOrigin)
+
+    if ((left.protocol !== 'http:' && left.protocol !== 'https:')
+      || (right.protocol !== 'http:' && right.protocol !== 'https:')) {
+      return false
+    }
+
+    if (left.protocol !== right.protocol) {
+      return false
+    }
+
+    const leftHost = left.hostname.toLowerCase()
+    const rightHost = right.hostname.toLowerCase()
+
+    if (leftHost === rightHost) {
+      return true
+    }
+
+    if (isLocalOrIpHostname(leftHost) || isLocalOrIpHostname(rightHost)) {
+      return false
+    }
+
+    const leftDomain = getDomain(leftHost, { allowPrivateDomains: true })
+    const rightDomain = getDomain(rightHost, { allowPrivateDomains: true })
+
+    return leftDomain != null && rightDomain != null && leftDomain === rightDomain
+  } catch {
+    return false
+  }
 }
 
 export function isTrustedRequestOrigin(input: {
@@ -133,8 +186,8 @@ export function isTrustedRequestOrigin(input: {
   }
 
   const requestOrigin = inferRequestOrigin({
-    host: input.hostHeader,
-    forwardedProto: input.forwardedProtoHeader,
+    hostHeader: input.hostHeader,
+    forwardedProtoHeader: input.forwardedProtoHeader,
   })
 
   return requestOrigin != null && requestOrigin === normalizedOrigin

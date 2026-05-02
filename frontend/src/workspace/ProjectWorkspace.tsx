@@ -751,7 +751,6 @@ export function ProjectWorkspace({
 
       try {
         const res = await apiFetch(`/projects/${projectId}/workspace-state`, {
-          credentials: "same-origin",
           headers: shareHeaders,
         });
 
@@ -872,7 +871,6 @@ export function ProjectWorkspace({
             `/projects/${projectId}/workspace-state`,
             {
               method: "PATCH",
-              credentials: "same-origin",
               headers: {
                 "Content-Type": "application/json",
                 ...shareHeaders,
@@ -1087,7 +1085,6 @@ export function ProjectWorkspace({
   const loadAccess = useCallback(async () => {
     try {
       const res = await apiFetch(`/projects/${projectId}/access`, {
-        credentials: "same-origin",
         headers: shareHeaders,
       });
 
@@ -1128,7 +1125,6 @@ export function ProjectWorkspace({
   const loadComments = useCallback(async () => {
     try {
       const res = await apiFetch(`/projects/${projectId}/comments`, {
-        credentials: "same-origin",
         headers: shareHeaders,
       });
 
@@ -1588,7 +1584,6 @@ export function ProjectWorkspace({
 
       const res = await apiFetch(`/save/${projectId}`, {
         method: "POST",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...shareHeaders,
@@ -1648,7 +1643,6 @@ export function ProjectWorkspace({
         `/projects/${encodeURIComponent(projectId)}/preview.pdf`,
         {
           method: "DELETE",
-          credentials: "same-origin",
           headers: shareHeaders,
         },
       );
@@ -1720,7 +1714,6 @@ export function ProjectWorkspace({
         );
         const res = await apiFetch("/compile", {
           method: "POST",
-          credentials: "same-origin",
           headers: {
             "Content-Type": "application/json",
             ...shareHeaders,
@@ -1813,7 +1806,6 @@ export function ProjectWorkspace({
           `/export/${encodeURIComponent(projectId)}`,
           {
             method: "POST",
-            credentials: "same-origin",
             headers: {
               "Content-Type": "application/json",
               ...shareHeaders,
@@ -2013,7 +2005,6 @@ export function ProjectWorkspace({
 
       const res = await apiFetch(`/projects/${projectId}/comments`, {
         method: "POST",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...shareHeaders,
@@ -2045,7 +2036,6 @@ export function ProjectWorkspace({
         `/projects/${projectId}/comments/${commentId}`,
         {
           method: "PATCH",
-          credentials: "same-origin",
           headers: {
             "Content-Type": "application/json",
             ...shareHeaders,
@@ -2080,7 +2070,6 @@ export function ProjectWorkspace({
         `/projects/${projectId}/comments/${commentId}`,
         {
           method: "DELETE",
-          credentials: "same-origin",
           headers: shareHeaders,
         },
       );
@@ -2120,7 +2109,6 @@ export function ProjectWorkspace({
     try {
       const res = await apiFetch(`/projects/${projectId}/members`, {
         method: "POST",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...shareHeaders,
@@ -2153,7 +2141,6 @@ export function ProjectWorkspace({
     async (userId: string, role: ShareRole | "remove") => {
       const res = await apiFetch(`/projects/${projectId}/members/${userId}`, {
         method: "PATCH",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...shareHeaders,
@@ -2181,7 +2168,6 @@ export function ProjectWorkspace({
     async (enabled: boolean, role: ShareRole) => {
       const res = await apiFetch(`/projects/${projectId}/link-sharing`, {
         method: "PATCH",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...shareHeaders,
@@ -2215,7 +2201,6 @@ export function ProjectWorkspace({
   const invalidateLinkSharing = useCallback(async () => {
     const res = await apiFetch(`/projects/${projectId}/link-sharing`, {
       method: "PATCH",
-      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
         ...shareHeaders,

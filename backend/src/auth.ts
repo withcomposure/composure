@@ -34,7 +34,7 @@ import {
   updateUserEmail,
   updateUserProfileImage,
 } from './db/index.js'
-import { isProductionEnv } from './env.js'
+import { areOriginsSameSite, inferRequestOrigin, isProductionEnv, parseUrlEnv } from './env.js'
 import { createUid } from './ids.js'
 import { isValidEmail } from './security.js'
 
@@ -46,6 +46,10 @@ export const SESSION_COOKIE_NAME = 'composure_session'
 const guestCookieMaxAgeSeconds = 90 * 24 * 60 * 60
 const sessionMaxAgeSeconds = 30 * 24 * 60 * 60
 const maxAvatarImageBytes = Number.parseInt(process.env.MAX_AVATAR_IMAGE_BYTES ?? '262144', 10)
+let warnedSessionNoneWithoutSecure = false
+let warnedGuestNoneWithoutSecure = false
+
+type CookieSameSite = 'strict' | 'lax' | 'none'
 
 function isLocalHostname(hostname: string | undefined): boolean {
   if (!hostname) return false
@@ -53,7 +57,7 @@ function isLocalHostname(hostname: string | undefined): boolean {
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]'
 }
 
-function shouldUseSecureCookies(req: FastifyRequest): boolean {
+export function shouldUseSecureCookies(req: FastifyRequest): boolean {
   if (!isProd) return false
 
   const forwardedProto = req.headers['x-forwarded-proto']
@@ -69,6 +73,82 @@ function shouldUseSecureCookies(req: FastifyRequest): boolean {
   }
 
   return req.protocol === 'https'
+}
+
+function parseCookieSameSiteEnv(value: string | undefined, envName: string): CookieSameSite | null {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const normalized = trimmed.toLowerCase()
+  if (normalized === 'strict' || normalized === 'lax' || normalized === 'none') {
+    return normalized
+  }
+
+  throw new Error(`Invalid ${envName}: "${value}". Expected one of strict, lax, none.`)
+}
+
+function shouldUseCrossSiteCookies(req: FastifyRequest): boolean {
+  const frontendOrigin = parseUrlEnv(process.env.FRONTEND_URL)
+  if (!frontendOrigin) {
+    return false
+  }
+
+  const backendOrigin = parseUrlEnv(process.env.BACKEND_URL)
+    ?? inferRequestOrigin({
+      hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
+      forwardedProtoHeader: req.headers['x-forwarded-proto'],
+    })
+
+  if (!backendOrigin) {
+    return false
+  }
+
+  return !areOriginsSameSite(frontendOrigin, backendOrigin)
+}
+
+function normalizeSameSiteForRequest(
+  req: FastifyRequest,
+  value: CookieSameSite,
+  kind: 'session' | 'guest',
+): CookieSameSite {
+  if (value !== 'none') {
+    return value
+  }
+
+  if (!isProd || shouldUseSecureCookies(req)) {
+    return value
+  }
+
+  if (kind === 'session' && !warnedSessionNoneWithoutSecure) {
+    console.warn('[auth] SESSION_COOKIE_SAME_SITE=none requires HTTPS in production; falling back to SameSite=lax.')
+    warnedSessionNoneWithoutSecure = true
+  }
+
+  if (kind === 'guest' && !warnedGuestNoneWithoutSecure) {
+    console.warn('[auth] GUEST_COOKIE_SAME_SITE=none requires HTTPS in production; falling back to SameSite=lax.')
+    warnedGuestNoneWithoutSecure = true
+  }
+
+  return 'lax'
+}
+
+function resolveCookieSameSite(req: FastifyRequest, kind: 'session' | 'guest'): CookieSameSite {
+  const envName = kind === 'session' ? 'SESSION_COOKIE_SAME_SITE' : 'GUEST_COOKIE_SAME_SITE'
+  const override = parseCookieSameSiteEnv(process.env[envName], envName)
+
+  const defaultValue: CookieSameSite = kind === 'session' ? 'lax' : 'strict'
+  const autoValue = shouldUseCrossSiteCookies(req) ? 'none' : defaultValue
+  return normalizeSameSiteForRequest(req, override ?? autoValue, kind)
+}
+
+export function getSessionCookieSameSite(req: FastifyRequest): CookieSameSite {
+  return resolveCookieSameSite(req, 'session')
+}
+
+function getGuestCookieSameSite(req: FastifyRequest): CookieSameSite {
+  return resolveCookieSameSite(req, 'guest')
 }
 
 export interface AuthSessionResponse {
@@ -163,7 +243,7 @@ export function maybeSetGuestCookie(req: FastifyRequest, reply: FastifyReply, al
   const guestId = createUid()
   reply.setCookie(GUEST_COOKIE_NAME, guestId, {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: getGuestCookieSameSite(req),
     maxAge: guestCookieMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
@@ -294,7 +374,7 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   await markUserLoggedIn(created.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: getSessionCookieSameSite(req),
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
@@ -352,7 +432,7 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
   await markUserLoggedIn(user.id)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: getSessionCookieSameSite(req),
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',
@@ -810,7 +890,7 @@ export async function applyPasswordResetRoute(
   const session = await createSession(user.id, sessionMaxAgeSeconds)
   reply.setCookie(SESSION_COOKIE_NAME, session.id, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: getSessionCookieSameSite(req),
     maxAge: sessionMaxAgeSeconds,
     secure: shouldUseSecureCookies(req),
     path: '/',

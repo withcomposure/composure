@@ -4,9 +4,28 @@ export function isValidProjectId(id: string): boolean {
   return /^[a-f0-9]{32}$/.test(id)
 }
 
+function parseTokenRoute(pathname: string, query: URLSearchParams): RouteState | null {
+  if (pathname === '/reset-password') {
+    const token = query.get('token') ?? undefined
+    if (token) return { kind: 'reset-password', token }
+  }
+
+  if (pathname === '/invite') {
+    const token = query.get('token') ?? undefined
+    if (token) return { kind: 'invite', token }
+  }
+
+  return null
+}
+
 export function parseRoute(): RouteState {
   const pathname = window.location.pathname || '/'
   const query = new URLSearchParams(window.location.search)
+
+  const tokenRoute = parseTokenRoute(pathname, query)
+  if (tokenRoute) {
+    return tokenRoute
+  }
 
   if (pathname === '/' || pathname === '/index.html' || pathname === '/projects') {
     return { kind: 'projects' }
@@ -18,16 +37,6 @@ export function parseRoute(): RouteState {
 
   if (pathname === '/admin') {
     return { kind: 'admin' }
-  }
-
-  if (pathname === '/reset-password') {
-    const token = query.get('token') ?? undefined
-    if (token) return { kind: 'reset-password', token }
-  }
-
-  if (pathname === '/invite') {
-    const token = query.get('token') ?? undefined
-    if (token) return { kind: 'invite', token }
   }
 
   const projectMatch = pathname.match(/^\/project\/([a-f0-9]{32})$/)

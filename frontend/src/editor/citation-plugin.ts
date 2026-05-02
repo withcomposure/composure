@@ -41,7 +41,6 @@ async function fetchBibEntries(): Promise<BibEntry[]> {
     const shareToken = extractShareTokenFromUrl()
     const headers = shareToken ? { 'X-Share-Token': shareToken } : undefined
     const res = await apiFetch(`/bibliography/${projectId}`, {
-      credentials: 'same-origin',
       headers,
     })
     if (!res.ok) return cachedEntries ?? []

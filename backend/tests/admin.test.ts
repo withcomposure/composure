@@ -169,6 +169,46 @@ describe('admin — invite tokens', () => {
     expect(res.json().token).toBeDefined()
   })
 
+  it('creates invite URLs with path routes (not hash routes)', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/invites',
+      headers: {
+        cookie: sessionCookie(sessionId),
+        origin: 'http://localhost:5173',
+      },
+      payload: {},
+    })
+
+    expect(res.statusCode).toBe(201)
+    const url = res.json().url as string
+    expect(url).toContain('/invite?token=')
+    expect(url).not.toContain('/#/invite')
+  })
+
+  it('ignores untrusted origin headers for invite URLs', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/invites',
+      headers: {
+        cookie: sessionCookie(sessionId),
+        origin: 'https://evil.example.com',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'api.withcomposure.test',
+      },
+      payload: {},
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(res.json().url).toMatch(/^https:\/\/api\.withcomposure\.test\/invite\?token=/)
+  })
+
   it('lists invite tokens', async () => {
     const admin = await createTestUser({ email: 'admin@test.com' })
     const sessionId = await createTestSession(admin.id)
@@ -181,6 +221,28 @@ describe('admin — invite tokens', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json().invites).toBeDefined()
+  })
+})
+
+describe('admin — password reset links', () => {
+  it('creates password reset URLs with path routes (not hash routes)', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const user = await createTestUser({ email: 'member@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/users/${user.id}/password-reset-link`,
+      headers: {
+        cookie: sessionCookie(sessionId),
+        origin: 'http://localhost:5173',
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const url = res.json().url as string
+    expect(url).toContain('/reset-password?token=')
+    expect(url).not.toContain('/#/reset-password')
   })
 })
 

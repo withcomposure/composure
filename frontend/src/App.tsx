@@ -374,7 +374,6 @@ export default function App() {
     if (route.kind !== 'project') return
     void apiFetch(`/projects/${route.projectId}/open`, {
       method: 'POST',
-      credentials: 'same-origin',
       headers: route.shareToken ? { 'X-Share-Token': route.shareToken } : undefined,
     })
       .catch(() => undefined)
@@ -441,7 +440,6 @@ export default function App() {
   const openProject = useCallback((projectId: string, shareToken?: string) => {
     void apiFetch(`/projects/${projectId}/open`, {
       method: 'POST',
-      credentials: 'same-origin',
       headers: shareToken ? { 'X-Share-Token': shareToken } : undefined,
     }).catch(() => undefined)
     navigateToProject(projectId, shareToken)
