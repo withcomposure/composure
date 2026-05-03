@@ -1,11 +1,16 @@
+/*
+ * If using this script for production, DO NOT FORGET to change
+ * role passwords from <super_secret_password> to your own.
+ */
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'composure_app') THEN
-    CREATE ROLE composure_app LOGIN PASSWORD 'composure_app' NOSUPERUSER NOBYPASSRLS;
+    CREATE ROLE composure_app LOGIN PASSWORD '<super_secret_password>' NOSUPERUSER NOBYPASSRLS;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'composure_migrator') THEN
-    CREATE ROLE composure_migrator LOGIN PASSWORD 'composure_migrator' NOSUPERUSER BYPASSRLS;
+    CREATE ROLE composure_migrator LOGIN PASSWORD '<super_secret_password>' NOSUPERUSER BYPASSRLS;
   END IF;
 END
 $$;
