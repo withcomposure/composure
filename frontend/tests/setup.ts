@@ -6,6 +6,7 @@ vi.mock('@excalidraw/excalidraw', () => ({
   Excalidraw: () => null,
   exportToBlob: vi.fn(),
   serializeAsJSON: vi.fn(),
+  useHandleLibrary: vi.fn(),
   serializeLibraryAsJSON: vi.fn((libraryItems: unknown) =>
     JSON.stringify({
       type: 'excalidrawlib',

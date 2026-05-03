@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 vi.mock('@excalidraw/excalidraw', () => ({
   exportToBlob: vi.fn(),
   exportToSvg: vi.fn(),
+  useHandleLibrary: vi.fn(),
   serializeLibraryAsJSON: vi.fn((libraryItems: unknown) =>
     JSON.stringify({
       type: 'excalidrawlib',

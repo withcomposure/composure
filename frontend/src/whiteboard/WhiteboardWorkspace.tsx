@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { loadLibraryFromBlob, serializeLibraryAsJSON } from '@excalidraw/excalidraw'
+import { loadLibraryFromBlob, serializeLibraryAsJSON, useHandleLibrary } from '@excalidraw/excalidraw'
 import type { LibraryItems, OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
 import type { AccessPerson, SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
@@ -170,6 +170,9 @@ export function WhiteboardWorkspace({
       profileImageUrl: session.user?.profileImageUrl ?? null,
     },
   })
+
+  // Enables hash-driven library imports, e.g. #addLibrary=... from libraries.excalidraw.com.
+  useHandleLibrary({ excalidrawAPI: excalidrawApi })
 
   const loadAccess = useCallback(async () => {
     try {
