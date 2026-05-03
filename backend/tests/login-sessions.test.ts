@@ -15,7 +15,6 @@ import {
 let app: FastifyInstance
 const originalJwtEnv = {
   privateKey: process.env.JWT_PRIVATE_KEY_PEM,
-  publicKey: process.env.JWT_PUBLIC_KEY_PEM,
   issuer: process.env.JWT_ISSUER,
 }
 
@@ -26,7 +25,7 @@ function asCookieList(setCookieHeader: string | string[] | undefined): string[] 
   return Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader]
 }
 
-function restoreEnvValue(name: 'JWT_PRIVATE_KEY_PEM' | 'JWT_PUBLIC_KEY_PEM' | 'JWT_ISSUER', value: string | undefined): void {
+function restoreEnvValue(name: 'JWT_PRIVATE_KEY_PEM' | 'JWT_ISSUER', value: string | undefined): void {
   if (value == null) {
     delete process.env[name]
   } else {
@@ -46,7 +45,6 @@ beforeEach(async () => {
 
 afterEach(() => {
   restoreEnvValue('JWT_PRIVATE_KEY_PEM', originalJwtEnv.privateKey)
-  restoreEnvValue('JWT_PUBLIC_KEY_PEM', originalJwtEnv.publicKey)
   restoreEnvValue('JWT_ISSUER', originalJwtEnv.issuer)
   resetJwtForTests()
 })
@@ -81,11 +79,10 @@ describe('jwks endpoint', () => {
 describe('jwt signing keys', () => {
   it('verifies cookie JWTs after restart when stable keys and issuer are configured', async () => {
     const user = await createTestUser({ email: 'stable-jwt@test.com' })
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
     const issuer = 'https://api.withcomposure.test'
 
     process.env.JWT_PRIVATE_KEY_PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
-    process.env.JWT_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString()
     process.env.JWT_ISSUER = issuer
     resetJwtForTests()
 

@@ -5,7 +5,6 @@ import {
   exportJWK,
   generateKeyPair,
   importPKCS8,
-  importSPKI,
   calculateJwkThumbprint,
   createLocalJWKSet,
   type JWK,
@@ -25,31 +24,39 @@ function toEpochSeconds(date: Date): number {
   return Math.floor(date.getTime() / 1000)
 }
 
+async function exportPublicJwkFromPrivateKey(key: CryptoKey): Promise<JWK> {
+  const privateJwk = await exportJWK(key)
+  if (privateJwk.kty !== 'RSA' || !privateJwk.n || !privateJwk.e) {
+    throw new Error('JWT_PRIVATE_KEY_PEM must be an RSA private key for RS256 signing.')
+  }
+
+  return {
+    kty: privateJwk.kty,
+    n: privateJwk.n,
+    e: privateJwk.e,
+  }
+}
+
 async function initializeKeys(): Promise<void> {
   if (initialized) {
     return
   }
 
   const privatePem = process.env.JWT_PRIVATE_KEY_PEM?.trim()
-  const publicPem = process.env.JWT_PUBLIC_KEY_PEM?.trim()
 
-  let publicKey: CryptoKey
+  let publicJwk: JWK
 
   if (privatePem) {
     privateKey = await importPKCS8(privatePem, jwtAlgorithm)
-    if (publicPem) {
-      publicKey = await importSPKI(publicPem, jwtAlgorithm)
-    } else {
-      throw new Error('JWT_PUBLIC_KEY_PEM is required when JWT_PRIVATE_KEY_PEM is configured.')
-    }
+    const exportablePrivateKey = await importPKCS8(privatePem, jwtAlgorithm, { extractable: true })
+    publicJwk = await exportPublicJwkFromPrivateKey(exportablePrivateKey)
   } else {
     const generated = await generateKeyPair(jwtAlgorithm, { modulusLength: 2048 })
     privateKey = generated.privateKey
-    publicKey = generated.publicKey
-    console.warn('[auth] JWT_PRIVATE_KEY_PEM/JWT_PUBLIC_KEY_PEM not configured; using ephemeral in-memory keypair.')
+    publicJwk = await exportJWK(generated.publicKey)
+    console.warn('[auth] JWT_PRIVATE_KEY_PEM not configured; using ephemeral in-memory keypair.')
   }
 
-  const publicJwk = await exportJWK(publicKey)
   publicJwk.alg = jwtAlgorithm
   publicJwk.use = 'sig'
   publicJwk.kid = await calculateJwkThumbprint(publicJwk, 'sha256')
