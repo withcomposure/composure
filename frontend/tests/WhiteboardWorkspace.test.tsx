@@ -62,6 +62,10 @@ describe('WhiteboardWorkspace layout', () => {
         })
       }
 
+      if (url === '/api/v1/excalidraw-library') {
+        return json({ libraryItems: [] })
+      }
+
       return json({ error: `Unhandled request: ${url}` }, 500)
     })
 

@@ -4,6 +4,7 @@ import type {
   AppState,
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
+  LibraryItems,
   SocketId,
   Collaborator,
 } from '@excalidraw/excalidraw/types'
@@ -13,8 +14,10 @@ interface WhiteboardCanvasProps {
   canEdit: boolean
   isCollaborating: boolean
   collaborators: Map<SocketId, Collaborator>
+  initialLibraryItems: LibraryItems
   onSetApi: (api: ExcalidrawImperativeAPI) => void
   onChange: NonNullable<ExcalidrawProps['onChange']>
+  onLibraryChange: NonNullable<ExcalidrawProps['onLibraryChange']>
   onPointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
   onUserFollow?: NonNullable<ExcalidrawProps['onUserFollow']>
 }
@@ -23,8 +26,10 @@ function WhiteboardCanvasComponent({
   canEdit,
   isCollaborating,
   collaborators,
+  initialLibraryItems,
   onSetApi,
   onChange,
+  onLibraryChange,
   onPointerUpdate,
   onUserFollow,
 }: WhiteboardCanvasProps) {
@@ -43,6 +48,7 @@ function WhiteboardCanvasComponent({
       <Excalidraw
         excalidrawAPI={onSetApi}
         onChange={onChange}
+        onLibraryChange={onLibraryChange}
         onPointerUpdate={onPointerUpdate}
         onUserFollow={onUserFollow}
         isCollaborating={isCollaborating}
@@ -53,6 +59,7 @@ function WhiteboardCanvasComponent({
             viewBackgroundColor: '#ffffff',
             collaborators,
           } as Partial<AppState>,
+          libraryItems: initialLibraryItems,
         }}
       />
     </div>

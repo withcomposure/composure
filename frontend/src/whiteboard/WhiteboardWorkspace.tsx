@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
+import type { LibraryItems, OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
 import type { AccessPerson, SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 import { makeProjectUrl } from '@/utils/route'
@@ -74,6 +74,8 @@ export function WhiteboardWorkspace({
   const [editModeEnabled, setEditModeEnabled] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [followedSocketId, setFollowedSocketId] = useState<SocketId | null>(null)
+  const [libraryItems, setLibraryItems] = useState<LibraryItems>([])
+  const [libraryLoaded, setLibraryLoaded] = useState(false)
 
   const shareHeaders = useMemo<Record<string, string>>(
     () =>
@@ -90,6 +92,39 @@ export function WhiteboardWorkspace({
   useEffect(() => {
     setEditModeEnabled(canRoleEdit)
   }, [canRoleEdit, projectId])
+
+  useEffect(() => {
+    let cancelled = false
+    setLibraryLoaded(false)
+    setLibraryItems([])
+
+    const loadLibrary = async () => {
+      try {
+        const response = await apiFetch('/excalidraw-library')
+        if (!response.ok) {
+          throw new Error('Failed to load Excalidraw library')
+        }
+        const body = (await response.json()) as { libraryItems?: unknown }
+        if (!cancelled) {
+          setLibraryItems((Array.isArray(body.libraryItems) ? body.libraryItems : []) as LibraryItems)
+        }
+      } catch (error) {
+        console.warn(`[whiteboard] load-library-failed ${String(error)}`)
+        if (!cancelled) {
+          setLibraryItems([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLibraryLoaded(true)
+        }
+      }
+    }
+
+    void loadLibrary()
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, sessionUser?.id])
 
   const {
     connectionState,
@@ -293,6 +328,26 @@ export function WhiteboardWorkspace({
 
   const openShareModal = useCallback(() => setShowShareModal(true), [])
 
+  const handleLibraryChange = useCallback(async (nextLibraryItems: LibraryItems) => {
+    setLibraryItems(nextLibraryItems)
+    if (!sessionUser?.id) {
+      return
+    }
+
+    try {
+      const response = await apiFetch('/excalidraw-library', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ libraryItems: nextLibraryItems }),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to save Excalidraw library')
+      }
+    } catch (error) {
+      console.warn(`[whiteboard] save-library-failed ${String(error)}`)
+    }
+  }, [sessionUser?.id])
+
   const handleUserFollow = useCallback((payload: OnUserFollowedPayload) => {
     if (payload.action === 'FOLLOW') {
       setFollowedSocketId(payload.userToFollow.socketId)
@@ -349,15 +404,23 @@ export function WhiteboardWorkspace({
       />
 
       <main className="min-h-0 flex-1">
-        <WhiteboardCanvas
-          canEdit={canWrite}
-          isCollaborating={isCollaborating}
-          collaborators={collaborators}
-          onSetApi={setExcalidrawApi}
-          onChange={handleSceneChange}
-          onPointerUpdate={handlePointerUpdate}
-          onUserFollow={handleUserFollow}
-        />
+        {libraryLoaded ? (
+          <WhiteboardCanvas
+            canEdit={canWrite}
+            isCollaborating={isCollaborating}
+            collaborators={collaborators}
+            initialLibraryItems={libraryItems}
+            onSetApi={setExcalidrawApi}
+            onChange={handleSceneChange}
+            onLibraryChange={handleLibraryChange}
+            onPointerUpdate={handlePointerUpdate}
+            onUserFollow={handleUserFollow}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-cz-text-muted">
+            Loading whiteboard library...
+          </div>
+        )}
       </main>
 
       <ShareModal

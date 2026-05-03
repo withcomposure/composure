@@ -31,12 +31,14 @@ import {
   disablePasswordRoute,
   deleteAccountRoute,
   getPasswordResetTokenRoute,
+  getExcalidrawLibraryRoute,
   getPreferencesRoute,
   loginRoute,
   listSessionsRoute,
   logoutRoute,
   revokeSessionRoute,
   signupRoute,
+  putExcalidrawLibraryRoute,
   updatePreferencesRoute,
   updateProfileRoute,
 } from './auth.js'
@@ -383,6 +385,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.delete(apiPath('/auth/sessions/:sessionId'), revokeSessionRoute)
   app.get(apiPath('/preferences'), getPreferencesRoute)
   app.patch(apiPath('/preferences'), updatePreferencesRoute)
+  app.get(apiPath('/excalidraw-library'), getExcalidrawLibraryRoute)
+  app.put(apiPath('/excalidraw-library'), putExcalidrawLibraryRoute)
 
   app.get(apiPath('/admin/users'), listAdminUsersRoute)
   app.post(apiPath('/admin/users'), createAdminUserRoute)

@@ -17,6 +17,7 @@ import {
   getPasswordLoginEnabled,
   getPasswordResetTokenState,
   getSignupMode,
+  getUserExcalidrawLibrary,
   getUserPreferences,
   listRefreshTokensForUser,
   markInviteTokenUsed,
@@ -25,6 +26,7 @@ import {
   migrateGuestProjectsToUser,
   migrateGuestRecentsToUser,
   migrateGuestWorkspaceStatesToUser,
+  parseExcalidrawLibraryBody,
   redeemShareTokenForUser,
   revokeAllUserRefreshTokens,
   revokeRefreshTokenByRawToken,
@@ -35,6 +37,7 @@ import {
   softDeleteProjectsOwnedByUser,
   updatePendingInvitesForUser,
   updateUserPasswordHash,
+  upsertUserExcalidrawLibrary,
   updateUserPreferences,
   updateUserDisplayName,
   updateUserEmail,
@@ -1057,6 +1060,46 @@ export async function updatePreferencesRoute(
 
   const next = await updateUserPreferences(req.authUser.id, patch)
   reply.send(next)
+}
+
+export async function getExcalidrawLibraryRoute(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const userId = req.principal.userId
+  if (!userId) {
+    reply.send({ libraryItems: [] })
+    return
+  }
+
+  const stored = await getUserExcalidrawLibrary(userId)
+  reply.send(stored ?? { libraryItems: [] })
+}
+
+export async function putExcalidrawLibraryRoute(
+  req: FastifyRequest<{ Body: unknown }>,
+  reply: FastifyReply,
+): Promise<void> {
+  const userId = req.principal.userId
+  if (!userId) {
+    reply.status(401).send({ error: 'Authentication required' })
+    return
+  }
+
+  const parsed = parseExcalidrawLibraryBody(req.body)
+  if (!parsed) {
+    reply.status(400).send({ error: 'Invalid library payload' })
+    return
+  }
+
+  try {
+    await upsertUserExcalidrawLibrary(userId, parsed)
+  } catch (err) {
+    if (err instanceof Error && err.message === 'library-too-large') {
+      reply.status(413).send({ error: 'Library too large' })
+      return
+    }
+    throw err
+  }
+
+  reply.send({ ok: true })
 }
 
 interface DeleteAccountBody {
