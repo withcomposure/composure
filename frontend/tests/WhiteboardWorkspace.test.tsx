@@ -89,6 +89,9 @@ describe('WhiteboardWorkspace layout', () => {
           },
         }}
         onPopupAlert={() => undefined}
+        onOpenSettings={() => undefined}
+        onLogout={() => undefined}
+        onLogin={() => undefined}
       />,
     )
 
@@ -96,9 +99,8 @@ describe('WhiteboardWorkspace layout', () => {
 
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PNG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'SVG' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open account menu' })).toBeInTheDocument()
 
     expect(screen.queryByText('Files')).not.toBeInTheDocument()
     expect(screen.queryByText('History')).not.toBeInTheDocument()

@@ -28,6 +28,9 @@ interface WhiteboardWorkspaceProps {
   }
   shareToken?: string
   onPopupAlert: (message: string, title?: string) => void
+  onOpenSettings: () => void
+  onLogout: () => void
+  onLogin: () => void
 }
 
 function normalizeWhiteboardShareRole(role: ShareRole): ShareRole {
@@ -41,9 +44,15 @@ export function WhiteboardWorkspace({
   session,
   shareToken,
   onPopupAlert,
+  onOpenSettings,
+  onLogout,
+  onLogin,
 }: WhiteboardWorkspaceProps) {
   const {
     accountLabel,
+    accountEmail,
+    accountImageUrl,
+    accountIsGuest,
     user: sessionUser,
     principal,
   } = session
@@ -276,22 +285,28 @@ export function WhiteboardWorkspace({
     }
   }, [excalidrawApi, onPopupAlert, projectTitle])
 
+  const openShareModal = useCallback(() => setShowShareModal(true), [])
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-cz-bg">
       <WhiteboardToolbar
         title={projectTitle}
         canEdit={canWrite}
+        canRoleEdit={canRoleEdit}
         connectionState={connectionState}
         activeCollaborators={activeCollaborators}
         exporting={exporting}
-        onOpenShare={() => setShowShareModal(true)}
+        accountLabel={accountLabel}
+        accountEmail={accountEmail}
+        accountImageUrl={accountImageUrl}
+        accountIsGuest={accountIsGuest}
+        onOpenSettings={onOpenSettings}
+        onLogout={onLogout}
+        onLogin={onLogin}
+        onOpenShare={openShareModal}
         onToggleEditMode={setEditModeEnabled}
-        onExportPng={() => {
-          void handleExportPng()
-        }}
-        onExportSvg={() => {
-          void handleExportSvg()
-        }}
+        onExportPng={handleExportPng}
+        onExportSvg={handleExportSvg}
       />
 
       <main className="min-h-0 flex-1">

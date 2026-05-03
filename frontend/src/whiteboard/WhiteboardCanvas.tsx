@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useMemo, useCallback } from 'react'
 import {
   Excalidraw,
   LiveCollaborationTrigger,
@@ -31,6 +31,23 @@ function WhiteboardCanvasComponent({
   onPointerUpdate,
   onOpenShare,
 }: WhiteboardCanvasProps) {
+  const uiOptions = useMemo<ExcalidrawProps['UIOptions']>(() => ({
+    canvasActions: {
+      loadScene: false,
+      export: false,
+      saveToActiveFile: false,
+      clearCanvas: canEdit,
+      toggleTheme: false,
+    },
+  }), [canEdit])
+
+  const renderTopRightUI = useCallback(() => (
+    <LiveCollaborationTrigger
+      isCollaborating={isCollaborating}
+      onSelect={onOpenShare}
+    />
+  ), [isCollaborating, onOpenShare])
+
   return (
     <div className="h-full w-full">
       <Excalidraw
@@ -39,27 +56,14 @@ function WhiteboardCanvasComponent({
         onPointerUpdate={onPointerUpdate}
         isCollaborating={isCollaborating}
         viewModeEnabled={!canEdit}
-        UIOptions={{
-          canvasActions: {
-            loadScene: false,
-            export: false,
-            saveToActiveFile: false,
-            clearCanvas: canEdit,
-            toggleTheme: false,
-          },
-        }}
+        UIOptions={uiOptions}
         initialData={{
           appState: {
             viewBackgroundColor: '#ffffff',
             collaborators,
           } as Partial<AppState>,
         }}
-        renderTopRightUI={() => (
-          <LiveCollaborationTrigger
-            isCollaborating={isCollaborating}
-            onSelect={onOpenShare}
-          />
-        )}
+        renderTopRightUI={renderTopRightUI}
       />
     </div>
   )

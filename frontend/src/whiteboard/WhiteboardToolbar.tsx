@@ -1,4 +1,6 @@
-import { Download, RefreshCw, Share2 } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, Download, Eye, FileImage, FileType2, Pencil, Share2 } from 'lucide-react'
 import {
   exportToBlob,
   exportToSvg,
@@ -9,19 +11,182 @@ import type {
   ExcalidrawImperativeAPI,
 } from '@excalidraw/excalidraw/types'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+import { Avatar } from '@/components/Avatar'
+import { CustomDropdown } from '@/components/CustomDropdown'
+import { useClickOutside } from '@/hooks/use-click-outside'
+import { useEscapeKey } from '@/hooks/use-escape-key'
+import { useMenuPosition } from '@/hooks/use-menu-position'
 import type { ConnectionState } from '@/types'
+import { ProfileMenu } from '@/workspace/ProfileMenu'
 import type { WhiteboardPresenceUser } from './useWhiteboardCollab'
 
 interface WhiteboardToolbarProps {
   title: string
   canEdit: boolean
+  canRoleEdit: boolean
   connectionState: ConnectionState
   activeCollaborators: WhiteboardPresenceUser[]
   exporting: boolean
+  accountLabel: string
+  accountEmail: string | null
+  accountImageUrl: string | null
+  accountIsGuest: boolean
+  onOpenSettings: () => void
+  onLogout: () => void
+  onLogin: () => void
   onOpenShare: () => void
   onToggleEditMode: (nextCanEdit: boolean) => void
   onExportPng: () => void
   onExportSvg: () => void
+}
+
+const modeOptions = [
+  {
+    value: 'view' as const,
+    icon: Eye,
+    label: 'View',
+    description: 'Read only',
+  },
+  {
+    value: 'edit' as const,
+    icon: Pencil,
+    label: 'Edit',
+    description: 'Draw and change content',
+  },
+]
+
+const maxVisibleCollaborators = 4
+
+interface WhiteboardExportMenuProps {
+  exporting: boolean
+  onExportPng: () => void
+  onExportSvg: () => void
+}
+
+function WhiteboardExportMenu({
+  exporting,
+  onExportPng,
+  onExportSvg,
+}: WhiteboardExportMenuProps) {
+  const [showMenu, setShowMenu] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const closeMenu = useCallback(() => {
+    setShowMenu(false)
+  }, [])
+
+  const menuPosition = useMenuPosition(buttonRef, menuRef, {
+    enabled: showMenu,
+    fallbackWidth: 176,
+  })
+
+  useClickOutside([rootRef, menuRef], closeMenu, showMenu)
+  useEscapeKey(closeMenu, showMenu)
+
+  return (
+    <div className="inline-flex" ref={rootRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setShowMenu((prev) => !prev)}
+        disabled={exporting}
+        title={exporting ? 'Exporting...' : 'Export'}
+        aria-label={exporting ? 'Exporting...' : 'Export'}
+        aria-haspopup="menu"
+        aria-expanded={showMenu}
+        className={`flex items-center gap-1 rounded-md h-7 px-2 text-xs font-medium transition-all ${
+          exporting
+            ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
+            : 'border border-cz-border text-cz-text hover:bg-cz-surface-hover'
+        }`}
+      >
+        {exporting ? (
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <>
+            <Download size={12} />
+            <span>Export</span>
+            <ChevronDown size={10} />
+          </>
+        )}
+      </button>
+
+      {showMenu && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="fixed z-[100] w-44 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl"
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              onExportPng()
+            }}
+            disabled={exporting}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text hover:bg-cz-surface-hover disabled:opacity-50"
+          >
+            <FileImage size={14} className="text-cz-text-muted" />
+            PNG Image
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              onExportSvg()
+            }}
+            disabled={exporting}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text hover:bg-cz-surface-hover disabled:opacity-50"
+          >
+            <FileType2 size={14} className="text-cz-text-muted" />
+            SVG Vector
+          </button>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+function CollaboratorsStrip({ collaborators }: { collaborators: WhiteboardPresenceUser[] }) {
+  if (collaborators.length === 0) {
+    return null
+  }
+
+  const visibleCollaborators = collaborators.slice(0, maxVisibleCollaborators)
+  const overflowCount = Math.max(0, collaborators.length - maxVisibleCollaborators)
+
+  return (
+    <div className="mx-1 flex items-center">
+      <div className="flex items-center -space-x-1.5">
+        {visibleCollaborators.map((collaborator) => (
+          <div key={collaborator.clientId} className="rounded-full ring-2 ring-cz-surface">
+            <Avatar
+              name={collaborator.name}
+              imageUrl={collaborator.profileImageUrl}
+              size={24}
+            />
+          </div>
+        ))}
+
+        {overflowCount > 0 && (
+          <div
+            className="z-10 flex h-6 w-6 items-center justify-center rounded-full border border-cz-border bg-cz-surface text-[10px] font-medium text-cz-text-muted ring-2 ring-cz-surface"
+            title={`${overflowCount} more collaborators`}
+            aria-label={`${overflowCount} more collaborators`}
+          >
+            +{overflowCount}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function connectionLabel(connectionState: ConnectionState): string {
@@ -87,16 +252,29 @@ export async function exportWhiteboardAsSvg(api: ExcalidrawImperativeAPI, title:
 export function WhiteboardToolbar({
   title,
   canEdit,
+  canRoleEdit,
   connectionState,
   activeCollaborators,
   exporting,
+  accountLabel,
+  accountEmail,
+  accountImageUrl,
+  accountIsGuest,
+  onOpenSettings,
+  onLogout,
+  onLogin,
   onOpenShare,
   onToggleEditMode,
   onExportPng,
   onExportSvg,
 }: WhiteboardToolbarProps) {
+  const selectedMode = canEdit ? 'edit' : 'view'
+
   return (
-    <header className="flex h-12 items-center justify-between gap-2 border-b border-cz-border bg-cz-surface px-3">
+    <header
+      className="flex items-center justify-between gap-2 border-b border-cz-border bg-cz-surface px-3"
+      style={{ height: 'var(--toolbar-height)' }}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <div className="truncate text-sm font-medium text-cz-text">{title}</div>
         <div className="inline-flex items-center gap-2 rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text-muted">
@@ -108,59 +286,43 @@ export function WhiteboardToolbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <CollaboratorsStrip collaborators={activeCollaborators} />
+
+        <WhiteboardExportMenu
+          exporting={exporting}
+          onExportPng={onExportPng}
+          onExportSvg={onExportSvg}
+        />
+
+        <CustomDropdown
+          value={selectedMode}
+          options={modeOptions.map((option) => (
+            option.value === 'edit' && !canRoleEdit
+              ? { ...option, disabled: true }
+              : option
+          ))}
+          onChange={(nextMode) => onToggleEditMode(nextMode === 'edit')}
+        />
+
         <button
           type="button"
           onClick={onOpenShare}
-          className="inline-flex items-center gap-1 rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-cz-border px-2 text-xs font-medium text-cz-text hover:bg-cz-surface-hover"
           title="Share"
         >
           <Share2 size={12} />
           Share
         </button>
 
-        <div className="inline-flex items-center rounded-md border border-cz-border bg-cz-bg p-0.5">
-          <button
-            type="button"
-            onClick={() => onToggleEditMode(false)}
-            className={`rounded px-2 py-1 text-xs ${!canEdit ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
-          >
-            View
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleEditMode(true)}
-            className={`rounded px-2 py-1 text-xs ${canEdit ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
-          >
-            Edit
-          </button>
-        </div>
-
-        <div className="hidden items-center gap-1 text-xs text-cz-text-muted md:inline-flex">
-          <span>{activeCollaborators.length}</span>
-          <span>online</span>
-        </div>
-
-        <button
-          type="button"
-          disabled={exporting}
-          onClick={onExportPng}
-          className="inline-flex items-center gap-1 rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-wait disabled:opacity-60"
-          title="Export PNG"
-        >
-          {exporting ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
-          PNG
-        </button>
-
-        <button
-          type="button"
-          disabled={exporting}
-          onClick={onExportSvg}
-          className="inline-flex items-center gap-1 rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-wait disabled:opacity-60"
-          title="Export SVG"
-        >
-          {exporting ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
-          SVG
-        </button>
+        <ProfileMenu
+          name={accountLabel}
+          email={accountEmail}
+          imageUrl={accountImageUrl}
+          isGuest={accountIsGuest}
+          onOpenSettings={onOpenSettings}
+          onLogout={onLogout}
+          onLogin={onLogin}
+        />
       </div>
     </header>
   )

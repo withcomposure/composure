@@ -1140,6 +1140,13 @@ export default function App() {
           }}
           shareToken={route.shareToken}
           onPopupAlert={openAlertPopup}
+          onOpenSettings={navigateToSettings}
+          onLogin={() => beginLoginFlow('login')}
+          onLogout={() => {
+            void logoutEverywhere().catch((err) => {
+              openAlertPopup(getErrorMessage(err), 'Log out failed')
+            })
+          }}
         />
       )
     } else {

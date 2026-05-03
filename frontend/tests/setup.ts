@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom'
+import { vi } from 'vitest'
 
 // Need to mock Excalidraw for tests, since it runs browser-specific DOM code
 vi.mock('@excalidraw/excalidraw', () => ({

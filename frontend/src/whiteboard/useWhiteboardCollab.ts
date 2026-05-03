@@ -503,18 +503,38 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       })
     }
 
+    const applyFromMapEvent = (
+      _event: Y.YMapEvent<string>,
+      transaction: Y.Transaction,
+    ) => {
+      if (transaction.origin === 'composure:whiteboard-local') {
+        return
+      }
+      applyFromDoc()
+    }
+
+    const applyFromArrayEvent = (
+      _event: Y.YArrayEvent<string>,
+      transaction: Y.Transaction,
+    ) => {
+      if (transaction.origin === 'composure:whiteboard-local') {
+        return
+      }
+      applyFromDoc()
+    }
+
     applyFromDoc()
 
-    elementsMap.observe(applyFromDoc)
-    elementOrder.observe(applyFromDoc)
-    filesMap.observe(applyFromDoc)
-    appStateMap.observe(applyFromDoc)
+    elementsMap.observe(applyFromMapEvent)
+    elementOrder.observe(applyFromArrayEvent)
+    filesMap.observe(applyFromMapEvent)
+    appStateMap.observe(applyFromMapEvent)
 
     return () => {
-      elementsMap.unobserve(applyFromDoc)
-      elementOrder.unobserve(applyFromDoc)
-      filesMap.unobserve(applyFromDoc)
-      appStateMap.unobserve(applyFromDoc)
+      elementsMap.unobserve(applyFromMapEvent)
+      elementOrder.unobserve(applyFromArrayEvent)
+      filesMap.unobserve(applyFromMapEvent)
+      appStateMap.unobserve(applyFromMapEvent)
     }
   }, [excalidrawApi, ydoc])
 
