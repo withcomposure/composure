@@ -330,11 +330,18 @@ export function ProjectWorkspace({
       editorLayout,
       editorLayoutSurfaceSize.width,
       editorLayoutSurfaceSize.height,
+      {
+        includeLeftEdgeCorners: sidebarOpen && !isMobileSidebarLayout,
+        includeRightEdgeCorners: previewOpen,
+      },
     );
   }, [
     editorLayout,
     editorLayoutSurfaceSize.height,
     editorLayoutSurfaceSize.width,
+    isMobileSidebarLayout,
+    previewOpen,
+    sidebarOpen,
   ]);
 
   const forcedActiveSplitIds = useMemo(() => {
@@ -350,13 +357,39 @@ export function ProjectWorkspace({
         (corner) => corner.key === hoveredCornerKey,
       );
       if (hoveredCorner) {
-        next.add(hoveredCorner.xSplitId);
-        next.add(hoveredCorner.ySplitId);
+        if (hoveredCorner.kind === "internal") {
+          next.add(hoveredCorner.xSplitId);
+          next.add(hoveredCorner.ySplitId);
+        } else {
+          next.add(hoveredCorner.rowSplitId);
+        }
       }
     }
 
     return next;
   }, [draggingCornerSplitIds, hoveredCornerKey, splitGeometry.corners]);
+
+  const sidebarBoundaryResizeActive = useMemo(() => {
+    if (isResizingSidebar) {
+      return true;
+    }
+    if (!hoveredCornerKey) {
+      return false;
+    }
+    const hovered = splitGeometry.corners.find((c) => c.key === hoveredCornerKey);
+    return hovered?.kind === "leftEdge";
+  }, [hoveredCornerKey, isResizingSidebar, splitGeometry.corners]);
+
+  const previewBoundaryResizeActive = useMemo(() => {
+    if (isResizingPreview) {
+      return true;
+    }
+    if (!hoveredCornerKey) {
+      return false;
+    }
+    const hovered = splitGeometry.corners.find((c) => c.key === hoveredCornerKey);
+    return hovered?.kind === "rightEdge";
+  }, [hoveredCornerKey, isResizingPreview, splitGeometry.corners]);
 
   useEffect(() => {
     if (!hoveredCornerKey) {
@@ -2275,8 +2308,34 @@ export function ProjectWorkspace({
         setEditorLayout,
         setHoveredCornerKey,
         setDraggingCornerSplitIds,
+        sidebarEdgeResize:
+          sidebarOpen && !isMobileSidebarLayout
+            ? {
+                sidebarWidthRef,
+                setIsResizingSidebar,
+                setSidebarWidth,
+                setSidebarOpen,
+              }
+            : undefined,
+        previewEdgeResize: previewOpen
+          ? {
+              getPreviewWidth: () => previewWidth,
+              layoutRef,
+              setIsResizingPreview,
+              setPreviewWidth,
+              setPreviewOpen,
+            }
+          : undefined,
       }),
-    [editorLayout, splitGeometry.byId, startResizeDrag],
+    [
+      editorLayout,
+      isMobileSidebarLayout,
+      previewOpen,
+      previewWidth,
+      sidebarOpen,
+      splitGeometry.byId,
+      startResizeDrag,
+    ],
   );
 
   const openDroppedPathsInPane = useCallback(
@@ -2844,6 +2903,7 @@ export function ProjectWorkspace({
           <ResizeHandle
             orientation="vertical"
             ariaLabel="Resize sidebar"
+            forceActive={sidebarBoundaryResizeActive}
             onMouseDown={resizeSidebar}
           />
         </div>
@@ -2938,6 +2998,7 @@ export function ProjectWorkspace({
               <ResizeHandle
                 orientation="vertical"
                 ariaLabel="Resize preview"
+                forceActive={previewBoundaryResizeActive}
                 onMouseDown={resizePreview}
               />
 

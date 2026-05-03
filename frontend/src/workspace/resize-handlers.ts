@@ -190,7 +190,25 @@ interface CornerResizeFactoryOptions {
   setEditorLayout: (updater: (prev: EditorLayoutNode) => EditorLayoutNode) => void;
   setHoveredCornerKey: (key: string | null) => void;
   setDraggingCornerSplitIds: (ids: [string, string] | null) => void;
+  /** When set, `leftEdge` corners resize the sidebar together with the row split */
+  sidebarEdgeResize?: {
+    sidebarWidthRef: { current: number };
+    setIsResizingSidebar: (resizing: boolean) => void;
+    setSidebarWidth: (width: number) => void;
+    setSidebarOpen: (open: boolean) => void;
+  };
+  /** When set, `rightEdge` corners resize the preview panel together with the row split */
+  previewEdgeResize?: {
+    getPreviewWidth: () => number;
+    layoutRef: { current: HTMLDivElement | null };
+    setIsResizingPreview: (resizing: boolean) => void;
+    setPreviewWidth: (width: number) => void;
+    setPreviewOpen: (open: boolean) => void;
+  };
 }
+
+const sidebarCollapseThresholdPx = 56;
+const previewCollapseThresholdPx = 84;
 
 export function createEditorCornerResizeHandler({
   startResizeDrag,
@@ -199,9 +217,137 @@ export function createEditorCornerResizeHandler({
   setEditorLayout,
   setHoveredCornerKey,
   setDraggingCornerSplitIds,
+  sidebarEdgeResize,
+  previewEdgeResize,
 }: CornerResizeFactoryOptions) {
   return (event: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, corner: SplitCornerTarget) => {
     event.stopPropagation();
+
+    if (corner.kind === "leftEdge") {
+      if (!sidebarEdgeResize) {
+        return;
+      }
+      const {
+        sidebarWidthRef,
+        setIsResizingSidebar,
+        setSidebarWidth,
+        setSidebarOpen,
+      } = sidebarEdgeResize;
+      const rowGeom = splitGeometryById[corner.rowSplitId];
+      if (!rowGeom) {
+        return;
+      }
+      const startYRatio = findSplitRatio(editorLayout, corner.rowSplitId);
+      if (startYRatio === null) {
+        return;
+      }
+      const { clientX: startX, clientY: startY } = getClientPos(event.nativeEvent);
+      const startWidth = sidebarWidthRef.current;
+      const yAxisSize = Math.max(1, rowGeom.rect.height);
+      let collapsedByDrag = false;
+
+      const applySidebarOpen = (open: boolean) => {
+        if (collapsedByDrag === !open) {
+          return;
+        }
+        collapsedByDrag = !open;
+        setSidebarOpen(open);
+      };
+
+      startResizeDrag(event, {
+        cursor: "move",
+        onStart: () => {
+          setHoveredCornerKey(corner.key);
+          setDraggingCornerSplitIds([corner.rowSplitId, corner.rowSplitId]);
+          setIsResizingSidebar(true);
+        },
+        onMove: (moveEvent) => {
+          const { clientX, clientY } = getClientPos(moveEvent);
+          const deltaX = clientX - startX;
+          const rawWidth = startWidth + deltaX;
+          if (rawWidth <= sidebarCollapseThresholdPx) {
+            applySidebarOpen(false);
+          } else {
+            applySidebarOpen(true);
+            const nextWidth = Math.min(420, Math.max(180, rawWidth));
+            if (nextWidth !== sidebarWidthRef.current) {
+              sidebarWidthRef.current = nextWidth;
+              setSidebarWidth(nextWidth);
+            }
+          }
+
+          const nextYRatio = clampSplitRatio(
+            (startYRatio * yAxisSize + (clientY - startY)) / yAxisSize,
+          );
+          setEditorLayout((prev) => updateSplitRatio(prev, corner.rowSplitId, nextYRatio));
+        },
+        onEnd: () => {
+          setDraggingCornerSplitIds(null);
+          setIsResizingSidebar(false);
+        },
+      });
+      return;
+    }
+
+    if (corner.kind === "rightEdge") {
+      if (!previewEdgeResize) {
+        return;
+      }
+      const { getPreviewWidth, layoutRef, setIsResizingPreview, setPreviewWidth, setPreviewOpen } =
+        previewEdgeResize;
+      const rowGeom = splitGeometryById[corner.rowSplitId];
+      if (!rowGeom) {
+        return;
+      }
+      const startYRatio = findSplitRatio(editorLayout, corner.rowSplitId);
+      if (startYRatio === null) {
+        return;
+      }
+      const { clientX: startX, clientY: startY } = getClientPos(event.nativeEvent);
+      const startPreviewWidth = getPreviewWidth();
+      const yAxisSize = Math.max(1, rowGeom.rect.height);
+      let collapsedByDrag = false;
+
+      const applyPreviewOpen = (open: boolean) => {
+        if (collapsedByDrag === !open) {
+          return;
+        }
+        collapsedByDrag = !open;
+        setPreviewOpen(open);
+      };
+
+      startResizeDrag(event, {
+        cursor: "move",
+        onStart: () => {
+          setHoveredCornerKey(corner.key);
+          setDraggingCornerSplitIds([corner.rowSplitId, corner.rowSplitId]);
+          setIsResizingPreview(true);
+        },
+        onMove: (moveEvent) => {
+          const { clientX, clientY } = getClientPos(moveEvent);
+          const deltaPreview = startX - clientX;
+          const rawWidth = startPreviewWidth + deltaPreview;
+          if (rawWidth <= previewCollapseThresholdPx) {
+            applyPreviewOpen(false);
+          } else {
+            applyPreviewOpen(true);
+            const layoutWidth = layoutRef.current?.clientWidth ?? window.innerWidth;
+            const maxWidth = Math.max(380, layoutWidth - 380);
+            setPreviewWidth(Math.min(maxWidth, Math.max(300, rawWidth)));
+          }
+
+          const nextYRatio = clampSplitRatio(
+            (startYRatio * yAxisSize + (clientY - startY)) / yAxisSize,
+          );
+          setEditorLayout((prev) => updateSplitRatio(prev, corner.rowSplitId, nextYRatio));
+        },
+        onEnd: () => {
+          setDraggingCornerSplitIds(null);
+          setIsResizingPreview(false);
+        },
+      });
+      return;
+    }
 
     const xSplitGeometry = splitGeometryById[corner.xSplitId];
     const ySplitGeometry = splitGeometryById[corner.ySplitId];

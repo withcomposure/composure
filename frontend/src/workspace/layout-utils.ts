@@ -34,12 +34,43 @@ export interface SplitHandleGeometry {
   };
 }
 
-export interface SplitCornerTarget {
+/** Intersection of a vertical and horizontal editor split divider */
+export interface SplitCornerInternal {
+  kind: "internal";
   key: string;
   x: number;
   y: number;
   xSplitId: string;
   ySplitId: string;
+}
+
+/** Editor surface left edge × horizontal row divider — resizes sidebar and row split together */
+export interface SplitCornerLeftEdge {
+  kind: "leftEdge";
+  key: string;
+  x: number;
+  y: number;
+  /** Split with orientation `vertical` (stacked panes); divider is horizontal */
+  rowSplitId: string;
+}
+
+/** Editor surface right edge × horizontal row divider — resizes preview and row split together */
+export interface SplitCornerRightEdge {
+  kind: "rightEdge";
+  key: string;
+  x: number;
+  y: number;
+  rowSplitId: string;
+}
+
+export type SplitCornerTarget =
+  | SplitCornerInternal
+  | SplitCornerLeftEdge
+  | SplitCornerRightEdge;
+
+export interface BuildSplitGeometryOptions {
+  includeLeftEdgeCorners?: boolean;
+  includeRightEdgeCorners?: boolean;
 }
 
 const splitRatioMin = 0.15;
@@ -369,6 +400,7 @@ function collectSplitCorners(handles: SplitHandleGeometry[]): SplitCornerTarget[
       seen.add(key);
 
       corners.push({
+        kind: "internal",
         key,
         x,
         y,
@@ -381,10 +413,51 @@ function collectSplitCorners(handles: SplitHandleGeometry[]): SplitCornerTarget[
   return corners;
 }
 
+function collectSurfaceEdgeCorners(
+  handles: SplitHandleGeometry[],
+  surfaceWidth: number,
+  opts: { left: boolean; right: boolean },
+): SplitCornerTarget[] {
+  if (!opts.left && !opts.right) {
+    return [];
+  }
+  const tol = intersectionTolerancePx;
+  const corners: SplitCornerTarget[] = [];
+  for (const handle of handles) {
+    if (handle.orientation !== "vertical") {
+      continue;
+    }
+    const x1 = Math.min(handle.line.x1, handle.line.x2);
+    const x2 = Math.max(handle.line.x1, handle.line.x2);
+    const y = handle.line.y1;
+    const yKey = Math.round(y * 100) / 100;
+    if (opts.left && x1 <= tol) {
+      corners.push({
+        kind: "leftEdge",
+        key: `leftEdge:${handle.splitId}:${yKey}`,
+        x: 0,
+        y,
+        rowSplitId: handle.splitId,
+      });
+    }
+    if (opts.right && x2 >= surfaceWidth - tol) {
+      corners.push({
+        kind: "rightEdge",
+        key: `rightEdge:${handle.splitId}:${yKey}`,
+        x: surfaceWidth,
+        y,
+        rowSplitId: handle.splitId,
+      });
+    }
+  }
+  return corners;
+}
+
 export function buildSplitGeometry(
   layout: EditorLayoutNode,
   width: number,
   height: number,
+  options?: BuildSplitGeometryOptions,
 ): { byId: Record<string, SplitHandleGeometry>; corners: SplitCornerTarget[] } {
   if (layout.kind === "pane" || width <= 0 || height <= 0) {
     return {
@@ -410,8 +483,14 @@ export function buildSplitGeometry(
     byId[handle.splitId] = handle;
   }
 
+  const internalCorners = collectSplitCorners(handles);
+  const edgeCorners = collectSurfaceEdgeCorners(handles, width, {
+    left: Boolean(options?.includeLeftEdgeCorners),
+    right: Boolean(options?.includeRightEdgeCorners),
+  });
+
   return {
     byId,
-    corners: collectSplitCorners(handles),
+    corners: [...internalCorners, ...edgeCorners],
   };
 }
