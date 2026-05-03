@@ -7,6 +7,7 @@ import {
   storeDocument,
   touchProjectActivity,
   canAccessProjectWithRole,
+  findProjectById,
   findUserById,
   getMaxConcurrentJobs,
   getMaxTextFileSize,
@@ -322,6 +323,12 @@ const hocuspocus = new Hocuspocus({
 
     // Auto-commit to git history based on the project owner's interval setting
     const projectId = data.documentName
+    const project = await runWithHocuspocusIdentity(data.context, async () => await findProjectById(projectId))
+    if (project?.engine === 'excalidraw') {
+      console.info(`[history] auto-commit-skipped projectId=${projectId} engine=excalidraw`)
+      return
+    }
+
     const now = Date.now()
     const lastCommit = lastAutoCommitTimestamp.get(projectId) ?? 0
 

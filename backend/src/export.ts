@@ -7,6 +7,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import { isPrivateOrLocalHostname, isValidProjectId } from './security.js'
 import { dispatchExport } from './compile-dispatch.js'
 import { extractFiles } from './files.js'
+import { findProjectById } from './db/index.js'
 
 const exportRoot = '/tmp/composure-export'
 
@@ -55,6 +56,19 @@ export async function exportRoute(
 
   if (!format) {
     reply.status(400).send({ error: 'format is required (git, pdf, docx, html, latex, typst)' })
+    return
+  }
+
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  if (project.engine === 'excalidraw') {
+    reply.status(400).send({
+      error: 'Whiteboard projects support PNG/SVG export from the canvas and are not supported by this export endpoint.',
+    })
     return
   }
 

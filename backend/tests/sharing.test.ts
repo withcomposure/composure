@@ -335,6 +335,33 @@ describe('shared-with-me', () => {
     expect(body.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('includes engine metadata for shared excalidraw projects', async () => {
+    const owner = await createTestUser({ email: 'owner-board@test.com' })
+    const projectId = await createTestProject(owner.id, {
+      title: 'Shared Board',
+      rootFile: 'scene.excalidraw',
+      engine: 'excalidraw',
+    })
+    const member = await createTestUser({ email: 'member-board@test.com' })
+    const memberSession = await createTestSession(member.id)
+
+    await sql`INSERT INTO project_members (project_id, user_id, role, status, created_at, updated_at)
+       VALUES (${projectId}, ${member.id}, 'edit', 'accepted', extract(epoch from now())::integer, extract(epoch from now())::integer)`
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/shared-with-me',
+      headers: { cookie: sessionCookie(memberSession) },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as Array<{ id: string; engine: string | null; rootFile: string }>
+    const project = body.find((entry) => entry.id === projectId)
+    expect(project).toBeDefined()
+    expect(project?.engine).toBe('excalidraw')
+    expect(project?.rootFile).toBe('scene.excalidraw')
+  })
+
   it('returns share token for link-shared projects', async () => {
     const owner = await createTestUser({ email: 'owner-link@test.com' })
     const member = await createTestUser({ email: 'member-link@test.com' })

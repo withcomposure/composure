@@ -1,4 +1,5 @@
 export type ShareRole = 'view' | 'comment' | 'edit'
+export type ProjectEngine = 'typst' | 'latex' | 'markdown' | 'asciidoc' | 'excalidraw'
 
 export interface AccessPerson {
   userId: string | null
@@ -14,6 +15,7 @@ export interface ProjectSummary {
   id: string
   title: string
   rootFile: string
+  engine: ProjectEngine | null
   createdAt: number
   lastActiveAt: number
   topLevelCommentCount: number
@@ -31,6 +33,8 @@ export interface RecentProjectSummary extends ProjectSummary {
 export interface TrashedProjectSummary {
   id: string
   title: string
+  rootFile: string
+  engine: ProjectEngine | null
   createdAt: number
   deletedAt: number
 }
@@ -207,7 +211,7 @@ export interface ProjectTemplate {
   id: string
   name: string
   description: string
-  engine: 'typst' | 'latex' | 'markdown' | 'asciidoc'
+  engine: ProjectEngine
   category: string
   tags: string[]
   entrypoint: string

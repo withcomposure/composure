@@ -12,10 +12,21 @@ function makeProject(
   shareToken?: string,
   rootFile = 'main.tex',
 ): ProjectSummary {
+  const engine = rootFile.endsWith('.typ')
+    ? 'typst'
+    : rootFile.endsWith('.md')
+      ? 'markdown'
+      : rootFile.endsWith('.adoc')
+        ? 'asciidoc'
+        : rootFile.endsWith('.excalidraw')
+          ? 'excalidraw'
+          : 'latex'
+
   return {
     id,
     title,
     rootFile,
+    engine,
     createdAt: now,
     lastActiveAt: now,
     topLevelCommentCount: 0,

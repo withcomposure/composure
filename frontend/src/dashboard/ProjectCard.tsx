@@ -3,7 +3,7 @@ import { Pin, TextCursor, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import type { ProjectSummary } from "@/types";
 import { fmtRelativeTime } from "@/utils/format-time";
-import { projectTypeLabelFromRootFile } from "@/utils/project-format";
+import { projectTypeLabel } from "@/utils/project-format";
 
 interface ProjectCardProps {
   project: ProjectSummary;
@@ -66,7 +66,7 @@ export function ProjectCard({
           </div>
           <div className="mt-1">
             <span className="inline-flex items-center rounded-full border border-cz-border bg-cz-bg px-2 py-0.5 text-[10px] font-medium tracking-wide text-cz-text-muted">
-              {projectTypeLabelFromRootFile(project.rootFile)}
+              {projectTypeLabel({ engine: project.engine, rootFile: project.rootFile })}
             </span>
           </div>
         </div>

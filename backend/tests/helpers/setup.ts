@@ -111,16 +111,18 @@ export async function createTestSession(userId: string, maxAgeSeconds = 30 * 24 
 export async function createTestProject(ownerId: string, overrides: {
   title?: string
   rootFile?: string
+  engine?: string | null
   isGuest?: boolean
 } = {}): Promise<string> {
   const projectId = createUid()
   const title = overrides.title ?? 'Test Project'
   const rootFile = overrides.rootFile ?? 'main.tex'
+  const engine = overrides.engine ?? null
 
   void overrides.isGuest
   await sql`
-    INSERT INTO projects (id, title, root_file, owner_user_id, created_at, last_active_at)
-    VALUES (${projectId}, ${title}, ${rootFile}, ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    INSERT INTO projects (id, title, root_file, engine, owner_user_id, created_at, last_active_at)
+    VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${ownerId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
   `
   await sql`
     INSERT INTO project_members (

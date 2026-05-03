@@ -37,6 +37,7 @@ export function TemplateGallery({ templates, loading, error, creating, onClose, 
     if (types.has('typst')) ordered.push('typst')
     if (types.has('markdown')) ordered.push('markdown')
     if (types.has('asciidoc')) ordered.push('asciidoc')
+    if (types.has('excalidraw')) ordered.push('excalidraw')
     return ordered
   }, [templates])
 

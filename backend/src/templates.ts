@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { isPathWithin, normalizeRelativePath } from './security.js'
 
-type TemplateEngine = 'latex' | 'typst' | 'markdown' | 'asciidoc'
+type TemplateEngine = 'latex' | 'typst' | 'markdown' | 'asciidoc' | 'excalidraw'
 
 interface TemplateFileSpec {
   path: string
@@ -84,7 +84,7 @@ const templatesRoot = resolveTemplatesRoot()
 const templatesIndexPath = path.join(templatesRoot, 'index.json')
 
 function normalizeEngine(raw: unknown): TemplateEngine | null {
-  if (raw === 'latex' || raw === 'typst' || raw === 'markdown' || raw === 'asciidoc') {
+  if (raw === 'latex' || raw === 'typst' || raw === 'markdown' || raw === 'asciidoc' || raw === 'excalidraw') {
     return raw
   }
   return null

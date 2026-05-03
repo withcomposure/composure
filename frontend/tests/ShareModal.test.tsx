@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ShareModal } from '../src/workspace/ShareModal'
 
 function baseProps() {
@@ -42,5 +43,16 @@ describe('ShareModal link sharing controls', () => {
 
     const input = await screen.findByRole('textbox', { name: 'Share link' }) as HTMLInputElement
     expect(document.activeElement).not.toBe(input)
+  })
+
+  it('supports engine-aware role options for whiteboards (view/edit only)', async () => {
+    const user = userEvent.setup()
+    render(<ShareModal {...baseProps()} allowedRoles={['view', 'edit']} />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Can view' })[0])
+
+    expect(screen.getAllByText('Can view').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Can edit').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Can comment')).not.toBeInTheDocument()
   })
 })

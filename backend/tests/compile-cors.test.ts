@@ -194,4 +194,32 @@ describe('compile cors', () => {
 
     expect(response.headers['access-control-allow-origin']).not.toBe('https://evil.example.com')
   })
+
+  it('rejects backend export for excalidraw projects', async () => {
+    const user = await createTestUser({ email: 'board-export@test.com' })
+    const sessionId = await createTestSession(user.id)
+    const projectId = await createTestProject(user.id, {
+      rootFile: 'scene.excalidraw',
+      engine: 'excalidraw',
+    })
+
+    const origin = 'http://localhost:5173'
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/export/${projectId}`,
+      headers: {
+        origin,
+        cookie: sessionCookie(sessionId),
+        'content-type': 'application/json',
+      },
+      payload: {
+        format: 'pdf',
+        rootFile: 'scene.excalidraw',
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.headers['access-control-allow-origin']).toBe(origin)
+    expect((response.json() as { error: string }).error).toMatch(/png\/svg/i)
+  })
 })

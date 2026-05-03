@@ -52,7 +52,7 @@ export function useSectionObserver<T extends string>(
       threshold,
     })
 
-    const sectionNodes = Object.values(sectionRefs.current) as Array<HTMLElement | null>
+    const sectionNodes = Object.values(sectionRefs.current ?? {}) as Array<HTMLElement | null>
     sectionNodes.forEach((node) => {
       if (node) {
         observer.observe(node)

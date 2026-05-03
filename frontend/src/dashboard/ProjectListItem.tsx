@@ -3,7 +3,7 @@ import { Pin, TextCursor, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import type { ProjectSummary } from "@/types";
 import { fmtRelativeTime } from "@/utils/format-time";
-import { projectTypeLabelFromRootFile } from "@/utils/project-format";
+import { projectTypeLabel } from "@/utils/project-format";
 
 interface ProjectListItemProps {
   project: ProjectSummary;
@@ -63,7 +63,7 @@ export function ProjectListItem({
           )}
         </div>
         <div className="text-xs text-cz-text-muted">
-          {projectTypeLabelFromRootFile(project.rootFile)} · Last active{" "}
+          {projectTypeLabel({ engine: project.engine, rootFile: project.rootFile })} · Last active{" "}
           {fmtRelativeTime(project.lastActiveAt)}
         </div>
       </div>

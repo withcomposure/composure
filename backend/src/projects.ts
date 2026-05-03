@@ -36,6 +36,37 @@ export async function listProjectsRoute(req: FastifyRequest): Promise<unknown> {
   return projects
 }
 
+export async function getProjectMetadataRoute(
+  req: FastifyRequest<{ Params: { projectId: string } }>,
+  reply: FastifyReply,
+): Promise<void> {
+  const projectId = String(req.params.projectId ?? '')
+  if (!isValidProjectId(projectId)) {
+    reply.status(400).send({ error: 'Invalid project ID' })
+    return
+  }
+
+  const shareToken = getShareTokenFromRequest(req)
+  const access = await canAccessProjectWithRole(projectId, req.principal, 'view', shareToken)
+  if (!access.ok) {
+    reply.status(403).send({ error: 'Forbidden' })
+    return
+  }
+
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  reply.send({
+    id: project.id,
+    title: project.title,
+    rootFile: project.root_file,
+    engine: project.engine,
+  })
+}
+
 export async function listRecentProjectsRoute(req: FastifyRequest): Promise<unknown> {
   return await listRecentProjectsForPrincipal(req.principal)
 }

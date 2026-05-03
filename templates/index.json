@@ -113,6 +113,22 @@
       ]
     },
     {
+      "id": "excalidraw-blank",
+      "name": "Blank Whiteboard",
+      "engine": "excalidraw",
+      "category": "minimal",
+      "tags": ["blank", "starter", "whiteboard"],
+      "description": "A blank Excalidraw whiteboard starter scene.",
+      "entrypoint": "scene.excalidraw",
+      "isBlank": true,
+      "files": [
+        {
+          "path": "scene.excalidraw",
+          "source": "excalidraw/blank/scene.excalidraw"
+        }
+      ]
+    },
+    {
       "id": "asciidoc-blank",
       "name": "Blank",
       "engine": "asciidoc",

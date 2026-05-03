@@ -6,6 +6,7 @@ import { CompleteProfileView } from './auth/CompleteProfileView'
 import { AdministrationView } from '@/settings/AdministrationView'
 import { DashboardView } from '@/dashboard/DashboardView'
 import { ProjectWorkspace } from '@/workspace/ProjectWorkspace'
+import { WhiteboardWorkspace } from '@/whiteboard/WhiteboardWorkspace'
 import { SettingsView } from '@/settings/SettingsView'
 import { StatusPage } from '@/auth/StatusPage'
 import type {
@@ -68,6 +69,8 @@ function providerLabel(provider: string): string {
 }
 
 export default function App() {
+  type ProjectWorkspaceMetadata = Pick<ProjectSummary, 'id' | 'title' | 'rootFile' | 'engine'>
+
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [oauthProfileCompletion, setOAuthProfileCompletion] = useState<{
     token: string
@@ -124,7 +127,38 @@ export default function App() {
   const [passwordResetLoading, setPasswordResetLoading] = useState(false)
   const [trashedProjects, setTrashedProjects] = useState<TrashedProjectSummary[]>([])
   const [trashRetentionDays, setTrashRetentionDays] = useState(30)
+  const [projectMetadataById, setProjectMetadataById] = useState<Record<string, ProjectWorkspaceMetadata>>({})
+  const [projectMetadataLoadingId, setProjectMetadataLoadingId] = useState<string | null>(null)
   const wasAuthenticatedRef = useRef(false)
+
+  const knownProjectsById = useMemo(() => {
+    const map = new Map<string, ProjectWorkspaceMetadata>()
+    for (const project of projects) {
+      map.set(project.id, {
+        id: project.id,
+        title: project.title,
+        rootFile: project.rootFile,
+        engine: project.engine,
+      })
+    }
+    for (const project of sharedProjects) {
+      map.set(project.id, {
+        id: project.id,
+        title: project.title,
+        rootFile: project.rootFile,
+        engine: project.engine,
+      })
+    }
+    for (const project of recentProjects) {
+      map.set(project.id, {
+        id: project.id,
+        title: project.title,
+        rootFile: project.rootFile,
+        engine: project.engine,
+      })
+    }
+    return map
+  }, [projects, recentProjects, sharedProjects])
 
   const grantAuthEntry = useCallback(() => {
     window.sessionStorage.setItem('composure.auth-entry', 'granted')
@@ -395,6 +429,60 @@ export default function App() {
         void loadRecents()
       })
   }, [route, loadRecents, sessionLoading])
+
+  useEffect(() => {
+    if (sessionLoading || route.kind !== 'project') {
+      return
+    }
+
+    const projectId = route.projectId
+    const known = knownProjectsById.get(projectId)
+    if (known) {
+      setProjectMetadataById((prev) => (
+        prev[projectId]
+          ? prev
+          : {
+              ...prev,
+              [projectId]: known,
+            }
+      ))
+    }
+
+    let cancelled = false
+    setProjectMetadataLoadingId(projectId)
+
+    void apiFetch(`/projects/${projectId}/metadata`, {
+      headers: route.shareToken ? { 'X-Share-Token': route.shareToken } : undefined,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`status=${response.status}`)
+        }
+
+        const metadata = (await response.json()) as ProjectWorkspaceMetadata
+        if (cancelled) {
+          return
+        }
+
+        setProjectMetadataById((prev) => ({
+          ...prev,
+          [projectId]: metadata,
+        }))
+      })
+      .catch((err) => {
+        console.warn(`[app] load-project-metadata-failed projectId=${projectId} error=${String(err)}`)
+      })
+      .finally(() => {
+        if (cancelled) {
+          return
+        }
+        setProjectMetadataLoadingId((prev) => (prev === projectId ? null : prev))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [knownProjectsById, route, sessionLoading])
 
   useEffect(() => {
     if (route.kind !== 'reset-password') {
@@ -932,6 +1020,19 @@ export default function App() {
 
   const accountIsGuest = Boolean(session && !session.authenticated)
   const isAdmin = session?.authenticated && session.user?.role === 'admin'
+  const activeProjectMetadata = useMemo<ProjectWorkspaceMetadata | null>(() => {
+    if (route.kind !== 'project') {
+      return null
+    }
+
+    const fromState = projectMetadataById[route.projectId]
+    if (fromState) {
+      return fromState
+    }
+
+    const fromKnownProjects = knownProjectsById.get(route.projectId)
+    return fromKnownProjects ?? null
+  }, [knownProjectsById, projectMetadataById, route])
 
   let content: ReactNode
 
@@ -1017,36 +1118,62 @@ export default function App() {
       />
     )
   } else if (route.kind === 'project') {
-    content = (
-      <ProjectWorkspace
-        projectId={route.projectId}
-        session={{
-          accountLabel,
-          accountEmail,
-          accountImageUrl: session?.user?.profileImageUrl ?? null,
-          accountIsGuest,
-          user: session?.user ?? null,
-          principal: session?.principal ?? { userId: null, guestId: null },
-        }}
-        shareToken={route.shareToken}
-        autoCompileDefault={preferences.autoCompileDefault}
-        autoCompileTimeoutSeconds={preferences.autoCompileTimeoutSeconds}
-        autoSaveOnCompile={preferences.autoSaveOnCompile}
-        autoSaveOnExport={preferences.autoSaveOnExport}
-        editorBraceMatching={preferences.editorBraceMatching}
-        editorHighlightSelectionMatches={preferences.editorHighlightSelectionMatches}
-        editorInEditorFind={preferences.editorInEditorFind}
-        editorAutocomplete={preferences.editorAutocomplete}
-        editorAutoCloseLatexBeginEnd={preferences.editorAutoCloseLatexBeginEnd}
-        onLogin={() => beginLoginFlow('login')}
-        onLogout={() => {
-          void logoutEverywhere().catch((err) => {
-            openAlertPopup(getErrorMessage(err), 'Log out failed')
-          })
-        }}
-        onPopupAlert={openAlertPopup}
-      />
-    )
+    if (projectMetadataLoadingId === route.projectId && !activeProjectMetadata) {
+      content = (
+        <div className="flex h-screen w-screen items-center justify-center bg-cz-bg text-sm text-cz-text-muted">
+          Loading project workspace...
+        </div>
+      )
+    } else if (activeProjectMetadata?.engine === 'excalidraw' || activeProjectMetadata?.rootFile.toLowerCase().endsWith('.excalidraw')) {
+      content = (
+        <WhiteboardWorkspace
+          projectId={route.projectId}
+          projectTitle={activeProjectMetadata?.title ?? 'Untitled Whiteboard'}
+          rootFile={activeProjectMetadata?.rootFile ?? 'scene.excalidraw'}
+          session={{
+            accountLabel,
+            accountEmail,
+            accountImageUrl: session?.user?.profileImageUrl ?? null,
+            accountIsGuest,
+            user: session?.user ?? null,
+            principal: session?.principal ?? { userId: null, guestId: null },
+          }}
+          shareToken={route.shareToken}
+          onPopupAlert={openAlertPopup}
+        />
+      )
+    } else {
+      content = (
+        <ProjectWorkspace
+          projectId={route.projectId}
+          session={{
+            accountLabel,
+            accountEmail,
+            accountImageUrl: session?.user?.profileImageUrl ?? null,
+            accountIsGuest,
+            user: session?.user ?? null,
+            principal: session?.principal ?? { userId: null, guestId: null },
+          }}
+          shareToken={route.shareToken}
+          autoCompileDefault={preferences.autoCompileDefault}
+          autoCompileTimeoutSeconds={preferences.autoCompileTimeoutSeconds}
+          autoSaveOnCompile={preferences.autoSaveOnCompile}
+          autoSaveOnExport={preferences.autoSaveOnExport}
+          editorBraceMatching={preferences.editorBraceMatching}
+          editorHighlightSelectionMatches={preferences.editorHighlightSelectionMatches}
+          editorInEditorFind={preferences.editorInEditorFind}
+          editorAutocomplete={preferences.editorAutocomplete}
+          editorAutoCloseLatexBeginEnd={preferences.editorAutoCloseLatexBeginEnd}
+          onLogin={() => beginLoginFlow('login')}
+          onLogout={() => {
+            void logoutEverywhere().catch((err) => {
+              openAlertPopup(getErrorMessage(err), 'Log out failed')
+            })
+          }}
+          onPopupAlert={openAlertPopup}
+        />
+      )
+    }
   } else if (route.kind === 'not-found') {
     content = (
       <StatusPage

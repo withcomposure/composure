@@ -23,6 +23,7 @@ interface ShareModalProps {
   onLinkToggle: (enabled: boolean) => void
   onLinkRoleChange: (role: ShareRole) => void
   onLinkInvalidate: () => void
+  allowedRoles?: ShareRole[]
 }
 
 function roleLabel(role: ShareRole | 'owner'): string {
@@ -36,11 +37,6 @@ const shareRoleDropdownOptions: Array<{ value: ShareRole; label: string; icon: L
   { value: 'view', label: 'Can view', icon: Eye },
   { value: 'comment', label: 'Can comment', icon: MessageSquare },
   { value: 'edit', label: 'Can edit', icon: Pencil },
-]
-
-const memberRoleDropdownOptions: Array<{ value: ShareRole | 'remove'; label: string; icon: LucideIcon }> = [
-  ...shareRoleDropdownOptions,
-  { value: 'remove', label: 'Revoke access', icon: Trash2 },
 ]
 
 export function ShareModal({
@@ -61,8 +57,22 @@ export function ShareModal({
   onLinkToggle,
   onLinkRoleChange,
   onLinkInvalidate,
+  allowedRoles,
 }: ShareModalProps) {
   if (!open) return null
+
+  const roleAllowlist = new Set<ShareRole>(
+    allowedRoles && allowedRoles.length > 0
+      ? allowedRoles
+      : ['view', 'comment', 'edit'],
+  )
+  const shareRoleOptions = shareRoleDropdownOptions.filter((option) => roleAllowlist.has(option.value))
+  const memberRoleOptions: Array<{ value: ShareRole | 'remove'; label: string; icon: LucideIcon }> = [
+    ...shareRoleOptions,
+    { value: 'remove', label: 'Revoke access', icon: Trash2 },
+  ]
+  const effectiveInviteRole = roleAllowlist.has(inviteRole) ? inviteRole : (shareRoleOptions[0]?.value ?? 'view')
+  const effectiveLinkRole = roleAllowlist.has(linkRole) ? linkRole : (shareRoleOptions[0]?.value ?? 'view')
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -93,8 +103,8 @@ export function ShareModal({
                 className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-xs text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
               />
               <CustomDropdown
-                value={inviteRole}
-                options={shareRoleDropdownOptions}
+                value={effectiveInviteRole}
+                options={shareRoleOptions}
                 onChange={onInviteRoleChange}
                 className={!canManage || inviting ? 'pointer-events-none opacity-60' : ''}
               />
@@ -126,8 +136,8 @@ export function ShareModal({
                     <span className="rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text">Owner</span>
                   ) : person.userId && canManage ? (
                     <CustomDropdown
-                      value={person.role as ShareRole}
-                      options={memberRoleDropdownOptions}
+                      value={roleAllowlist.has(person.role as ShareRole) ? (person.role as ShareRole) : (shareRoleOptions[0]?.value ?? 'view')}
+                      options={memberRoleOptions}
                       onChange={(value) => onMemberRoleChange(person.userId as string, value)}
                     />
                   ) : (
@@ -143,8 +153,8 @@ export function ShareModal({
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm text-cz-text-muted">Anyone with this link can</span>
               <CustomDropdown
-                value={linkRole}
-                options={shareRoleDropdownOptions}
+                value={effectiveLinkRole}
+                options={shareRoleOptions}
                 onChange={onLinkRoleChange}
                 className={!canManage || !linkEnabled ? 'pointer-events-none opacity-60' : ''}
               />

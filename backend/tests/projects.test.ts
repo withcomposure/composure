@@ -69,6 +69,79 @@ describe('project CRUD', () => {
     }
   })
 
+  it('propagates excalidraw engine metadata across project responses', async () => {
+    const user = await createTestUser()
+    const sessionId = await createTestSession(user.id)
+
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { title: 'Board', templateId: 'excalidraw-blank' },
+    })
+
+    expect(createRes.statusCode).toBe(201)
+    const created = createRes.json() as { id: string; engine: string | null; rootFile: string }
+    expect(created.engine).toBe('excalidraw')
+    expect(created.rootFile).toBe('scene.excalidraw')
+
+    const projectId = created.id
+
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects',
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(listRes.statusCode).toBe(200)
+    const listed = (listRes.json() as Array<{ id: string; engine: string | null }>).find((project) => project.id === projectId)
+    expect(listed?.engine).toBe('excalidraw')
+
+    const metadataRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/metadata`,
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(metadataRes.statusCode).toBe(200)
+    expect(metadataRes.json()).toMatchObject({
+      id: projectId,
+      engine: 'excalidraw',
+      rootFile: 'scene.excalidraw',
+    })
+
+    const markOpenedRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/open`,
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(markOpenedRes.statusCode).toBe(200)
+
+    const recentsRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/recents',
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(recentsRes.statusCode).toBe(200)
+    const recent = (recentsRes.json() as Array<{ id: string; engine: string | null }>).find((project) => project.id === projectId)
+    expect(recent?.engine).toBe('excalidraw')
+
+    const softDeleteRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/projects/${projectId}`,
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(softDeleteRes.statusCode).toBe(200)
+
+    const trashRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/trash',
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+    expect(trashRes.statusCode).toBe(200)
+    const trashed = ((trashRes.json() as { projects: Array<{ id: string; engine: string | null }> }).projects)
+      .find((project) => project.id === projectId)
+    expect(trashed?.engine).toBe('excalidraw')
+  })
+
   it('creates a project for guest user', async () => {
     const guestId = '550e8400e29b41d4a716446655440000'
 

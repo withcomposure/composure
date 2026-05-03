@@ -49,6 +49,7 @@ describe('App guest dashboard pinning', () => {
             id: projectId,
             title: 'Guest Project',
             rootFile: 'main.tex',
+            engine: 'latex',
             createdAt: 1710000000,
             lastActiveAt: 1710000100,
             topLevelCommentCount: 0,

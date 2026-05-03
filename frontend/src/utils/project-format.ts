@@ -1,10 +1,13 @@
+import type { ProjectEngine } from '@/types'
+
 export type ProjectFormat = 'latex' | 'typst' | 'markdown' | 'asciidoc'
 
-const projectFormatLabels: Record<ProjectFormat, string> = {
+const projectFormatLabels: Record<ProjectEngine, string> = {
   latex: 'LaTeX',
   typst: 'Typst',
   markdown: 'Markdown',
   asciidoc: 'AsciiDoc',
+  excalidraw: 'Whiteboard',
 }
 
 const projectFormatByExtension: Record<string, ProjectFormat> = {
@@ -42,8 +45,16 @@ export function detectProjectFormatFromFilename(
   return null
 }
 
-export function projectFormatLabel(format: ProjectFormat): string {
+export function projectFormatLabel(format: ProjectEngine): string {
   return projectFormatLabels[format]
+}
+
+export function projectTypeLabel(input: { engine: ProjectEngine | null; rootFile: string }): string {
+  if (input.engine) {
+    return projectFormatLabel(input.engine)
+  }
+
+  return projectTypeLabelFromRootFile(input.rootFile)
 }
 
 export function projectTypeLabelFromRootFile(rootFile: string): string {

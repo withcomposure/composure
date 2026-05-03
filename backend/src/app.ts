@@ -20,6 +20,7 @@ import {
   markJobFailed,
   markJobInvalid,
   getMaxTextFileSize,
+  findProjectById,
   type ProjectRole,
 } from './db/index.js'
 import {
@@ -67,6 +68,7 @@ import {
   clearRecentProjectsRoute,
   createProjectRoute,
   deleteProjectRoute,
+  getProjectMetadataRoute,
   listProjectsRoute,
   listRecentProjectsRoute,
   listTemplatesRoute,
@@ -456,6 +458,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get(apiPath('/projects/trash'), listTrashRoute)
   app.post(apiPath('/projects/:projectId/restore'), restoreProjectRoute)
   app.delete(apiPath('/projects/:projectId/permanent'), permanentDeleteProjectRoute)
+  app.get(apiPath('/projects/:projectId/metadata'), getProjectMetadataRoute)
   app.get(apiPath('/projects/:projectId/access'), getProjectAccessRoute)
   app.get(apiPath('/projects/:projectId/workspace-state'), getProjectWorkspaceStateRoute)
   app.patch(apiPath('/projects/:projectId/workspace-state'), {
@@ -656,6 +659,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
 
     const normalizedProjectId = String(projectId)
+    const project = await findProjectById(normalizedProjectId)
+    if (project?.engine === 'excalidraw') {
+      reply.status(400).send({
+        error: 'Whiteboard projects support PNG/SVG export from the canvas and cannot be compiled.',
+      })
+      return
+    }
+
     const userId = req.authUser?.id ?? req.principal?.userId ?? null
     const jobId = await createJob('compile', userId, normalizedProjectId)
     let snapshot: Uint8Array | undefined
