@@ -571,6 +571,44 @@ interface AuthBody {
   inviteToken?: string
 }
 
+export interface InviteOnlySignupGateInput {
+  email: string
+  inviteToken?: string | null
+}
+
+export interface InviteOnlySignupGateResult {
+  ok: boolean
+  inviteToken: string | null
+  error?: string
+}
+
+export async function enforceInviteOnlySignupGate(
+  input: InviteOnlySignupGateInput,
+): Promise<InviteOnlySignupGateResult> {
+  const email = input.email.trim().toLowerCase()
+  const inviteToken = input.inviteToken ? String(input.inviteToken).trim() : null
+
+  const userCount = await runWithIdentityContext(null, 'system', async () => await countUsers())
+  if (userCount === 0 || (await getSignupMode()) !== 'invite-only') {
+    return { ok: true, inviteToken }
+  }
+
+  if (!inviteToken) {
+    return { ok: false, inviteToken: null, error: 'Signups are currently invite-only.' }
+  }
+
+  const tokenState = await runWithIdentityContext(null, 'system', async () => await getInviteTokenState(inviteToken))
+  if (!tokenState || tokenState.usedAt != null || tokenState.expiresAt <= Math.floor(Date.now() / 1000)) {
+    return { ok: false, inviteToken: null, error: 'Invalid or expired invite token.' }
+  }
+
+  if (tokenState.email && tokenState.email !== email) {
+    return { ok: false, inviteToken: null, error: 'This invite was issued for a different email address.' }
+  }
+
+  return { ok: true, inviteToken }
+}
+
 export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply: FastifyReply): Promise<void> {
   if (!(await getPasswordLoginEnabled())) {
     reply.status(403).send({ error: 'Password signup is disabled.' })
@@ -580,25 +618,15 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   const password = String(req.body?.password ?? '')
   const displayName = String(req.body?.displayName ?? '').trim()
-  const inviteToken = req.body?.inviteToken ? String(req.body.inviteToken).trim() : null
-
-  // Enforce invite-only mode (skip for first-ever user bootstrap)
-  const userCount = await runWithIdentityContext(null, 'system', async () => await countUsers())
-  if (userCount > 0 && (await getSignupMode()) === 'invite-only') {
-    if (!inviteToken) {
-      reply.status(403).send({ error: 'Signups are currently invite-only.' })
-      return
-    }
-    const tokenState = await runWithIdentityContext(null, 'system', async () => await getInviteTokenState(inviteToken))
-    if (!tokenState || tokenState.usedAt != null || tokenState.expiresAt <= Math.floor(Date.now() / 1000)) {
-      reply.status(403).send({ error: 'Invalid or expired invite token.' })
-      return
-    }
-    if (tokenState.email && tokenState.email !== email) {
-      reply.status(403).send({ error: 'This invite was issued for a different email address.' })
-      return
-    }
+  const inviteGate = await enforceInviteOnlySignupGate({
+    email,
+    inviteToken: req.body?.inviteToken,
+  })
+  if (!inviteGate.ok) {
+    reply.status(403).send({ error: inviteGate.error ?? 'Signups are currently invite-only.' })
+    return
   }
+  const inviteToken = inviteGate.inviteToken
 
   if (!email || !isValidEmail(email)) {
     reply.status(400).send({ error: 'Valid email is required' })

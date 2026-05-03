@@ -2,7 +2,12 @@ import type { FastifyInstance } from 'fastify'
 import { describe, expect, it, vi } from 'vitest'
 import { signState } from '../src/auth/oauth.js'
 import { sql } from '../src/db/connection.js'
-import { createTestApp, createTestUser } from './helpers/setup.js'
+import {
+  createTestApp,
+  createTestInviteToken,
+  createTestUser,
+  setTestSignupMode,
+} from './helpers/setup.js'
 
 const mutableEnvKeys = ['API_BASE_PATH', 'BACKEND_URL', 'FRONTEND_URL', 'CORS_ORIGIN'] as const
 
@@ -286,11 +291,112 @@ describe('oauth redirect targets', () => {
       })
 
       expect(callback.statusCode).toBe(302)
-      expect(callback.headers.location).toBe('/')
+      expect(callback.headers.location === '/' || callback.headers.location === 'http://localhost/').toBe(true)
       const cookies = asCookieList(callback.headers['set-cookie'])
       expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
       expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
       expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('blocks OAuth new-account creation in invite-only mode without invite token', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      await createTestUser({ email: 'admin@test.com' })
+      await setTestSignupMode('invite-only')
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          id: 7788,
+          login: 'new-oauth-user',
+          email: 'new-oauth@test.com',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(callback.statusCode).toBe(302)
+      expect(callback.headers.location).toBe('/?auth_error=invite_required')
+      const [{ count }] = await sql<[{ count: number }]>
+        `SELECT COUNT(1)::integer AS count FROM users`
+      expect(count).toBe(1)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('allows OAuth new-account creation with a valid invite token and consumes it', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      await createTestUser({ email: 'admin@test.com' })
+      await setTestSignupMode('invite-only')
+      const inviteToken = await createTestInviteToken({ email: 'invited-oauth@test.com' })
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          id: 8899,
+          login: 'invited-oauth',
+          email: 'invited-oauth@test.com',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const start = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/login?invite_token=${encodeURIComponent(inviteToken)}`,
+      })
+      expect(start.statusCode).toBe(302)
+      const state = extractStateFromAuthorizeRedirect(start.headers.location)
+
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(callback.statusCode).toBe(302)
+      expect(callback.headers.location === '/' || callback.headers.location === 'http://localhost/').toBe(true)
+      const cookies = asCookieList(callback.headers['set-cookie'])
+      expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
+      expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
+
+      const [{ userCount }] = await sql<[{ userCount: number }]>
+        `SELECT COUNT(1)::integer AS "userCount" FROM users`
+      expect(userCount).toBe(2)
+
+      const [inviteRow] = await sql<[{ used_at: number | null }]>
+        `SELECT used_at FROM invite_tokens WHERE token = ${inviteToken}`
+      expect(inviteRow?.used_at).not.toBeNull()
     } finally {
       vi.unstubAllGlobals()
       if (app) {

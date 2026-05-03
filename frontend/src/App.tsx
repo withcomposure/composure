@@ -51,6 +51,9 @@ const authErrorMessages: Record<string, string> = {
   missing_code_or_state: 'Authentication callback was incomplete. Please retry.',
   unknown_provider: 'Unknown login provider.',
   account_suspended_or_conflict: 'Sign-in failed due to account conflict or suspension.',
+  invite_required: 'Signups are currently invite-only. Use a valid invite link to create a new account.',
+  invalid_invite: 'The invite link is invalid or has expired. Request a new invite and try again.',
+  invite_email_mismatch: 'This invite link was issued for a different email address.',
 }
 
 function providerLabel(provider: string): string {

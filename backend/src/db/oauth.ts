@@ -170,6 +170,9 @@ export async function findUserByOAuth(
   provider: string,
   providerId: string,
   providerEmail: string | null,
+  options: {
+    createIfMissing?: boolean
+  } = {},
 ): Promise<{ user: SessionUser; isNew: boolean } | null> {
   // 1. Exact match on provider + providerId → return user
   const existingLink = await findOAuthAccount(provider, providerId)
@@ -216,6 +219,10 @@ export async function findUserByOAuth(
         isNew: false,
       }
     }
+  }
+
+  if (options.createIfMissing === false) {
+    return null
   }
 
   // 3. Neither → create user + oauth_accounts row

@@ -49,6 +49,19 @@ describe('AuthEntryView', () => {
     expect(screen.getByText(/invited/i)).toBeInTheDocument()
   })
 
+  it('passes invite token to OAuth login links', () => {
+    render(
+      <AuthEntryView
+        {...defaults}
+        inviteToken="abc123"
+        enabledLoginProviders={['github']}
+      />,
+    )
+
+    const githubLink = screen.getByRole('link', { name: /continue with github/i })
+    expect(githubLink).toHaveAttribute('href', expect.stringContaining('invite_token=abc123'))
+  })
+
   it('displays error message', () => {
     render(<AuthEntryView {...defaults} error="Something went wrong" />)
     expect(screen.getByText('Something went wrong')).toBeInTheDocument()

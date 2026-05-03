@@ -10,6 +10,7 @@ import {
   getEnabledOAuthProviders,
   linkOAuthAccount,
   listOAuthAccountsForUser,
+  markInviteTokenUsed,
   markUserLoggedIn,
   migrateGuestProjectsToUser,
   migrateGuestRecentsToUser,
@@ -21,6 +22,7 @@ import {
 } from '../db/index.js'
 import {
   GUEST_COOKIE_NAME,
+  enforceInviteOnlySignupGate,
   issueAuthCookies,
 } from '../auth.js'
 import { inferRequestOrigin } from '../env.js'
@@ -44,6 +46,18 @@ function normalizeHttpOrigin(value: string | null | undefined): string | null {
   } catch {
     return null
   }
+}
+
+function parseInviteToken(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const token = value.trim()
+  return token.length > 0 ? token : null
+}
+
+function inviteGateErrorCode(error: string | undefined): string {
+  if (error === 'Invalid or expired invite token.') return 'invalid_invite'
+  if (error === 'This invite was issued for a different email address.') return 'invite_email_mismatch'
+  return 'invite_required'
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +351,13 @@ export function registerOAuthRoutes(
       return
     }
 
+    const query = req.query as {
+      invite_token?: string
+      inviteToken?: string
+    } | undefined
+    const inviteToken = parseInviteToken(query?.invite_token ?? query?.inviteToken)
     const frontendOrigin = resolveFrontendOriginForInit(req)
-    const state = signState({ intent: 'login', provider, frontendOrigin, ts: Date.now() })
+    const state = signState({ intent: 'login', provider, frontendOrigin, inviteToken, ts: Date.now() })
     const url = strategy.authorizeUrl(state, callbackUrl(req, provider), config.client_id)
     reply.redirect(url)
   })
@@ -488,23 +507,47 @@ export function registerOAuthRoutes(
     const result = await runWithIdentityContext(
       null,
       'system',
-      async () => await findUserByOAuth(provider, profile.providerId, profile.email),
+      async () => await findUserByOAuth(provider, profile.providerId, profile.email, { createIfMissing: false }),
     )
-    if (!result) {
+
+    const stateInviteToken = parseInviteToken(statePayload.inviteToken)
+
+    let resolved = result
+    if (!resolved) {
+      const inviteGate = await enforceInviteOnlySignupGate({
+        email: profile.email ?? '',
+        inviteToken: stateInviteToken,
+      })
+      if (!inviteGate.ok) {
+        redirectWithAuthError(req, reply, statePayload, inviteGateErrorCode(inviteGate.error))
+        return
+      }
+
+      resolved = await runWithIdentityContext(
+        null,
+        'system',
+        async () => await findUserByOAuth(provider, profile.providerId, profile.email, { createIfMissing: true }),
+      )
+    }
+    if (!resolved) {
       redirectWithAuthError(req, reply, statePayload, 'account_suspended_or_conflict')
       return
     }
 
-    await issueOAuthAuthCookies(req, reply, result.user.id)
-    await migrateGuestData(req, reply, result.user.id)
+    if (resolved.isNew && stateInviteToken) {
+      await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(stateInviteToken))
+    }
+
+    await issueOAuthAuthCookies(req, reply, resolved.user.id)
+    await migrateGuestData(req, reply, resolved.user.id)
 
     const acceptedInvites = await runWithIdentityContext(
       null,
       'system',
-      async () => await updatePendingInvitesForUser(result.user.id, result.user.email),
+      async () => await updatePendingInvitesForUser(resolved.user.id, resolved.user.email),
     )
     if (acceptedInvites > 0) {
-      console.info(`[oauth] accepted pending invites userId=${result.user.id} count=${acceptedInvites}`)
+      console.info(`[oauth] accepted pending invites userId=${resolved.user.id} count=${acceptedInvites}`)
     }
 
     redirectWithStatePath('/')

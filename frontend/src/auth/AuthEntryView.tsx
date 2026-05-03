@@ -86,7 +86,7 @@ export function AuthEntryView({
   const effectiveEmail = isPasswordResetMode ? (resetEmail ?? "") : email;
 
   const hasOAuthProviders = enabledLoginProviders.length > 0;
-  const showSignupOAuth = hasOAuthProviders && !isNoUsersBootstrap && !isInviteMode;
+  const showSignupOAuth = hasOAuthProviders && !isNoUsersBootstrap;
 
   const submitAuth = useCallback(() => {
     if (isPasswordResetMode && resetToken) {
@@ -129,7 +129,7 @@ export function AuthEntryView({
     enabledLoginProviders.map((provider) => (
       <a
         key={provider}
-        href={oauthIntentUrl(provider, "login")}
+        href={oauthIntentUrl(provider, "login", { inviteToken })}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
       >
         {providerIcons[provider] ?? null}

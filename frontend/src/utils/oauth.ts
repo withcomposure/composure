@@ -2,7 +2,11 @@ import { apiUrl } from '@/utils/fetch'
 
 export type OAuthIntent = 'login' | 'link'
 
-export function oauthIntentUrl(provider: string, intent: OAuthIntent): string {
+export function oauthIntentUrl(
+  provider: string,
+  intent: OAuthIntent,
+  options?: { inviteToken?: string },
+): string {
   const safeProvider = encodeURIComponent(provider)
   const endpointPath = `/auth/via/${safeProvider}/${intent}`
 
@@ -10,5 +14,12 @@ export function oauthIntentUrl(provider: string, intent: OAuthIntent): string {
     return apiUrl(endpointPath)
   }
 
-  return apiUrl(`${endpointPath}?return_to=${encodeURIComponent(window.location.href)}`)
+  const query = new URLSearchParams({
+    return_to: window.location.href,
+  })
+  const inviteToken = options?.inviteToken?.trim()
+  if (inviteToken) {
+    query.set('invite_token', inviteToken)
+  }
+  return apiUrl(`${endpointPath}?${query.toString()}`)
 }
