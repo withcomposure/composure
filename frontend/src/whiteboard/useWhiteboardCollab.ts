@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import { CaptureUpdateAction } from '@excalidraw/excalidraw'
 import * as Y from 'yjs'
 import type {
   AppState,
@@ -97,6 +98,44 @@ function arraysEqual(left: readonly string[], right: readonly string[]): boolean
   return true
 }
 
+function mergeElementOrder(existingOrder: readonly string[], incomingOrder: readonly string[]): string[] {
+  const dedupedIncomingOrder: string[] = []
+  const seenIncoming = new Set<string>()
+  for (const elementId of incomingOrder) {
+    if (!seenIncoming.has(elementId)) {
+      seenIncoming.add(elementId)
+      dedupedIncomingOrder.push(elementId)
+    }
+  }
+
+  if (dedupedIncomingOrder.length === 0) {
+    return [...existingOrder]
+  }
+
+  if (existingOrder.length === 0) {
+    return dedupedIncomingOrder
+  }
+
+  // If incoming order fully covers existing IDs, treat it as a complete snapshot
+  // and honor its z-ordering.
+  const incomingIdSet = new Set<string>(dedupedIncomingOrder)
+  const coversExistingOrder = existingOrder.every((elementId) => incomingIdSet.has(elementId))
+  if (coversExistingOrder) {
+    return dedupedIncomingOrder
+  }
+
+  // For partial snapshots, preserve existing order and only append new IDs.
+  const mergedOrder = [...existingOrder]
+  const mergedIdSet = new Set<string>(existingOrder)
+  for (const elementId of dedupedIncomingOrder) {
+    if (!mergedIdSet.has(elementId)) {
+      mergedIdSet.add(elementId)
+      mergedOrder.push(elementId)
+    }
+  }
+  return mergedOrder
+}
+
 export interface WhiteboardSceneData {
   elements: readonly OrderedExcalidrawElement[]
   appState: Partial<AppState>
@@ -180,22 +219,16 @@ export function writeWhiteboardSceneToYDoc(
   const persistedAppState = pickPersistedAppState(scene.appState)
 
   ydoc.transact(() => {
-    const nextElementIds = new Set<string>()
+    const currentOrder = elementOrder.toArray()
     for (const element of scene.elements) {
       const serialized = JSON.stringify(element)
-      nextElementIds.add(element.id)
       if (elementsMap.get(element.id) !== serialized) {
         elementsMap.set(element.id, serialized)
       }
     }
-    for (const existingId of elementsMap.keys()) {
-      if (!nextElementIds.has(existingId)) {
-        elementsMap.delete(existingId)
-      }
-    }
 
-    const nextOrder = toSortedIds(scene.elements)
-    const currentOrder = elementOrder.toArray()
+    // Merge element order so partial snapshots cannot drop existing elements.
+    const nextOrder = mergeElementOrder(currentOrder, toSortedIds(scene.elements))
     if (!arraysEqual(nextOrder, currentOrder)) {
       elementOrder.delete(0, elementOrder.length)
       if (nextOrder.length > 0) {
@@ -203,31 +236,17 @@ export function writeWhiteboardSceneToYDoc(
       }
     }
 
-    const nextFileIds = new Set<string>()
     for (const [fileId, file] of Object.entries(scene.files)) {
       const serialized = JSON.stringify(file)
-      nextFileIds.add(fileId)
       if (filesMap.get(fileId) !== serialized) {
         filesMap.set(fileId, serialized)
       }
     }
-    for (const existingFileId of filesMap.keys()) {
-      if (!nextFileIds.has(existingFileId)) {
-        filesMap.delete(existingFileId)
-      }
-    }
 
-    const nextAppStateKeys = new Set<string>()
     for (const [key, value] of Object.entries(persistedAppState)) {
       const serialized = JSON.stringify(value)
-      nextAppStateKeys.add(key)
       if (appStateMap.get(key) !== serialized) {
         appStateMap.set(key, serialized)
-      }
-    }
-    for (const existingAppStateKey of appStateMap.keys()) {
-      if (!nextAppStateKeys.has(existingAppStateKey)) {
-        appStateMap.delete(existingAppStateKey)
       }
     }
   }, origin)
@@ -328,7 +347,9 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map())
   const [activeCollaborators, setActiveCollaborators] = useState<WhiteboardPresenceUser[]>([])
   const ydocProjectIdRef = useRef(projectId)
+  const activeProjectIdRef = useRef(projectId)
   const sceneHydratedForWritesRef = useRef(false)
+  activeProjectIdRef.current = projectId
 
   useEffect(() => {
     if (ydocProjectIdRef.current === projectId) {
@@ -379,6 +400,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     return () => {
       nextProvider.destroy()
       setProvider(null)
+      setExcalidrawApiState(null)
       setCollaborators(new Map())
       setActiveCollaborators([])
       setConnectionState('connecting')
@@ -525,6 +547,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       excalidrawApi.updateScene({
         elements: scene.elements,
         appState: scene.appState as Pick<AppState, keyof AppState>,
+        captureUpdate: CaptureUpdateAction.NEVER,
       })
     }
 
@@ -570,10 +593,17 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       return
     }
 
-    excalidrawApi.updateScene({ collaborators })
+    excalidrawApi.updateScene({
+      collaborators,
+      captureUpdate: CaptureUpdateAction.NEVER,
+    })
   }, [collaborators, excalidrawApi])
 
   const handleSceneChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
+    if (projectId !== activeProjectIdRef.current) {
+      return
+    }
+
     if (!canWrite || !isSynced || !sceneHydratedForWritesRef.current) {
       return
     }
@@ -587,9 +617,13 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       },
       'composure:whiteboard-local',
     )
-  }, [canWrite, isSynced, ydoc])
+  }, [canWrite, isSynced, projectId, ydoc])
 
   const handlePointerUpdate = useCallback<NonNullable<ExcalidrawProps['onPointerUpdate']>>((payload) => {
+    if (projectId !== activeProjectIdRef.current) {
+      return
+    }
+
     const awareness = provider?.awareness
     if (!awareness) {
       return
@@ -601,12 +635,16 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       tool: payload.pointer.tool,
       button: payload.button,
     })
-  }, [provider])
+  }, [projectId, provider])
 
   const setExcalidrawApi = useCallback((api: ExcalidrawImperativeAPI) => {
+    if (projectId !== activeProjectIdRef.current) {
+      return
+    }
+
     sceneHydratedForWritesRef.current = false
     setExcalidrawApiState(api)
-  }, [])
+  }, [projectId])
 
   const isCollaborating = useMemo(() => collaborators.size > 0, [collaborators])
 

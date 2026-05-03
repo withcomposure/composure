@@ -606,6 +606,7 @@ export function WhiteboardWorkspace({
       <main className="min-h-0 flex-1">
         {libraryLoaded ? (
           <WhiteboardCanvas
+            key={projectId}
             canEdit={canWrite}
             isCollaborating={isCollaborating}
             collaborators={collaborators}

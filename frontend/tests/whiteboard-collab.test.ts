@@ -162,6 +162,114 @@ describe('whiteboard collaboration scene persistence', () => {
     ydoc.destroy()
   })
 
+  it('merges partial scene updates instead of deleting existing state', () => {
+    const ydoc = new Y.Doc()
+
+    const firstElement = {
+      id: 'el-1',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    const secondElement = {
+      id: 'el-2',
+      type: 'ellipse',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    const files = {
+      'file-1': {
+        id: 'file-1',
+        mimeType: 'image/png',
+        dataURL: 'data:image/png;base64,',
+        created: 1,
+      },
+    } as unknown as BinaryFiles
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [firstElement, secondElement],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files,
+      },
+      'test:seed',
+    )
+
+    const updatedFirstElement = {
+      ...firstElement,
+      x: 24,
+    } as unknown as OrderedExcalidrawElement
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [updatedFirstElement],
+        appState: {
+          theme: 'dark',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:partial-update',
+    )
+
+    const scene = readWhiteboardSceneFromYDoc(ydoc)
+    expect(scene.elements.map((element) => element.id)).toContain('el-1')
+    expect(scene.elements.map((element) => element.id)).toContain('el-2')
+    expect(Object.keys(scene.files)).toContain('file-1')
+    expect(scene.appState.viewBackgroundColor).toBe('#ffffff')
+    expect(scene.appState.theme).toBe('dark')
+
+    ydoc.destroy()
+  })
+
+  it('persists explicit deleted-element updates', () => {
+    const ydoc = new Y.Doc()
+
+    const persistedElement = {
+      id: 'delete-me',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [persistedElement],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:seed-delete',
+    )
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [
+          {
+            ...persistedElement,
+            isDeleted: true,
+          } as unknown as OrderedExcalidrawElement,
+        ],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:mark-deleted',
+    )
+
+    const scene = readWhiteboardSceneFromYDoc(ydoc)
+    const updatedElement = scene.elements.find((element) => element.id === 'delete-me')
+    expect(updatedElement?.isDeleted).toBe(true)
+
+    ydoc.destroy()
+  })
+
   it('migrates legacy scene text document into structured maps', () => {
     const ydoc = new Y.Doc()
 
@@ -261,5 +369,159 @@ describe('whiteboard collaboration scene persistence', () => {
 
     const sceneAfterEarlyChange = readWhiteboardSceneFromYDoc(ydoc)
     expect(sceneAfterEarlyChange.elements.map((element) => element.id)).toContain('persisted-el')
+  })
+
+  it('does not clear persisted scene when a late empty onChange snapshot arrives', async () => {
+    const { result } = renderHook(() => useWhiteboardCollab({
+      projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      rootFile: 'scene.excalidraw',
+      canWrite: true,
+      localUser: {
+        name: 'Owner',
+        userId: 'user-1',
+        guestId: null,
+        profileImageUrl: null,
+      },
+    }))
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+    })
+
+    const ydoc = hocuspocusMockState.lastDocument as Y.Doc | null
+    expect(ydoc).toBeTruthy()
+    if (!ydoc) {
+      throw new Error('expected mock collaboration document to be available')
+    }
+
+    const persistedElement = {
+      id: 'persisted-late-el',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    act(() => {
+      writeWhiteboardSceneToYDoc(
+        ydoc,
+        {
+          elements: [persistedElement],
+          appState: {
+            viewBackgroundColor: '#ffffff',
+          } as Partial<AppState>,
+          files: {} as BinaryFiles,
+        },
+        'test:seed-late',
+      )
+    })
+
+    const api = createMockExcalidrawApi()
+    act(() => {
+      result.current.setExcalidrawApi(api.api)
+    })
+
+    await waitFor(() => {
+      const appliedSceneFromDoc = api.updateScene.mock.calls.some(([payload]) => (
+        typeof payload === 'object'
+          && payload !== null
+          && Object.prototype.hasOwnProperty.call(payload as object, 'elements')
+      ))
+      expect(appliedSceneFromDoc).toBe(true)
+    })
+
+    act(() => {
+      result.current.handleSceneChange(
+        [],
+        {
+          viewBackgroundColor: '#ffffff',
+        } as AppState,
+        {} as BinaryFiles,
+      )
+    })
+
+    const sceneAfterLateEmptyChange = readWhiteboardSceneFromYDoc(ydoc)
+    expect(sceneAfterLateEmptyChange.elements.map((element) => element.id)).toContain('persisted-late-el')
+  })
+
+  it('ignores stale callbacks after switching projects', async () => {
+    const { result, rerender } = renderHook(
+      ({ nextProjectId }: { nextProjectId: string }) => useWhiteboardCollab({
+        projectId: nextProjectId,
+        rootFile: 'scene.excalidraw',
+        canWrite: true,
+        localUser: {
+          name: 'Owner',
+          userId: 'user-1',
+          guestId: null,
+          profileImageUrl: null,
+        },
+      }),
+      {
+        initialProps: {
+          nextProjectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        },
+      },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+    })
+
+    const projectADoc = hocuspocusMockState.lastDocument as Y.Doc | null
+    expect(projectADoc).toBeTruthy()
+    if (!projectADoc) {
+      throw new Error('expected first project collaboration document to be available')
+    }
+
+    const persistedElement = {
+      id: 'persisted-a',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    act(() => {
+      writeWhiteboardSceneToYDoc(
+        projectADoc,
+        {
+          elements: [persistedElement],
+          appState: {
+            viewBackgroundColor: '#ffffff',
+          } as Partial<AppState>,
+          files: {} as BinaryFiles,
+        },
+        'test:seed-project-a',
+      )
+    })
+
+    const staleOnChange = result.current.handleSceneChange
+    const staleSetApi = result.current.setExcalidrawApi
+
+    rerender({ nextProjectId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' })
+
+    const staleElement = {
+      id: 'stale-write',
+      type: 'ellipse',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    const staleApi = createMockExcalidrawApi()
+
+    act(() => {
+      staleSetApi(staleApi.api)
+      staleOnChange(
+        [staleElement],
+        {
+          viewBackgroundColor: '#ffffff',
+        } as AppState,
+        {} as BinaryFiles,
+      )
+    })
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+    })
+
+    const sceneAfterStaleCallbacks = readWhiteboardSceneFromYDoc(projectADoc)
+    expect(sceneAfterStaleCallbacks.elements.map((element) => element.id)).toContain('persisted-a')
+    expect(sceneAfterStaleCallbacks.elements.map((element) => element.id)).not.toContain('stale-write')
   })
 })

@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 vi.mock('@excalidraw/excalidraw', () => ({
+  CaptureUpdateAction: {
+    NEVER: 'NEVER',
+    IMMEDIATELY: 'IMMEDIATELY',
+    EVENTUALLY: 'EVENTUALLY',
+  },
   exportToBlob: vi.fn(),
   exportToSvg: vi.fn(),
   useHandleLibrary: vi.fn(),

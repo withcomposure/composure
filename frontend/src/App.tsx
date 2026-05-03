@@ -1155,6 +1155,7 @@ export default function App() {
     } else if (activeProjectMetadata?.engine === 'excalidraw' || activeProjectMetadata?.rootFile.toLowerCase().endsWith('.excalidraw')) {
       content = (
         <WhiteboardWorkspace
+          key={`${route.projectId}:${route.shareToken ?? ''}`}
           projectId={route.projectId}
           projectTitle={activeProjectMetadata?.title ?? 'Untitled Whiteboard'}
           rootFile={activeProjectMetadata?.rootFile ?? 'scene.excalidraw'}
