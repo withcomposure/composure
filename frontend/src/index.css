@@ -558,3 +558,8 @@ body {
   animation: cz-spin 0.8s linear infinite;
 }
 
+/* Excalidraw shows a built-in collaborator avatar strip; we use the app toolbar instead */
+.whiteboard-excalidraw-host .UserList {
+  display: none !important;
+}
+

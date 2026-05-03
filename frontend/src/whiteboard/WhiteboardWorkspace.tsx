@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
 import type { AccessPerson, SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 import { makeProjectUrl } from '@/utils/route'
@@ -68,6 +69,7 @@ export function WhiteboardWorkspace({
   const [accessRole, setAccessRole] = useState<ShareRole | 'owner' | null>(null)
   const [editModeEnabled, setEditModeEnabled] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [followedSocketId, setFollowedSocketId] = useState<SocketId | null>(null)
 
   const shareHeaders = useMemo<Record<string, string>>(
     () =>
@@ -287,6 +289,33 @@ export function WhiteboardWorkspace({
 
   const openShareModal = useCallback(() => setShowShareModal(true), [])
 
+  const handleUserFollow = useCallback((payload: OnUserFollowedPayload) => {
+    if (payload.action === 'FOLLOW') {
+      setFollowedSocketId(payload.userToFollow.socketId)
+    } else {
+      setFollowedSocketId(null)
+    }
+  }, [])
+
+  const handleFollowCollaborator = useCallback(
+    (socketId: SocketId, username: string) => {
+      if (!excalidrawApi) {
+        return
+      }
+      const current = excalidrawApi.getAppState().userToFollow
+      if (current?.socketId === socketId) {
+        excalidrawApi.updateScene({ appState: { userToFollow: null } })
+        setFollowedSocketId(null)
+      } else {
+        excalidrawApi.updateScene({
+          appState: { userToFollow: { socketId, username } },
+        })
+        setFollowedSocketId(socketId)
+      }
+    },
+    [excalidrawApi],
+  )
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-cz-bg">
       <WhiteboardToolbar
@@ -295,6 +324,8 @@ export function WhiteboardWorkspace({
         canRoleEdit={canRoleEdit}
         connectionState={connectionState}
         activeCollaborators={activeCollaborators}
+        followedSocketId={followedSocketId}
+        onFollowCollaborator={handleFollowCollaborator}
         exporting={exporting}
         accountLabel={accountLabel}
         accountEmail={accountEmail}
@@ -317,7 +348,7 @@ export function WhiteboardWorkspace({
           onSetApi={setExcalidrawApi}
           onChange={handleSceneChange}
           onPointerUpdate={handlePointerUpdate}
-          onOpenShare={() => setShowShareModal(true)}
+          onUserFollow={handleUserFollow}
         />
       </main>
 

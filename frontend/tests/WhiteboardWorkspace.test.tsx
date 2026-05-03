@@ -11,7 +11,13 @@ vi.mock('../src/whiteboard/useWhiteboardCollab', () => ({
     connectionState: 'connected',
     collaborators: new Map(),
     activeCollaborators: [
-      { clientId: 2, name: 'Peer', profileImageUrl: null, hasPointer: true },
+      {
+        clientId: 2,
+        socketId: 'client:2' as import('@excalidraw/excalidraw/types').SocketId,
+        name: 'Peer',
+        profileImageUrl: null,
+        hasPointer: true,
+      },
     ],
     isCollaborating: true,
     isSynced: true,

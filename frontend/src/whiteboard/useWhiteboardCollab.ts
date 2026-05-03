@@ -105,6 +105,7 @@ export interface WhiteboardSceneData {
 
 export interface WhiteboardPresenceUser {
   clientId: number
+  socketId: SocketId
   name: string
   profileImageUrl: string | null
   hasPointer: boolean
@@ -459,6 +460,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
         const dedupeKey = user.userId ?? user.guestId ?? socketId
         const person: WhiteboardPresenceUser = {
           clientId,
+          socketId,
           name: user.name ?? 'Guest',
           profileImageUrl: user.profileImageUrl ?? null,
           hasPointer: Boolean(pointer),

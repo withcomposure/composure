@@ -1,8 +1,5 @@
-import { memo, useMemo, useCallback } from 'react'
-import {
-  Excalidraw,
-  LiveCollaborationTrigger,
-} from '@excalidraw/excalidraw'
+import { memo, useMemo } from 'react'
+import { Excalidraw } from '@excalidraw/excalidraw'
 import type {
   AppState,
   ExcalidrawImperativeAPI,
@@ -19,7 +16,7 @@ interface WhiteboardCanvasProps {
   onSetApi: (api: ExcalidrawImperativeAPI) => void
   onChange: NonNullable<ExcalidrawProps['onChange']>
   onPointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
-  onOpenShare: () => void
+  onUserFollow?: NonNullable<ExcalidrawProps['onUserFollow']>
 }
 
 function WhiteboardCanvasComponent({
@@ -29,7 +26,7 @@ function WhiteboardCanvasComponent({
   onSetApi,
   onChange,
   onPointerUpdate,
-  onOpenShare,
+  onUserFollow,
 }: WhiteboardCanvasProps) {
   const uiOptions = useMemo<ExcalidrawProps['UIOptions']>(() => ({
     canvasActions: {
@@ -41,19 +38,13 @@ function WhiteboardCanvasComponent({
     },
   }), [canEdit])
 
-  const renderTopRightUI = useCallback(() => (
-    <LiveCollaborationTrigger
-      isCollaborating={isCollaborating}
-      onSelect={onOpenShare}
-    />
-  ), [isCollaborating, onOpenShare])
-
   return (
-    <div className="h-full w-full">
+    <div className="whiteboard-excalidraw-host h-full w-full">
       <Excalidraw
         excalidrawAPI={onSetApi}
         onChange={onChange}
         onPointerUpdate={onPointerUpdate}
+        onUserFollow={onUserFollow}
         isCollaborating={isCollaborating}
         viewModeEnabled={!canEdit}
         UIOptions={uiOptions}
@@ -63,7 +54,6 @@ function WhiteboardCanvasComponent({
             collaborators,
           } as Partial<AppState>,
         }}
-        renderTopRightUI={renderTopRightUI}
       />
     </div>
   )
