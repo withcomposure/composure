@@ -2,7 +2,7 @@ import postgres from 'postgres'
 import { scheduleCleanupTasks } from './cleanup.js'
 import { getRequestContext, runWithTransactionContext, type RequestUserRole } from './request-context.js'
 
-export const defaultDatabaseUrl = 'postgres://composure_app:composure_app@localhost:5433/composure'
+export const defaultDatabaseUrl = 'postgres://composure_runtime:composure_runtime@localhost:5433/composure'
 const databaseUrl = process.env.DATABASE_URL ?? defaultDatabaseUrl
 
 export let sql: postgres.Sql
