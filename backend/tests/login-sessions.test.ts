@@ -60,7 +60,7 @@ describe('jwks endpoint', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json() as { keys?: Array<{ alg?: string; kid?: string; use?: string }> }
     expect(body.keys).toHaveLength(1)
-    expect(body.keys?.[0]).toMatchObject({ alg: 'RS256', use: 'sig' })
+    expect(body.keys?.[0]).toMatchObject({ alg: 'ES256', kty: 'EC', crv: 'P-256', use: 'sig' })
     expect(typeof body.keys?.[0]?.kid).toBe('string')
     expect(body.keys?.[0]?.kid?.length).toBeGreaterThan(0)
 
@@ -79,7 +79,7 @@ describe('jwks endpoint', () => {
 describe('jwt signing keys', () => {
   it('verifies cookie JWTs after restart when stable keys and issuer are configured', async () => {
     const user = await createTestUser({ email: 'stable-jwt@test.com' })
-    const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     const issuer = 'https://api.withcomposure.test'
 
     process.env.JWT_PRIVATE_KEY_PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()

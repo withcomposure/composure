@@ -11,7 +11,7 @@ import {
   type JWTPayload,
 } from 'jose'
 
-const jwtAlgorithm = 'RS256'
+const jwtAlgorithm = 'ES256'
 const accessTokenTtlSeconds = 15 * 60
 
 let initialized = false
@@ -26,14 +26,15 @@ function toEpochSeconds(date: Date): number {
 
 async function exportPublicJwkFromPrivateKey(key: CryptoKey): Promise<JWK> {
   const privateJwk = await exportJWK(key)
-  if (privateJwk.kty !== 'RSA' || !privateJwk.n || !privateJwk.e) {
-    throw new Error('JWT_PRIVATE_KEY_PEM must be an RSA private key for RS256 signing.')
+  if (privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256' || !privateJwk.x || !privateJwk.y) {
+    throw new Error('JWT_PRIVATE_KEY_PEM must be an EC P-256 private key for ES256 signing.')
   }
 
   return {
     kty: privateJwk.kty,
-    n: privateJwk.n,
-    e: privateJwk.e,
+    crv: privateJwk.crv,
+    x: privateJwk.x,
+    y: privateJwk.y,
   }
 }
 
@@ -51,7 +52,7 @@ async function initializeKeys(): Promise<void> {
     const exportablePrivateKey = await importPKCS8(privatePem, jwtAlgorithm, { extractable: true })
     publicJwk = await exportPublicJwkFromPrivateKey(exportablePrivateKey)
   } else {
-    const generated = await generateKeyPair(jwtAlgorithm, { modulusLength: 2048 })
+    const generated = await generateKeyPair(jwtAlgorithm)
     privateKey = generated.privateKey
     publicJwk = await exportJWK(generated.publicKey)
     console.warn('[auth] JWT_PRIVATE_KEY_PEM not configured; using ephemeral in-memory keypair.')
