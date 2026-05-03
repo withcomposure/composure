@@ -6,6 +6,7 @@ import {
   deleteProjectComment,
   getProjectCommentById,
   getProjectRoleForPrincipal,
+  findProjectById,
   getLargeFileThresholdChars,
   getLinkSharingState,
   getMaxTextFileSize,
@@ -199,6 +200,17 @@ export async function patchProjectMemberRoute(
   }
 
   if (!(await requireRole(req, reply, projectId, 'owner', req.principal))) {
+    return
+  }
+
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  if (project.owner_user_id === targetUserId) {
+    reply.status(400).send({ error: 'Project owner access cannot be changed' })
     return
   }
 

@@ -42,6 +42,14 @@ describe('project CRUD', () => {
 
     expect(res.statusCode).toBe(201)
     const projectId = (res.json() as { id: string }).id
+    const [member] = await sql<[{ role: string; status: string }?]>`
+      SELECT role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+        AND user_id = ${user.id}
+    `
+    expect(member).toMatchObject({ role: 'owner', status: 'accepted' })
+
     const stored = await loadDocument(projectId)
     expect(stored).not.toBeNull()
 

@@ -8,6 +8,7 @@ import type {
 } from './types.js'
 import { ROLE_RANK } from './internal.js'
 import { sql } from './connection.js'
+import { runWithIdentityContext } from './request-context.js'
 import { createProjectForPrincipal, findProjectById } from './projects.js'
 import { findUserByEmail, findUserById } from './users.js'
 
@@ -18,6 +19,7 @@ async function projectBelongsToPrincipal(projectId: string, principal: Principal
 
   const row = await findProjectById(projectId)
   if (!row || row.deleted_at != null) return false
+  if (row.owner_user_id === principal.userId) return true
 
   const [membership] = await sql`
     SELECT role
@@ -60,6 +62,10 @@ export async function getProjectRoleForPrincipal(projectId: string, principal: P
   const project = await findProjectById(projectId)
   if (!project || project.deleted_at != null) {
     return null
+  }
+
+  if (project.owner_user_id === principal.userId) {
+    return 'owner'
   }
 
   const [member] = await sql`
@@ -133,7 +139,7 @@ export async function listProjectMembers(projectId: string): Promise<ProjectMemb
     userId: row.user_id as string | null,
     email: row.email as string,
     displayName: row.display_name as string,
-    role: row.role as Exclude<ProjectRole, 'owner'>,
+    role: row.role as ProjectRole,
     status: row.status as 'pending' | 'accepted',
     profileImageUrl: row.profile_image_url as string | null,
     invitedAt: row.created_at as number,
@@ -175,6 +181,10 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
 
   const members = await listProjectMembers(projectId)
   for (const member of members) {
+    if (member.role === 'owner' || (member.userId != null && member.userId === project.owner_user_id)) {
+      continue
+    }
+
     people.push({
       userId: member.userId,
       email: member.email,
@@ -189,6 +199,31 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
   return people
 }
 
+export async function ensureProjectOwnerMembership(projectId: string, ownerUserId: string): Promise<void> {
+  await runWithIdentityContext(null, 'system', async () => {
+    await sql`
+      INSERT INTO project_members (
+        project_id,
+        user_id,
+        invited_email,
+        role,
+        status,
+        invited_by_user_id,
+        created_at,
+        updated_at
+      )
+      VALUES (${projectId}, ${ownerUserId}, NULL, 'owner', 'accepted', ${ownerUserId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+      ON CONFLICT (project_id, user_id)
+      WHERE user_id IS NOT NULL
+      DO UPDATE SET
+        role = 'owner',
+        status = 'accepted',
+        invited_email = NULL,
+        updated_at = excluded.updated_at
+    `
+  })
+}
+
 export async function upsertProjectMemberInvite(input: {
   projectId: string
   invitedByUserId: string | null
@@ -199,6 +234,12 @@ export async function upsertProjectMemberInvite(input: {
   const targetUser = await findUserByEmail(normalizedEmail)
 
   if (targetUser) {
+    const project = await findProjectById(input.projectId)
+    if (project?.owner_user_id === targetUser.id) {
+      await ensureProjectOwnerMembership(input.projectId, targetUser.id)
+      return { status: 'accepted', userId: targetUser.id }
+    }
+
     await sql`
       INSERT INTO project_members (
         project_id, user_id, invited_email, role, status, invited_by_user_id, created_at, updated_at
@@ -228,9 +269,16 @@ export async function upsertProjectMemberInvite(input: {
 
 export async function updateProjectMemberRole(projectId: string, userId: string, role: Exclude<ProjectRole, 'owner'>): Promise<boolean> {
   const result = await sql`
-    UPDATE project_members
+    UPDATE project_members pm
     SET role = ${role}, updated_at = extract(epoch from now())::integer
-    WHERE project_id = ${projectId} AND user_id = ${userId}
+    WHERE pm.project_id = ${projectId}
+      AND pm.user_id = ${userId}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM projects p
+        WHERE p.id = pm.project_id
+          AND p.owner_user_id = pm.user_id
+      )
   `
 
   return result.count > 0
@@ -238,8 +286,15 @@ export async function updateProjectMemberRole(projectId: string, userId: string,
 
 export async function removeProjectMember(projectId: string, userId: string): Promise<boolean> {
   const result = await sql`
-    DELETE FROM project_members
-    WHERE project_id = ${projectId} AND user_id = ${userId}
+    DELETE FROM project_members pm
+    WHERE pm.project_id = ${projectId}
+      AND pm.user_id = ${userId}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM projects p
+        WHERE p.id = pm.project_id
+          AND p.owner_user_id = pm.user_id
+      )
   `
 
   return result.count > 0

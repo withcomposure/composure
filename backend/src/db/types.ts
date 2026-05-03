@@ -97,7 +97,7 @@ export interface ProjectMemberSummary {
   userId: string | null
   email: string
   displayName: string
-  role: Exclude<ProjectRole, 'owner'>
+  role: ProjectRole
   status: 'pending' | 'accepted'
   profileImageUrl: string | null
   invitedAt: number

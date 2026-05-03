@@ -1,5 +1,6 @@
 import { normalizeRelativePath } from '../security.js'
 import { sql } from './connection.js'
+import { runWithIdentityContext } from './request-context.js'
 import { findUserById } from './users.js'
 import type { Principal, ProjectRow, ProjectSummary } from './types.js'
 import { normalizeTitle, nowUnix } from './internal.js'
@@ -33,9 +34,11 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
       COALESCE(owner.is_guest, FALSE) AS owner_is_guest
     FROM projects p
     LEFT JOIN users owner ON owner.id = p.owner_user_id
-    JOIN project_members pm ON pm.project_id = p.id
-    WHERE pm.user_id = ${userId}
-      AND pm.status = 'accepted'
+    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ${userId}
+    WHERE (
+        p.owner_user_id = ${userId}
+        OR pm.status = 'accepted'
+      )
       AND p.deleted_at IS NULL
     ORDER BY p.last_active_at DESC
   `
@@ -71,28 +74,36 @@ export async function createProjectForPrincipal(input: {
   const rootFile = normalizeRelativePath(input.rootFile) ?? 'main.tex'
   const engine = input.engine ?? null
 
-  await sql`
-    INSERT INTO projects (
-      id, title, root_file, engine, owner_user_id, created_at, last_active_at
-    ) VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
-  `
+  await runWithIdentityContext(null, 'system', async () => {
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO projects (
+          id, title, root_file, engine, owner_user_id, created_at, last_active_at
+        ) VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+      `
 
-  await sql`
-    INSERT INTO project_members (
-      project_id,
-      user_id,
-      invited_email,
-      role,
-      status,
-      invited_by_user_id,
-      created_at,
-      updated_at
-    )
-    VALUES (${projectId}, ${userId}, NULL, 'owner', 'accepted', ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
-    ON CONFLICT (project_id, user_id)
-    WHERE user_id IS NOT NULL
-    DO UPDATE SET role = 'owner', status = 'accepted', updated_at = excluded.updated_at
-  `
+      await tx`
+        INSERT INTO project_members (
+          project_id,
+          user_id,
+          invited_email,
+          role,
+          status,
+          invited_by_user_id,
+          created_at,
+          updated_at
+        )
+        VALUES (${projectId}, ${userId}, NULL, 'owner', 'accepted', ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+        ON CONFLICT (project_id, user_id)
+        WHERE user_id IS NOT NULL
+        DO UPDATE SET
+          role = 'owner',
+          status = 'accepted',
+          invited_email = NULL,
+          updated_at = excluded.updated_at
+      `
+    })
+  })
 
   const owner = await findUserById(userId)
 
@@ -199,9 +210,11 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
       COALESCE(owner.is_guest, FALSE) AS owner_is_guest
     FROM projects p
     LEFT JOIN users owner ON owner.id = p.owner_user_id
-    JOIN project_members pm ON pm.project_id = p.id
-    WHERE pm.user_id = ${userId}
-      AND pm.status = 'accepted'
+    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ${userId}
+    WHERE (
+        p.owner_user_id = ${userId}
+        OR pm.status = 'accepted'
+      )
       AND p.deleted_at IS NOT NULL
     ORDER BY p.deleted_at DESC
   `

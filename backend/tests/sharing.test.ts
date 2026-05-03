@@ -106,6 +106,36 @@ describe('project sharing — update/remove member', () => {
     expect(res.statusCode).toBe(200)
   })
 
+  it('does not allow changing or removing the project owner membership', async () => {
+    const owner = await createTestUser({ email: 'owner@test.com' })
+    const sessionId = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+
+    const changeRole = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/members/${owner.id}`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { role: 'view' },
+    })
+    expect(changeRole.statusCode).toBe(400)
+
+    const remove = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/members/${owner.id}`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { remove: true },
+    })
+    expect(remove.statusCode).toBe(400)
+
+    const [member] = await sql<[{ role: string; status: string }?]>`
+      SELECT role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+        AND user_id = ${owner.id}
+    `
+    expect(member).toMatchObject({ role: 'owner', status: 'accepted' })
+  })
+
   it('owner can remove a member', async () => {
     const owner = await createTestUser({ email: 'owner@test.com' })
     const sessionId = await createTestSession(owner.id)
@@ -123,6 +153,28 @@ describe('project sharing — update/remove member', () => {
     })
 
     expect(res.statusCode).toBe(200)
+  })
+
+  it('does not demote the owner when invited by their own email', async () => {
+    const owner = await createTestUser({ email: 'owner@test.com' })
+    const sessionId = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { email: owner.email, role: 'view' },
+    })
+
+    expect(res.statusCode).toBe(201)
+    const [member] = await sql<[{ role: string; status: string }?]>`
+      SELECT role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+        AND user_id = ${owner.id}
+    `
+    expect(member).toMatchObject({ role: 'owner', status: 'accepted' })
   })
 })
 
@@ -544,7 +596,30 @@ describe('project access info', () => {
     const body = res.json()
     expect(body.currentRole).toBe('owner')
     expect(body.people).toBeDefined()
+    expect(body.people.filter((person: { userId: string | null }) => person.userId === owner.id)).toHaveLength(1)
     expect(body.linkSharing).toBeDefined()
+  })
+
+  it('uses owner_user_id as an access fallback if the owner membership row is missing', async () => {
+    const owner = await createTestUser({ email: 'owner-fallback@test.com' })
+    const sessionId = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+    await sql`
+      DELETE FROM project_members
+      WHERE project_id = ${projectId}
+        AND user_id = ${owner.id}
+    `
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: { cookie: sessionCookie(sessionId) },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.currentRole).toBe('owner')
+    expect(body.people.filter((person: { userId: string | null }) => person.userId === owner.id)).toHaveLength(1)
   })
 
   it('accepts share token via share query alias', async () => {

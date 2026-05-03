@@ -8,6 +8,7 @@ import {
 } from '../src/auth.js'
 import { createPasswordResetToken } from '../src/db/admin.js'
 import { sql } from '../src/db/connection.js'
+import { createProjectForPrincipal } from '../src/db/projects.js'
 import { issueRefreshToken } from '../src/db/refresh-tokens.js'
 import { runWithIdentityContext, type RequestUserRole } from '../src/db/request-context.js'
 import { createTestProject, createTestUser, resetTestDatabase } from './helpers/setup.js'
@@ -130,6 +131,26 @@ describe('row level security', () => {
         INSERT INTO project_members (project_id, user_id, role, status, invited_by_user_id, created_at, updated_at)
         VALUES (${projectId}, ${owner.id}, 'owner', 'accepted', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)
       `
+    })
+
+    const [member] = await sql<[{ user_id: string; role: string; status: string }?]>`
+      SELECT user_id, role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+    `
+    expect(member).toMatchObject({ user_id: owner.id, role: 'owner', status: 'accepted' })
+  })
+
+  it('creates projects through the app helper while RLS is active', async () => {
+    const owner = await createTestUser({ email: 'helper-bootstrap-owner@test.com' })
+    const projectId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+    await withRlsRequestContext(owner.id, 'user', async () => {
+      await createProjectForPrincipal({
+        projectId,
+        principal: { userId: owner.id, guestId: null },
+        title: 'RLS Helper Bootstrap Project',
+      })
     })
 
     const [member] = await sql<[{ user_id: string; role: string; status: string }?]>`
