@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } fro
 import { TemplateGallery } from '@/dashboard/TemplateGallery'
 import { PopupDialog } from '@/components/PopupDialog'
 import { AuthEntryView } from '@/auth/AuthEntryView'
+import { CompleteProfileView } from './auth/CompleteProfileView'
 import { AdministrationView } from '@/settings/AdministrationView'
 import { DashboardView } from '@/dashboard/DashboardView'
 import { ProjectWorkspace } from '@/workspace/ProjectWorkspace'
@@ -55,6 +56,7 @@ const authErrorMessages: Record<string, string> = {
   invalid_invite: 'The invite link is invalid or has expired. Request a new invite and try again.',
   invite_email_mismatch: 'This invite link was issued for a different email address.',
   provider_email_unverified: 'This provider email is not verified. Verify your provider email before linking or creating an account.',
+  email_conflict_requires_linking: 'An account with this email already exists. Log in to that account and link this provider from Settings.',
 }
 
 function providerLabel(provider: string): string {
@@ -67,6 +69,13 @@ function providerLabel(provider: string): string {
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
+  const [oauthProfileCompletion, setOAuthProfileCompletion] = useState<{
+    token: string
+    provider: string
+    displayName: string | null
+  } | null>(null)
+  const [oauthProfileBusy, setOAuthProfileBusy] = useState(false)
+  const [oauthProfileError, setOAuthProfileError] = useState<string | null>(null)
   const [session, setSession] = useState<AuthSession | null>(null)
   const [backendUnavailable, setBackendUnavailable] = useState(false)
   const [authEntryGranted, setAuthEntryGranted] = useState<boolean>(
@@ -425,6 +434,9 @@ export default function App() {
     if (next.authenticated) {
       grantAuthEntry()
       setAuthEntryError(null)
+      setOAuthProfileCompletion(null)
+      setOAuthProfileError(null)
+      setOAuthProfileBusy(false)
     }
     void loadProjects()
     void loadRecents()
@@ -530,6 +542,37 @@ export default function App() {
     setAuthEntryError(null)
     revokeAuthEntry()
   }, [revokeAuthEntry])
+
+  const cancelOAuthProfileCompletion = useCallback(() => {
+    setOAuthProfileCompletion(null)
+    setOAuthProfileError(null)
+    setOAuthProfileBusy(false)
+    setAuthEntryMode('login')
+    revokeAuthEntry()
+    navigateToProjects()
+  }, [revokeAuthEntry])
+
+  const submitOAuthProfileCompletion = useCallback(async (email: string) => {
+    if (!oauthProfileCompletion) {
+      return
+    }
+
+    setOAuthProfileBusy(true)
+    setOAuthProfileError(null)
+    try {
+      await fetchJson<{ ok: boolean; intent: 'login'; provider: string }>('/auth/oauth/complete-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: oauthProfileCompletion.token, email }),
+      })
+
+      window.location.assign('/')
+    } catch (err) {
+      setOAuthProfileError(getErrorMessage(err))
+    } finally {
+      setOAuthProfileBusy(false)
+    }
+  }, [oauthProfileCompletion])
 
   const requestDeleteAccount = useCallback(() => {
     setPopupInput('')
@@ -665,11 +708,36 @@ export default function App() {
           ? `Link ${pendingProviderName}`
           : `Continue with ${pendingProviderName}`,
         onConfirm: async () => {
-          await fetchJson<{ ok: boolean; intent: 'login' | 'link'; provider: string }>('/auth/oauth/confirm', {
+          const response = await fetchJson<{
+            ok: boolean
+            intent: 'login' | 'link'
+            provider: string
+            requiresProfileCompletion?: boolean
+            completionToken?: string
+            displayName?: string | null
+          }>('/auth/oauth/confirm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: pendingToken }),
           })
+
+          if (pendingIntent === 'login' && response.requiresProfileCompletion) {
+            if (!response.completionToken) {
+              throw new Error('Profile completion token was missing. Please restart sign-in.')
+            }
+
+            setOAuthProfileCompletion({
+              token: response.completionToken,
+              provider: pendingProvider,
+              displayName: typeof response.displayName === 'string' ? response.displayName : null,
+            })
+            setOAuthProfileError(null)
+            setAuthEntryError(null)
+            setAuthEntryMode('login')
+            revokeAuthEntry()
+            navigateToProjects()
+            return
+          }
 
           const nextPath = pendingIntent === 'link'
             ? `/settings?oauth_linked=${encodeURIComponent(pendingProvider)}`
@@ -687,7 +755,7 @@ export default function App() {
       clearHandledParams()
       return
     }
-  }, [openAlertPopup, route.kind])
+  }, [openAlertPopup, revokeAuthEntry, route.kind])
 
   const closePopup = useCallback(() => {
     if (popupBusy) return
@@ -879,6 +947,19 @@ export default function App() {
         code={503}
         title="Service Unavailable"
         description="The backend service is currently unreachable. Please try again in a moment."
+      />
+    )
+  } else if (oauthProfileCompletion) {
+    content = (
+      <CompleteProfileView
+        busy={oauthProfileBusy}
+        error={oauthProfileError}
+        provider={oauthProfileCompletion.provider}
+        displayName={oauthProfileCompletion.displayName}
+        onSubmit={(email: string) => {
+          void submitOAuthProfileCompletion(email)
+        }}
+        onCancel={cancelOAuthProfileCompletion}
       />
     )
   } else if (!session?.authenticated && (route.kind === 'reset-password' || route.kind === 'invite' || !authEntryGranted)) {

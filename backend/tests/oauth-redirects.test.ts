@@ -587,6 +587,195 @@ describe('oauth redirect targets', () => {
     }
   })
 
+  it('requires profile completion for ORCID logins without trusted email and creates account only after email submit', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableOrcidProvider()
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          access_token: 'orcid-access-token',
+          orcid: '0009-0005-2240-3745',
+          name: 'Sebastian JH Seager',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          sub: '0009-0005-2240-3745',
+          name: 'Sebastian JH Seager',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'orcid', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/orcid/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(callback.statusCode).toBe(302)
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+
+      expect(confirm.statusCode).toBe(200)
+      const confirmBody = confirm.json() as {
+        ok: boolean
+        requiresProfileCompletion?: boolean
+        completionToken?: string
+      }
+      expect(confirmBody.ok).toBe(true)
+      expect(confirmBody.requiresProfileCompletion).toBe(true)
+      expect(confirmBody.completionToken).toBeTruthy()
+
+      const confirmCookies = asCookieList(confirm.headers['set-cookie'])
+      expect(confirmCookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(false)
+      expect(confirmCookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(false)
+
+      const complete = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/complete-profile',
+        payload: {
+          token: confirmBody.completionToken,
+          email: 'orcid-user@test.com',
+        },
+      })
+
+      expect(complete.statusCode).toBe(200)
+      const cookies = asCookieList(complete.headers['set-cookie'])
+      expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
+      expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
+
+      const [user] = await sql<[{ email: string; email_verified: boolean }]>
+        `SELECT email, email_verified FROM users WHERE email = 'orcid-user@test.com' LIMIT 1`
+      expect(user).toBeTruthy()
+      expect(user?.email_verified).toBe(false)
+
+      const [account] = await sql<[{ provider: string; provider_id: string; email: string | null }]>
+        `SELECT provider, provider_id, email FROM oauth_accounts WHERE provider = 'orcid' AND provider_id = '0009-0005-2240-3745' LIMIT 1`
+      expect(account).toBeTruthy()
+      expect(account?.email).toBe('orcid-user@test.com')
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('blocks automatic email-based merge when existing account email is unverified', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      const user = await createTestUser({ email: 'alice@example.com' })
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 998877, login: 'alice' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: 'alice@example.com', primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+      expect(callback.statusCode).toBe(302)
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(409)
+      expect((confirm.json() as { error: string }).error).toMatch(/already exists/i)
+
+      const [{ count }] = await sql<[{ count: number }]>
+        `SELECT COUNT(1)::integer AS count FROM oauth_accounts WHERE user_id = ${user.id} AND provider = 'github'`
+      expect(count).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('allows automatic email-based merge only when both sides are verified', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      const user = await createTestUser({ email: 'verified@example.com' })
+      await sql`UPDATE users SET email_verified = TRUE WHERE id = ${user.id}`
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 112233, login: 'verified-user' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: 'verified@example.com', primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+      expect(callback.statusCode).toBe(302)
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(200)
+
+      const [{ count }] = await sql<[{ count: number }]>
+        `SELECT COUNT(1)::integer AS count FROM oauth_accounts WHERE user_id = ${user.id} AND provider = 'github'`
+      expect(count).toBe(1)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
   it('starts ORCID OAuth flow when provider is enabled', async () => {
     let app: FastifyInstance | null = null
     try {

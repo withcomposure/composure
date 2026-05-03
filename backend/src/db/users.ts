@@ -14,19 +14,21 @@ export async function createUser(input: {
   passwordHash: string
   displayName: string
   role?: 'user' | 'admin'
+  emailVerified?: boolean
 }): Promise<SessionUser | null> {
   const id = createUid()
   const email = input.email.trim().toLowerCase()
   const displayName = input.displayName.trim() || 'Composure User'
   const explicitRole = input.role === 'admin' ? 'admin' : 'user'
+  const emailVerified = input.emailVerified === true
 
   const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
   const role = count === 0 ? 'admin' : explicitRole
 
   try {
     await sql`
-      INSERT INTO users (id, email, password_hash, display_name, role, is_guest, created_at)
-      VALUES (${id}, ${email}, ${input.passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
+      INSERT INTO users (id, email, email_verified, password_hash, display_name, role, is_guest, created_at)
+      VALUES (${id}, ${email}, ${emailVerified}, ${input.passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
     `
   } catch {
     return null
@@ -43,6 +45,7 @@ export async function countUsers(): Promise<number> {
 export async function findUserByEmail(email: string): Promise<{
   id: string
   email: string
+  email_verified: boolean
   display_name: string
   password_hash: string | null
   profile_image_url: string | null
@@ -51,12 +54,13 @@ export async function findUserByEmail(email: string): Promise<{
   is_guest: boolean
 } | null> {
   const [row] = await sql`
-    SELECT id, email, display_name, password_hash, profile_image_url, role, is_suspended, is_guest
+    SELECT id, email, email_verified, display_name, password_hash, profile_image_url, role, is_suspended, is_guest
     FROM users WHERE email = ${email.trim().toLowerCase()} AND is_guest = FALSE
   `
   return (row as typeof row & {
     id: string
     email: string
+    email_verified: boolean
     display_name: string
     password_hash: string | null
     profile_image_url: string | null
@@ -162,7 +166,12 @@ export async function updateUserDisplayName(userId: string, displayName: string)
 
 export async function updateUserEmail(userId: string, email: string): Promise<boolean> {
   const normalized = email.trim().toLowerCase()
-  const result = await sql`UPDATE users SET email = ${normalized} WHERE id = ${userId}`
+  const result = await sql`
+    UPDATE users
+    SET email = ${normalized},
+        email_verified = CASE WHEN email = ${normalized} THEN email_verified ELSE FALSE END
+    WHERE id = ${userId}
+  `
   return result.count > 0
 }
 

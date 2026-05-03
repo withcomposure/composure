@@ -26,6 +26,7 @@ import {
 } from '../auth.js'
 import { inferRequestOrigin } from '../env.js'
 import { runWithIdentityContext } from '../db/index.js'
+import { isValidEmail } from '../security.js'
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -243,8 +244,6 @@ function registerOrcidStrategy(): void {
       const userBody = (await userRes.json()) as {
         sub?: string
         name?: string
-        email?: string
-        email_verified?: boolean
       }
       const providerId = typeof userBody.sub === 'string' && userBody.sub.trim().length > 0
         ? userBody.sub.trim()
@@ -253,11 +252,10 @@ function registerOrcidStrategy(): void {
         throw new Error('Failed to fetch ORCID user profile')
       }
 
-      const emailVerified = userBody.email_verified === true
       return {
         providerId,
-        email: emailVerified ? normalizeProviderEmail(userBody.email) : null,
-        emailVerified,
+        email: null,
+        emailVerified: false,
         displayName: userBody.name ?? tokenBody.name ?? null,
       }
     },
@@ -403,8 +401,14 @@ export function registerOAuthRoutes(
   }
 
   function oauthErrorMessage(errorCode: string): string {
+    if (errorCode === 'invalid_email') {
+      return 'Valid email is required.'
+    }
     if (errorCode === 'provider_email_unverified') {
       return 'This provider email is not verified. Verify your provider email before linking or creating an account.'
+    }
+    if (errorCode === 'email_conflict_requires_linking') {
+      return 'An account with this email already exists. Log in to that account and link this provider from Settings.'
     }
     if (errorCode === 'link_session_mismatch') {
       return 'Linking could not be completed because your session was not recognized. Please try again.'
@@ -634,6 +638,10 @@ export function registerOAuthRoutes(
     const providerEmail = normalizeProviderEmail(pendingPayload.email)
     const providerEmailVerified = pendingPayload.emailVerified === true && providerEmail != null
     const trustedProviderEmail = providerEmailVerified ? providerEmail : null
+    const providerDisplayName = typeof pendingPayload.displayName === 'string'
+      ? pendingPayload.displayName.trim() || null
+      : null
+    const stateInviteToken = parseInviteToken(pendingPayload.inviteToken)
 
     if (intent === 'link') {
       const userId = typeof pendingPayload.userId === 'string' ? pendingPayload.userId : null
@@ -653,15 +661,17 @@ export function registerOAuthRoutes(
       }
 
       if (!existing) {
-        if (!trustedProviderEmail) {
+        if (provider !== 'orcid' && !trustedProviderEmail) {
           sendOAuthConfirmError(reply, 400, 'provider_email_unverified')
           return
         }
+
+        const linkEmail = provider === 'orcid' ? providerEmail : trustedProviderEmail
         try {
           await runWithIdentityContext(
             null,
             'system',
-            async () => await linkOAuthAccount(userId, provider, providerId, trustedProviderEmail),
+            async () => await linkOAuthAccount(userId, provider, providerId, linkEmail ?? null),
           )
         } catch {
           sendOAuthConfirmError(reply, 409, 'provider_already_linked')
@@ -676,13 +686,46 @@ export function registerOAuthRoutes(
     const result = await runWithIdentityContext(
       null,
       'system',
-      async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, { createIfMissing: false }),
+      async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, {
+        createIfMissing: false,
+        providerEmailVerified,
+        displayName: providerDisplayName,
+      }),
     )
 
-    const stateInviteToken = parseInviteToken(pendingPayload.inviteToken)
+    if (result.status === 'email_conflict_requires_linking') {
+      sendOAuthConfirmError(reply, 409, 'email_conflict_requires_linking')
+      return
+    }
 
-    let resolved = result
-    if (!resolved) {
+    if (result.status === 'suspended_or_conflict') {
+      sendOAuthConfirmError(reply, 403, 'account_suspended_or_conflict')
+      return
+    }
+
+    let resolved: Awaited<ReturnType<typeof findUserByOAuth>> = result
+    if (resolved.status === 'not_found') {
+      if (provider === 'orcid') {
+        const completionPayload: Record<string, unknown> = {
+          kind: 'oauth_profile_pending',
+          provider,
+          providerId,
+          displayName: providerDisplayName,
+          inviteToken: stateInviteToken,
+          ts: Date.now(),
+        }
+        const completionToken = signState(completionPayload)
+        reply.send({
+          ok: true,
+          intent: 'login',
+          provider,
+          requiresProfileCompletion: true,
+          completionToken,
+          displayName: providerDisplayName,
+        })
+        return
+      }
+
       if (!trustedProviderEmail) {
         sendOAuthConfirmError(reply, 400, 'provider_email_unverified')
         return
@@ -700,16 +743,118 @@ export function registerOAuthRoutes(
       resolved = await runWithIdentityContext(
         null,
         'system',
-        async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, { createIfMissing: true }),
+        async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, {
+          createIfMissing: true,
+          providerEmailVerified,
+          displayName: providerDisplayName,
+        }),
       )
+
+      if (resolved.status === 'email_conflict_requires_linking') {
+        sendOAuthConfirmError(reply, 409, 'email_conflict_requires_linking')
+        return
+      }
+
+      if (resolved.status !== 'resolved') {
+        sendOAuthConfirmError(reply, 403, 'account_suspended_or_conflict')
+        return
+      }
     }
-    if (!resolved) {
+
+    if (resolved.status !== 'resolved') {
       sendOAuthConfirmError(reply, 403, 'account_suspended_or_conflict')
       return
     }
 
     if (resolved.isNew && stateInviteToken) {
       await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(stateInviteToken))
+    }
+
+    await issueOAuthAuthCookies(req, reply, resolved.user.id)
+    await migrateGuestData(req, reply, resolved.user.id)
+
+    const acceptedInvites = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await updatePendingInvitesForUser(resolved.user.id, resolved.user.email),
+    )
+    if (acceptedInvites > 0) {
+      console.info(`[oauth] accepted pending invites userId=${resolved.user.id} count=${acceptedInvites}`)
+    }
+
+    reply.send({ ok: true, intent: 'login', provider })
+  })
+
+  // POST /auth/oauth/complete-profile — finalize email collection for providers without trusted email claims.
+  app.post(apiPath('/auth/oauth/complete-profile'), async (req, reply) => {
+    const body = req.body as { token?: string; email?: string } | undefined
+    const token = typeof body?.token === 'string' ? body.token.trim() : ''
+    if (!token) {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const pendingPayload = verifyState(token)
+    if (!pendingPayload || pendingPayload.kind !== 'oauth_profile_pending') {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const timestamp = typeof pendingPayload.ts === 'number' ? pendingPayload.ts : Number.NaN
+    if (!Number.isFinite(timestamp) || (Date.now() - timestamp) > oauthPendingTtlMs) {
+      sendOAuthConfirmError(reply, 400, 'state_expired')
+      return
+    }
+
+    const provider = typeof pendingPayload.provider === 'string' ? pendingPayload.provider : null
+    const providerId = typeof pendingPayload.providerId === 'string' ? pendingPayload.providerId : null
+    if (!provider || !providerId) {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const email = normalizeProviderEmail(body?.email)
+    if (!email || !isValidEmail(email)) {
+      sendOAuthConfirmError(reply, 400, 'invalid_email')
+      return
+    }
+
+    const inviteToken = parseInviteToken(pendingPayload.inviteToken)
+    const inviteGate = await enforceInviteOnlySignupGate({
+      email,
+      inviteToken,
+    })
+    if (!inviteGate.ok) {
+      sendOAuthConfirmError(reply, 403, inviteGateErrorCode(inviteGate.error))
+      return
+    }
+
+    const providerDisplayName = typeof pendingPayload.displayName === 'string'
+      ? pendingPayload.displayName.trim() || null
+      : null
+
+    const resolved = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await findUserByOAuth(provider, providerId, email, {
+        createIfMissing: true,
+        providerEmailVerified: false,
+        displayName: providerDisplayName,
+      }),
+    )
+
+    if (resolved.status === 'email_conflict_requires_linking') {
+      sendOAuthConfirmError(reply, 409, 'email_conflict_requires_linking')
+      return
+    }
+
+    if (resolved.status !== 'resolved') {
+      sendOAuthConfirmError(reply, 403, 'account_suspended_or_conflict')
+      return
+    }
+
+    if (resolved.isNew && inviteToken) {
+      await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(inviteToken))
     }
 
     await issueOAuthAuthCookies(req, reply, resolved.user.id)

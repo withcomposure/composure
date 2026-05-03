@@ -166,49 +166,98 @@ export async function disableUserPasswordAuthMethod(userId: string): Promise<boo
 // Find-or-create user for OAuth login
 // ---------------------------------------------------------------------------
 
+export type FindUserByOAuthResult =
+  | { status: 'resolved'; user: SessionUser; isNew: boolean }
+  | { status: 'not_found' }
+  | { status: 'email_conflict_requires_linking'; email: string }
+  | { status: 'suspended_or_conflict' }
+
+function normalizeOAuthDisplayName(value: string | null | undefined, fallbackEmail: string, provider: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (trimmed.length > 0) {
+    return trimmed.slice(0, 80)
+  }
+
+  const fromEmail = fallbackEmail.split('@')[0]?.trim()
+  if (fromEmail && fromEmail.length > 0) {
+    return fromEmail.slice(0, 80)
+  }
+
+  return `${provider} user`
+}
+
 export async function findUserByOAuth(
   provider: string,
   providerId: string,
   providerEmail: string | null,
   options: {
     createIfMissing?: boolean
+    providerEmailVerified?: boolean
+    displayName?: string | null
   } = {},
-): Promise<{ user: SessionUser; isNew: boolean } | null> {
+): Promise<FindUserByOAuthResult> {
+  const providerEmailVerified = options.providerEmailVerified === true
+
   // 1. Exact match on provider + providerId → return user
   const existingLink = await findOAuthAccount(provider, providerId)
   if (existingLink) {
     const [row] = await sql`
-      SELECT id, email, display_name, profile_image_url, role
+      SELECT id, email, display_name, profile_image_url, role, is_suspended
       FROM users WHERE id = ${existingLink.user_id}
     `
     if (row) {
+      const linkedUser = row as Record<string, unknown>
+      if (linkedUser.is_suspended === true) {
+        return { status: 'suspended_or_conflict' }
+      }
+
       return {
+        status: 'resolved',
         user: {
-          id: (row as Record<string, string>).id,
-          email: (row as Record<string, string>).email,
-          displayName: (row as Record<string, string>).display_name,
-          profileImageUrl: (row as Record<string, string | null>).profile_image_url,
-          role: (row as Record<string, string>).role as 'user' | 'admin',
+          id: linkedUser.id as string,
+          email: linkedUser.email as string,
+          displayName: linkedUser.display_name as string,
+          profileImageUrl: linkedUser.profile_image_url as string | null,
+          role: linkedUser.role as 'user' | 'admin',
         },
         isNew: false,
       }
     }
+
+    return { status: 'suspended_or_conflict' }
   }
 
   // 2. Email matches existing user → link oauth_accounts + return user
   if (providerEmail) {
     const normalizedEmail = providerEmail.trim().toLowerCase()
     const [existingUser] = await sql`
-      SELECT id, email, display_name, profile_image_url, role, is_suspended
-      FROM users WHERE email = ${normalizedEmail}
+      SELECT id, email, display_name, profile_image_url, role, is_suspended, email_verified
+      FROM users
+      WHERE email = ${normalizedEmail}
+        AND is_guest = FALSE
     `
     if (existingUser) {
       const u = existingUser as Record<string, unknown>
       if (u.is_suspended === true) {
-        return null // Don't auto-link to suspended accounts
+        return { status: 'suspended_or_conflict' } // Don't auto-link to suspended accounts
       }
-      await linkOAuthAccount(u.id as string, provider, providerId, normalizedEmail)
+
+      const existingEmailVerified = u.email_verified === true
+      if (!(providerEmailVerified && existingEmailVerified)) {
+        return {
+          status: 'email_conflict_requires_linking',
+          email: normalizedEmail,
+        }
+      }
+
+      try {
+        await linkOAuthAccount(u.id as string, provider, providerId, normalizedEmail)
+      } catch {
+        return { status: 'suspended_or_conflict' }
+      }
+
       return {
+        status: 'resolved',
         user: {
           id: u.id as string,
           email: u.email as string,
@@ -222,35 +271,58 @@ export async function findUserByOAuth(
   }
 
   if (options.createIfMissing === false) {
-    return null
+    return { status: 'not_found' }
   }
 
-  // Creating a new user from OAuth requires a verified, trusted provider email.
+  // Creating a new user from OAuth requires a captured email.
   if (!providerEmail) {
-    return null
+    return { status: 'not_found' }
   }
 
   // 3. Neither → create user + oauth_accounts row
   const id = createUid()
   const email = providerEmail.trim().toLowerCase()
-  const displayName = email.split('@')[0] || `${provider} user`
+  const displayName = normalizeOAuthDisplayName(options.displayName, email, provider)
+  const emailVerified = providerEmailVerified
 
-  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users`
+  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
   const role = count === 0 ? 'admin' : 'user'
 
   try {
     await sql`
-      INSERT INTO users (id, email, password_hash, display_name, role, created_at)
-      VALUES (${id}, ${email}, ${null}, ${displayName}, ${role}, extract(epoch from now())::integer)
+      INSERT INTO users (id, email, email_verified, password_hash, display_name, role, created_at)
+      VALUES (${id}, ${email}, ${emailVerified}, ${null}, ${displayName}, ${role}, extract(epoch from now())::integer)
     `
   } catch {
-    // email collision – shouldn't happen because we checked above, but handle race
-    return null
+    const [collision] = await sql`
+      SELECT is_suspended
+      FROM users
+      WHERE email = ${email}
+        AND is_guest = FALSE
+    `
+    if (collision && (collision as Record<string, unknown>).is_suspended === true) {
+      return { status: 'suspended_or_conflict' }
+    }
+
+    if (collision) {
+      return {
+        status: 'email_conflict_requires_linking',
+        email,
+      }
+    }
+
+    return { status: 'suspended_or_conflict' }
   }
 
-  await linkOAuthAccount(id, provider, providerId, email)
+  try {
+    await linkOAuthAccount(id, provider, providerId, email)
+  } catch {
+    await sql`DELETE FROM users WHERE id = ${id}`
+    return { status: 'suspended_or_conflict' }
+  }
 
   return {
+    status: 'resolved',
     user: { id, email, displayName, profileImageUrl: null, role },
     isNew: true,
   }
