@@ -16,7 +16,6 @@ interface WhiteboardCanvasProps {
   collaborators: Map<SocketId, Collaborator>
   initialLibraryItems: LibraryItems
   onSetApi: (api: ExcalidrawImperativeAPI) => void
-  onChange: NonNullable<ExcalidrawProps['onChange']>
   onLibraryChange: NonNullable<ExcalidrawProps['onLibraryChange']>
   onPointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
   onUserFollow?: NonNullable<ExcalidrawProps['onUserFollow']>
@@ -28,7 +27,6 @@ function WhiteboardCanvasComponent({
   collaborators,
   initialLibraryItems,
   onSetApi,
-  onChange,
   onLibraryChange,
   onPointerUpdate,
   onUserFollow,
@@ -47,7 +45,6 @@ function WhiteboardCanvasComponent({
     <div className="whiteboard-excalidraw-host h-full w-full">
       <Excalidraw
         excalidrawAPI={onSetApi}
-        onChange={onChange}
         onLibraryChange={onLibraryChange}
         onPointerUpdate={onPointerUpdate}
         onUserFollow={onUserFollow}

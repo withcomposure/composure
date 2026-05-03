@@ -96,17 +96,51 @@ function createMockExcalidrawApi(): {
   api: ExcalidrawImperativeAPI
   addFiles: ReturnType<typeof vi.fn>
   updateScene: ReturnType<typeof vi.fn>
+  onChange: ReturnType<typeof vi.fn>
+  emitChange: (
+    elements: readonly OrderedExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles,
+  ) => void
 } {
   const addFiles = vi.fn()
   const updateScene = vi.fn()
+  const changeListeners = new Set<(
+    elements: readonly OrderedExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles,
+  ) => void>()
+  const onChange = vi.fn((listener: (
+    elements: readonly OrderedExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles,
+  ) => void) => {
+    changeListeners.add(listener)
+    return () => {
+      changeListeners.delete(listener)
+    }
+  })
+
+  const emitChange = (
+    elements: readonly OrderedExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles,
+  ) => {
+    for (const listener of Array.from(changeListeners)) {
+      listener(elements, appState, files)
+    }
+  }
 
   return {
     api: {
       addFiles,
       updateScene,
+      onChange,
     } as unknown as ExcalidrawImperativeAPI,
     addFiles,
     updateScene,
+    onChange,
+    emitChange,
   }
 }
 
@@ -231,6 +265,8 @@ describe('whiteboard collaboration scene persistence', () => {
     const persistedElement = {
       id: 'delete-me',
       type: 'rectangle',
+      version: 1,
+      versionNonce: 10,
       isDeleted: false,
     } as unknown as OrderedExcalidrawElement
 
@@ -252,6 +288,8 @@ describe('whiteboard collaboration scene persistence', () => {
         elements: [
           {
             ...persistedElement,
+            version: 2,
+            versionNonce: 11,
             isDeleted: true,
           } as unknown as OrderedExcalidrawElement,
         ],
@@ -266,6 +304,74 @@ describe('whiteboard collaboration scene persistence', () => {
     const scene = readWhiteboardSceneFromYDoc(ydoc)
     const updatedElement = scene.elements.find((element) => element.id === 'delete-me')
     expect(updatedElement?.isDeleted).toBe(true)
+
+    ydoc.destroy()
+  })
+
+  it('rejects stale deleted tombstones when versions are not newer', () => {
+    const ydoc = new Y.Doc()
+
+    const persistedElement = {
+      id: 'guarded-el',
+      type: 'rectangle',
+      version: 7,
+      versionNonce: 11,
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [persistedElement],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:seed-guarded',
+    )
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [
+          {
+            ...persistedElement,
+            isDeleted: true,
+          } as unknown as OrderedExcalidrawElement,
+        ],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:stale-tombstone',
+    )
+
+    let scene = readWhiteboardSceneFromYDoc(ydoc)
+    expect(scene.elements.find((element) => element.id === 'guarded-el')?.isDeleted).toBe(false)
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [
+          {
+            ...persistedElement,
+            version: 8,
+            versionNonce: 12,
+            isDeleted: true,
+          } as unknown as OrderedExcalidrawElement,
+        ],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+        } as Partial<AppState>,
+        files: {} as BinaryFiles,
+      },
+      'test:fresh-tombstone',
+    )
+
+    scene = readWhiteboardSceneFromYDoc(ydoc)
+    expect(scene.elements.find((element) => element.id === 'guarded-el')?.isDeleted).toBe(true)
 
     ydoc.destroy()
   })
@@ -353,12 +459,20 @@ describe('whiteboard collaboration scene persistence', () => {
 
     await waitFor(() => {
       expect(firstApi.updateScene).toHaveBeenCalled()
+      expect(firstApi.onChange).toHaveBeenCalled()
     })
 
     const replacementApi = createMockExcalidrawApi()
     act(() => {
       result.current.setExcalidrawApi(replacementApi.api)
-      result.current.handleSceneChange(
+    })
+
+    await waitFor(() => {
+      expect(replacementApi.onChange).toHaveBeenCalled()
+    })
+
+    act(() => {
+      firstApi.emitChange(
         [],
         {
           viewBackgroundColor: '#ffffff',

@@ -224,7 +224,6 @@ export function WhiteboardWorkspace({
     isCollaborating,
     excalidrawApi,
     setExcalidrawApi,
-    handleSceneChange,
     handlePointerUpdate,
   } = useWhiteboardCollab({
     projectId,
@@ -612,7 +611,6 @@ export function WhiteboardWorkspace({
             collaborators={collaborators}
             initialLibraryItems={libraryItems}
             onSetApi={setExcalidrawApi}
-            onChange={handleSceneChange}
             onLibraryChange={handleLibraryChange}
             onPointerUpdate={handlePointerUpdate}
             onUserFollow={handleUserFollow}

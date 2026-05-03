@@ -10,7 +10,7 @@ import type {
   ExcalidrawProps,
   SocketId,
 } from '@excalidraw/excalidraw/types'
-import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+import type { ExcalidrawElement, OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import type { ConnectionState } from '@/types'
 import { collaborationWsUrl } from '@/utils/api-routing'
 
@@ -136,6 +136,74 @@ function mergeElementOrder(existingOrder: readonly string[], incomingOrder: read
   return mergedOrder
 }
 
+function toPersistedOrderedElements(
+  elements: readonly ExcalidrawElement[],
+): OrderedExcalidrawElement[] {
+  const next: OrderedExcalidrawElement[] = []
+  for (const element of elements) {
+    const index = (element as { index?: unknown }).index
+    if (typeof index !== 'string') {
+      continue
+    }
+    next.push(element as OrderedExcalidrawElement)
+  }
+  return next
+}
+
+function getElementVersion(element: OrderedExcalidrawElement): number {
+  const value = (element as { version?: unknown }).version
+  return typeof value === 'number' ? value : -1
+}
+
+function getElementVersionNonce(element: OrderedExcalidrawElement): number {
+  const value = (element as { versionNonce?: unknown }).versionNonce
+  return typeof value === 'number' ? value : -1
+}
+
+function shouldAcceptIncomingElement(
+  existingRawValue: string | undefined,
+  incomingElement: OrderedExcalidrawElement,
+): boolean {
+  if (!existingRawValue) {
+    return true
+  }
+
+  const existingElement = parseJson<OrderedExcalidrawElement>(existingRawValue)
+  if (!existingElement) {
+    return true
+  }
+
+  const incomingVersion = getElementVersion(incomingElement)
+  const existingVersion = getElementVersion(existingElement)
+
+  if (incomingVersion > existingVersion) {
+    return true
+  }
+  if (incomingVersion < existingVersion) {
+    return false
+  }
+
+  const incomingIsDeleted = incomingElement.isDeleted === true
+  const existingIsDeleted = existingElement.isDeleted === true
+  if (!existingIsDeleted && incomingIsDeleted) {
+    return false
+  }
+  if (existingIsDeleted && !incomingIsDeleted) {
+    return true
+  }
+
+  const incomingVersionNonce = getElementVersionNonce(incomingElement)
+  const existingVersionNonce = getElementVersionNonce(existingElement)
+  if (incomingVersionNonce > existingVersionNonce) {
+    return true
+  }
+  if (incomingVersionNonce < existingVersionNonce) {
+    return false
+  }
+
+  return true
+}
+
 export interface WhiteboardSceneData {
   elements: readonly OrderedExcalidrawElement[]
   appState: Partial<AppState>
@@ -222,6 +290,14 @@ export function writeWhiteboardSceneToYDoc(
     const currentOrder = elementOrder.toArray()
     for (const element of scene.elements) {
       const serialized = JSON.stringify(element)
+      const existingRawValue = elementsMap.get(element.id)
+      if (existingRawValue === serialized) {
+        continue
+      }
+      if (!shouldAcceptIncomingElement(existingRawValue, element)) {
+        continue
+      }
+
       if (elementsMap.get(element.id) !== serialized) {
         elementsMap.set(element.id, serialized)
       }
@@ -349,7 +425,53 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const ydocProjectIdRef = useRef(projectId)
   const activeProjectIdRef = useRef(projectId)
   const sceneHydratedForWritesRef = useRef(false)
+  const suppressLocalSceneWritesRef = useRef(false)
+  const suppressLocalSceneWritesTokenRef = useRef(0)
   activeProjectIdRef.current = projectId
+
+  const runWithSuppressedLocalSceneWrites = useCallback((callback: () => void): void => {
+    suppressLocalSceneWritesRef.current = true
+    suppressLocalSceneWritesTokenRef.current += 1
+    const token = suppressLocalSceneWritesTokenRef.current
+
+    try {
+      callback()
+    } finally {
+      queueMicrotask(() => {
+        if (suppressLocalSceneWritesTokenRef.current === token) {
+          suppressLocalSceneWritesRef.current = false
+        }
+      })
+    }
+  }, [])
+
+  const persistSceneSnapshot = useCallback((
+    elements: readonly ExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles,
+  ) => {
+    if (projectId !== activeProjectIdRef.current) {
+      return
+    }
+
+    if (!canWrite || !isSynced || !sceneHydratedForWritesRef.current) {
+      return
+    }
+
+    if (suppressLocalSceneWritesRef.current) {
+      return
+    }
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: toPersistedOrderedElements(elements),
+        appState,
+        files,
+      },
+      'composure:whiteboard-local',
+    )
+  }, [canWrite, isSynced, projectId, ydoc])
 
   useEffect(() => {
     if (ydocProjectIdRef.current === projectId) {
@@ -540,14 +662,16 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
 
     const applyFromDoc = () => {
       const scene = readWhiteboardSceneFromYDoc(ydoc)
-      const fileValues = Object.values(scene.files)
-      if (fileValues.length > 0) {
-        excalidrawApi.addFiles(fileValues)
-      }
-      excalidrawApi.updateScene({
-        elements: scene.elements,
-        appState: scene.appState as Pick<AppState, keyof AppState>,
-        captureUpdate: CaptureUpdateAction.NEVER,
+      runWithSuppressedLocalSceneWrites(() => {
+        const fileValues = Object.values(scene.files)
+        if (fileValues.length > 0) {
+          excalidrawApi.addFiles(fileValues)
+        }
+        excalidrawApi.updateScene({
+          elements: scene.elements,
+          appState: scene.appState as Pick<AppState, keyof AppState>,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        })
       })
     }
 
@@ -585,8 +709,24 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       filesMap.unobserve(applyFromMapEvent)
       appStateMap.unobserve(applyFromMapEvent)
       sceneHydratedForWritesRef.current = false
+      suppressLocalSceneWritesRef.current = false
+      suppressLocalSceneWritesTokenRef.current += 1
     }
-  }, [excalidrawApi, isSynced, ydoc])
+  }, [excalidrawApi, isSynced, runWithSuppressedLocalSceneWrites, ydoc])
+
+  useEffect(() => {
+    if (!excalidrawApi) {
+      return
+    }
+
+    const unsubscribe = excalidrawApi.onChange((elements, appState, files) => {
+      persistSceneSnapshot(elements, appState, files)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [excalidrawApi, persistSceneSnapshot])
 
   useEffect(() => {
     if (!excalidrawApi) {
@@ -600,24 +740,8 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   }, [collaborators, excalidrawApi])
 
   const handleSceneChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
-    if (projectId !== activeProjectIdRef.current) {
-      return
-    }
-
-    if (!canWrite || !isSynced || !sceneHydratedForWritesRef.current) {
-      return
-    }
-
-    writeWhiteboardSceneToYDoc(
-      ydoc,
-      {
-        elements,
-        appState,
-        files,
-      },
-      'composure:whiteboard-local',
-    )
-  }, [canWrite, isSynced, projectId, ydoc])
+    persistSceneSnapshot(elements, appState, files)
+  }, [persistSceneSnapshot])
 
   const handlePointerUpdate = useCallback<NonNullable<ExcalidrawProps['onPointerUpdate']>>((payload) => {
     if (projectId !== activeProjectIdRef.current) {
