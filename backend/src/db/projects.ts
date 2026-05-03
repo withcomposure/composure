@@ -34,11 +34,7 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
       COALESCE(owner.is_guest, FALSE) AS owner_is_guest
     FROM projects p
     LEFT JOIN users owner ON owner.id = p.owner_user_id
-    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ${userId}
-    WHERE (
-        p.owner_user_id = ${userId}
-        OR pm.status = 'accepted'
-      )
+    WHERE p.owner_user_id = ${userId}
       AND p.deleted_at IS NULL
     ORDER BY p.last_active_at DESC
   `
