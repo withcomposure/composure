@@ -41,17 +41,16 @@ function HistoryCollapse({
 }) {
   const [renderChildren, setRenderChildren] = useState(open)
 
-  useEffect(() => {
-    if (open) {
-      setRenderChildren(true)
-    }
-  }, [open])
-
   return (
     <div
       className={`grid transition-[grid-template-rows,opacity] duration-100 ease-out ${
         open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
       }`}
+      onTransitionStart={() => {
+        if (open && !renderChildren) {
+          setRenderChildren(true)
+        }
+      }}
       onTransitionEnd={() => {
         if (!open) {
           setRenderChildren(false)
