@@ -925,6 +925,34 @@ export default function App() {
     })
   }, [loadProjects, loadRecents])
 
+  const patchActiveProjectTitle = useCallback(
+    async (title: string) => {
+      if (route.kind !== 'project') {
+        throw new Error('No active project')
+      }
+      const projectId = route.projectId
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(route.shareToken ? { 'X-Share-Token': route.shareToken } : {}),
+      }
+      await fetchJson<{ ok: boolean }>(`/projects/${projectId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ title }),
+      })
+      setProjectMetadataById((prev) => {
+        const cur = prev[projectId]
+        if (!cur) {
+          return prev
+        }
+        return { ...prev, [projectId]: { ...cur, title } }
+      })
+      await loadProjects()
+      await loadRecents()
+    },
+    [route, loadProjects, loadRecents],
+  )
+
   const deleteProject = useCallback((project: ProjectSummary) => {
     setPopup({
       kind: 'confirm',
@@ -1130,6 +1158,8 @@ export default function App() {
           projectId={route.projectId}
           projectTitle={activeProjectMetadata?.title ?? 'Untitled Whiteboard'}
           rootFile={activeProjectMetadata?.rootFile ?? 'scene.excalidraw'}
+          onBackToProjects={navigateToProjects}
+          onRenameProject={patchActiveProjectTitle}
           session={{
             accountLabel,
             accountEmail,
@@ -1153,6 +1183,8 @@ export default function App() {
       content = (
         <ProjectWorkspace
           projectId={route.projectId}
+          projectTitle={activeProjectMetadata?.title ?? 'Untitled project'}
+          onRenameProject={patchActiveProjectTitle}
           session={{
             accountLabel,
             accountEmail,

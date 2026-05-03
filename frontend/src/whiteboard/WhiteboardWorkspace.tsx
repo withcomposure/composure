@@ -16,6 +16,8 @@ interface WhiteboardWorkspaceProps {
   projectId: string
   projectTitle: string
   rootFile: string
+  onBackToProjects: () => void
+  onRenameProject?: (nextTitle: string) => Promise<void>
   session: {
     accountLabel: string
     accountEmail: string | null
@@ -42,6 +44,8 @@ export function WhiteboardWorkspace({
   projectId,
   projectTitle,
   rootFile,
+  onBackToProjects,
+  onRenameProject,
   session,
   shareToken,
   onPopupAlert,
@@ -320,6 +324,10 @@ export function WhiteboardWorkspace({
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-cz-bg">
       <WhiteboardToolbar
         title={projectTitle}
+        canRenameProject={canRoleEdit}
+        onBackToProjects={onBackToProjects}
+        onRenameProject={onRenameProject}
+        onRenameProjectError={(message) => onPopupAlert(message, 'Rename failed')}
         canEdit={canWrite}
         canRoleEdit={canRoleEdit}
         connectionState={connectionState}

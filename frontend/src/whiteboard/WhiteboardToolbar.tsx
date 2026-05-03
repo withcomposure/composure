@@ -13,6 +13,7 @@ import type {
 } from '@excalidraw/excalidraw/types'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
+import { WorkspaceProjectTitle } from '@/components/WorkspaceProjectTitle'
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { useClickOutside } from '@/hooks/use-click-outside'
 import { useEscapeKey } from '@/hooks/use-escape-key'
@@ -23,6 +24,10 @@ import type { WhiteboardPresenceUser } from './useWhiteboardCollab'
 
 interface WhiteboardToolbarProps {
   title: string
+  canRenameProject: boolean
+  onBackToProjects: () => void
+  onRenameProject?: (nextTitle: string) => Promise<void>
+  onRenameProjectError?: (message: string) => void
   canEdit: boolean
   canRoleEdit: boolean
   connectionState: ConnectionState
@@ -219,6 +224,10 @@ export async function exportWhiteboardAsSvg(api: ExcalidrawImperativeAPI, title:
 
 export function WhiteboardToolbar({
   title,
+  canRenameProject,
+  onBackToProjects,
+  onRenameProject,
+  onRenameProjectError,
   canEdit,
   canRoleEdit,
   connectionState,
@@ -245,8 +254,15 @@ export function WhiteboardToolbar({
       className="flex items-center justify-between gap-2 border-b border-cz-border bg-cz-surface px-3"
       style={{ height: 'var(--toolbar-height)' }}
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="truncate text-sm font-medium text-cz-text">{title}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <WorkspaceProjectTitle
+          className="min-w-0 flex-1 text-sm font-medium text-cz-text"
+          title={title}
+          canRename={canRenameProject}
+          onBack={onBackToProjects}
+          onRename={onRenameProject}
+          onRenameError={onRenameProjectError}
+        />
         <div className="inline-flex items-center gap-2 rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text-muted">
           <span
             className={`inline-block h-2 w-2 rounded-full ${connectionState === 'connected' ? 'bg-emerald-500' : connectionState === 'connecting' ? 'bg-amber-500' : 'bg-red-500'}`}

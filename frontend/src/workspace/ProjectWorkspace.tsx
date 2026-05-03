@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { ChevronLeft, X } from "lucide-react";
+import { X } from "lucide-react";
 import MarkdownIt from "markdown-it";
 import Asciidoctor from "@asciidoctor/core";
 import {
@@ -70,6 +70,7 @@ import {
 import { restoreVersion } from "@/sidebar/history-api";
 import { collaborationWsUrl } from "@/utils/api-routing";
 import { apiFetch, apiUrl, getErrorMessage } from "@/utils/fetch";
+import { WorkspaceProjectTitle } from "@/components/WorkspaceProjectTitle";
 import { makeProjectUrl, navigateToProjects, navigateToSettings } from "@/utils/route";
 import {
   applyDroppedPathsToPaneState,
@@ -119,6 +120,9 @@ interface ProjectWorkspaceProps {
   onLogin: () => void;
   onLogout: () => void;
   onPopupAlert: (message: string, title?: string) => void;
+  projectTitle: string;
+  /** When set and the user can edit the project, the sidebar title supports inline rename (Enter to save). */
+  onRenameProject?: (nextTitle: string) => Promise<void>;
 }
 
 const cornerHitSizePx = 14;
@@ -143,6 +147,8 @@ export function ProjectWorkspace({
   onLogin,
   onLogout,
   onPopupAlert,
+  projectTitle,
+  onRenameProject,
 }: ProjectWorkspaceProps) {
   const {
     accountLabel,
@@ -1996,6 +2002,10 @@ export function ProjectWorkspace({
         return;
       }
 
+      if (target?.closest("[data-cz-project-title-edit]")) {
+        return;
+      }
+
       const isFormInput =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
@@ -2800,19 +2810,14 @@ export function ProjectWorkspace({
         style={sidebarOpen && !isMobileSidebarLayout ? { width: sidebarWidth } : undefined}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-cz-border">
-          <button
-            onClick={navigateToProjects}
-            className="group flex items-center text-sm font-semibold tracking-tight text-cz-text"
-            title="All projects"
-          >
-            <ChevronLeft
-              size={14}
-              className="mr-0 -translate-x-1 opacity-0 transition-all duration-200 group-hover:mr-1 group-hover:translate-x-0 group-hover:opacity-100"
-            />
-            <span className="transition-transform duration-200 group-hover:translate-x-1.5">
-              <span className="text-cz-accent">C</span>omposure
-            </span>
-          </button>
+          <WorkspaceProjectTitle
+            className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-cz-text"
+            title={projectTitle}
+            canRename={canEdit}
+            onBack={navigateToProjects}
+            onRename={onRenameProject}
+            onRenameError={(message) => onPopupAlert(message, "Rename failed")}
+          />
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}

@@ -79,6 +79,7 @@ describe('WhiteboardWorkspace layout', () => {
         projectId="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         projectTitle="Roadmap Board"
         rootFile="scene.excalidraw"
+        onBackToProjects={() => undefined}
         session={{
           accountLabel: 'Owner',
           accountEmail: 'owner@test.com',
