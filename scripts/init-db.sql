@@ -16,10 +16,15 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'composure_test')\ge
 GRANT CONNECT ON DATABASE composure TO composure_app, composure_migrator;
 GRANT CONNECT ON DATABASE composure_test TO composure_app, composure_migrator;
 
-GRANT USAGE ON SCHEMA public TO composure_app;
+CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION composure_migrator;
+
+GRANT USAGE ON SCHEMA public, app TO composure_app;
 GRANT USAGE, CREATE ON SCHEMA public TO composure_migrator;
+GRANT USAGE, CREATE ON SCHEMA app TO composure_migrator;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE composure_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO composure_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE composure_migrator IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO composure_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE composure_migrator IN SCHEMA app
+  GRANT EXECUTE ON FUNCTIONS TO composure_app;

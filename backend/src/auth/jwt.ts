@@ -136,6 +136,15 @@ export function setJwtIssuer(nextIssuer: string | null | undefined): void {
   issuer = normalized
 }
 
+export function resetJwtForTests(): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('resetJwtForTests is only available in test mode.')
+  }
+
+  initialized = false
+  issuer = process.env.JWT_ISSUER?.trim() || 'composure'
+}
+
 export function tokenExpiresInSeconds(expiresAtUnix: number): number {
   return Math.max(0, expiresAtUnix - toEpochSeconds(new Date()))
 }

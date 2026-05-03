@@ -326,6 +326,11 @@ function isIdentityRequiredRoute(req: FastifyRequest): boolean {
   return true
 }
 
+function isAnonymousSideEffectFreeRoute(req: FastifyRequest): boolean {
+  const path = pathnameFromRawUrl(req.url)
+  return path === '/health' || path === '/.well-known/jwks.json'
+}
+
 function getShareTokenFromRequest(req: FastifyRequest): string | undefined {
   const headerValueRaw = req.headers['x-share-token']
   const headerValue = typeof headerValueRaw === 'string' ? headerValueRaw : undefined
@@ -446,14 +451,27 @@ export async function resolvePrincipalFromCookieHeader(cookieHeader: string | un
 }
 
 export const authHook: preHandlerHookHandler = async (req, reply) => {
-  const backendUrl = parseUrlEnv(process.env.BACKEND_URL)
-  if (backendUrl) {
-    setJwtIssuer(backendUrl)
+  const explicitJwtIssuer = process.env.JWT_ISSUER?.trim()
+  if (explicitJwtIssuer) {
+    setJwtIssuer(explicitJwtIssuer)
   } else {
-    setJwtIssuer(inferRequestOrigin({
-      hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
-      forwardedProtoHeader: req.headers['x-forwarded-proto'],
-    }) ?? null)
+    const backendUrl = parseUrlEnv(process.env.BACKEND_URL)
+    if (backendUrl) {
+      setJwtIssuer(backendUrl)
+    } else {
+      setJwtIssuer(inferRequestOrigin({
+        hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
+        forwardedProtoHeader: req.headers['x-forwarded-proto'],
+      }) ?? null)
+    }
+  }
+
+  if (isAnonymousSideEffectFreeRoute(req)) {
+    req.principal = { userId: null, guestId: null }
+    req.authUser = null
+    req.currentRefreshTokenId = null
+    setRequestIdentity(null, null)
+    return
   }
 
   const guestSignupsEnabled = await getGuestSignupsEnabled()

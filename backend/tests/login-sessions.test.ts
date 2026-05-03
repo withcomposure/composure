@@ -1,13 +1,104 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import crypto from 'node:crypto'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp, createTestUser, createTestSession, sessionCookie, guestCookie } from './helpers/setup.js'
 import { sql } from '../src/db/connection.js'
 import { runWithIdentityContext } from '../src/db/request-context.js'
+import { resolvePrincipalFromCookieHeader } from '../src/auth.js'
+import {
+  decodeAccessTokenUnsafe,
+  resetJwtForTests,
+  signAccessToken,
+  verifyAccessToken,
+} from '../src/auth/jwt.js'
 
 let app: FastifyInstance
+const originalJwtEnv = {
+  privateKey: process.env.JWT_PRIVATE_KEY_PEM,
+  publicKey: process.env.JWT_PUBLIC_KEY_PEM,
+  issuer: process.env.JWT_ISSUER,
+}
+
+function asCookieList(setCookieHeader: string | string[] | undefined): string[] {
+  if (!setCookieHeader) {
+    return []
+  }
+  return Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader]
+}
+
+function restoreEnvValue(name: 'JWT_PRIVATE_KEY_PEM' | 'JWT_PUBLIC_KEY_PEM' | 'JWT_ISSUER', value: string | undefined): void {
+  if (value == null) {
+    delete process.env[name]
+  } else {
+    process.env[name] = value
+  }
+}
+
+function getSetCookieValue(cookies: string[], name: string): string {
+  const match = cookies.find((cookie) => cookie.startsWith(`${name}=`))
+  expect(match).toBeDefined()
+  return match!.split(';')[0]!.slice(name.length + 1)
+}
 
 beforeEach(async () => {
   app = await createTestApp()
+})
+
+afterEach(() => {
+  restoreEnvValue('JWT_PRIVATE_KEY_PEM', originalJwtEnv.privateKey)
+  restoreEnvValue('JWT_PUBLIC_KEY_PEM', originalJwtEnv.publicKey)
+  restoreEnvValue('JWT_ISSUER', originalJwtEnv.issuer)
+  resetJwtForTests()
+})
+
+describe('jwks endpoint', () => {
+  it('is public and does not create guest identity side effects', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/.well-known/jwks.json',
+      headers: { cookie: guestCookie('550e8400e29b41d4a716446655440000') },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { keys?: Array<{ alg?: string; kid?: string; use?: string }> }
+    expect(body.keys).toHaveLength(1)
+    expect(body.keys?.[0]).toMatchObject({ alg: 'RS256', use: 'sig' })
+    expect(typeof body.keys?.[0]?.kid).toBe('string')
+    expect(body.keys?.[0]?.kid?.length).toBeGreaterThan(0)
+
+    const cookies = asCookieList(res.headers['set-cookie'])
+    expect(cookies.some((cookie) => cookie.startsWith('guest_id='))).toBe(false)
+    expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(false)
+    expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(false)
+
+    const [guestCount] = await sql<[{ count: number }?]>`
+      SELECT count(*)::integer AS count FROM users WHERE is_guest = true
+    `
+    expect(guestCount?.count).toBe(0)
+  })
+})
+
+describe('jwt signing keys', () => {
+  it('verifies cookie JWTs after restart when stable keys and issuer are configured', async () => {
+    const user = await createTestUser({ email: 'stable-jwt@test.com' })
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const issuer = 'https://api.withcomposure.test'
+
+    process.env.JWT_PRIVATE_KEY_PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    process.env.JWT_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString()
+    process.env.JWT_ISSUER = issuer
+    resetJwtForTests()
+
+    const { token } = await signAccessToken(user.id)
+    expect((await decodeAccessTokenUnsafe(token))?.iss).toBe(issuer)
+    expect((await verifyAccessToken(token))?.sub).toBe(user.id)
+
+    resetJwtForTests()
+    expect((await verifyAccessToken(token))?.sub).toBe(user.id)
+    await expect(resolvePrincipalFromCookieHeader(`composure_access=${token}`))
+      .resolves
+      .toMatchObject({ userId: user.id })
+  })
 })
 
 describe('login', () => {
@@ -216,6 +307,49 @@ describe('session listing and revocation', () => {
 
     expect(res.statusCode).toBe(403)
     expect(res.json().error).toMatch(/csrf/i)
+  })
+
+  it('revokes a refresh-token family when a rotated token is reused', async () => {
+    const signupRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      payload: { email: 'reuse-detected@test.com', password: 'password123', displayName: 'Reuse Detected' },
+    })
+    const originalCookies = asCookieList(signupRes.headers['set-cookie'])
+    const originalRefresh = getSetCookieValue(originalCookies, 'composure_refresh')
+
+    const rotateRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/session',
+      headers: { cookie: `composure_refresh=${originalRefresh}` },
+    })
+    expect(rotateRes.statusCode).toBe(200)
+    expect(rotateRes.json().authenticated).toBe(true)
+    const rotatedRefresh = getSetCookieValue(asCookieList(rotateRes.headers['set-cookie']), 'composure_refresh')
+    expect(rotatedRefresh).not.toBe(originalRefresh)
+
+    const reuseRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/session',
+      headers: { cookie: `composure_refresh=${originalRefresh}` },
+    })
+    expect(reuseRes.statusCode).toBe(200)
+    expect(reuseRes.json().authenticated).toBe(false)
+
+    const familyRevokedRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/session',
+      headers: { cookie: `composure_refresh=${rotatedRefresh}` },
+    })
+    expect(familyRevokedRes.statusCode).toBe(200)
+    expect(familyRevokedRes.json().authenticated).toBe(false)
+
+    const [active] = await sql<[{ count: number }?]>`
+      SELECT count(*)::integer AS count
+      FROM refresh_tokens
+      WHERE revoked_at IS NULL
+    `
+    expect(active?.count).toBe(0)
   })
 
   it('lists sessions for authenticated user', async () => {

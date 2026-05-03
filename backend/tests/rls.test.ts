@@ -8,6 +8,7 @@ import {
 } from '../src/auth.js'
 import { createPasswordResetToken } from '../src/db/admin.js'
 import { sql } from '../src/db/connection.js'
+import { issueRefreshToken } from '../src/db/refresh-tokens.js'
 import { runWithIdentityContext, type RequestUserRole } from '../src/db/request-context.js'
 import { createTestProject, createTestUser, resetTestDatabase } from './helpers/setup.js'
 
@@ -198,6 +199,35 @@ describe('row level security', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.id).toBe(current.id)
     expect(rows[0]?.id).not.toBe(other.id)
+  })
+
+  it('keeps refresh tokens scoped to the current user under RLS', async () => {
+    const current = await createTestUser({ email: 'current-refresh@test.com' })
+    const other = await createTestUser({ email: 'other-refresh@test.com' })
+    const currentToken = await runWithIdentityContext(null, 'system', async () => await issueRefreshToken(current.id, 3600))
+    const otherToken = await runWithIdentityContext(null, 'system', async () => await issueRefreshToken(other.id, 3600))
+
+    const rows = await asRlsRole(current.id, 'user', async (tx) => await tx`
+      SELECT id, user_id
+      FROM refresh_tokens
+      ORDER BY user_id
+    `)
+
+    expect(rows).toMatchObject([{ id: currentToken.id, user_id: current.id }])
+    expect(rows.map((row) => row.id)).not.toContain(otherToken.id)
+
+    await expect(asRlsRole(current.id, 'user', async (tx) => await tx`
+      INSERT INTO refresh_tokens (id, user_id, token_hash, family_id, last_used_at, expires_at, created_at)
+      VALUES (
+        'rls-refresh-for-other',
+        ${other.id},
+        'rls-refresh-for-other-hash',
+        'rls-refresh-family-for-other',
+        extract(epoch from now())::integer,
+        extract(epoch from now())::integer + 3600,
+        extract(epoch from now())::integer
+      )
+    `)).rejects.toThrow()
   })
 
   it('blocks regular users from escalating sensitive users columns through self updates', async () => {
