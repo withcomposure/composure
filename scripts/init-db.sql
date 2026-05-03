@@ -1,16 +1,17 @@
 /*
  * If using this script for production, DO NOT FORGET to change
- * role passwords from <super_secret_password> to your own.
+ * role passwords from super_secret_password to your own.
+ * Also change in docker-compose.db.yml accordingly.
  */
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'composure_runtime') THEN
-    CREATE ROLE composure_runtime LOGIN PASSWORD '<super_secret_password>' NOSUPERUSER NOBYPASSRLS;
+    CREATE ROLE composure_runtime LOGIN PASSWORD 'super_secret_password' NOSUPERUSER NOBYPASSRLS;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'composure_migrator') THEN
-    CREATE ROLE composure_migrator LOGIN PASSWORD '<super_secret_password>' NOSUPERUSER BYPASSRLS;
+    CREATE ROLE composure_migrator LOGIN PASSWORD 'super_secret_password' NOSUPERUSER BYPASSRLS;
   END IF;
 END
 $$;
@@ -18,8 +19,11 @@ $$;
 SELECT 'CREATE DATABASE composure_test'
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'composure_test')\gexec
 
-GRANT CONNECT ON DATABASE composure TO composure_runtime, composure_migrator;
-GRANT CONNECT ON DATABASE composure_test TO composure_runtime, composure_migrator;
+GRANT ALL ON DATABASE composure TO composure_migrator;
+GRANT ALL ON DATABASE composure_test TO composure_migrator;
+
+GRANT CONNECT ON DATABASE composure TO composure_runtime;
+GRANT CONNECT ON DATABASE composure_test TO composure_runtime;
 
 CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION composure_migrator;
 

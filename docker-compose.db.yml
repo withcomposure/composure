@@ -25,8 +25,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://composure_runtime:composure_runtime@db:5432/composure}
-      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-postgres://composure_migrator:composure_migrator@db:5432/composure}
+      DATABASE_URL: ${DATABASE_URL:-postgres://composure_runtime:super_secret_password@db:5432/composure}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-postgres://composure_migrator:super_secret_password@db:5432/composure}
 
 networks:
   composure-internal:

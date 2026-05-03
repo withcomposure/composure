@@ -1,6 +1,6 @@
 import { sql, type Kysely } from 'kysely'
 
-const defaultDatabaseUrl = 'postgres://composure_runtime:composure_runtime@localhost:5433/composure'
+const defaultDatabaseUrl = 'postgres://composure_runtime:super_secret_password@localhost:5433/composure'
 
 function runtimeRoleFromDatabaseUrl(): string | null {
   const databaseUrl = process.env.DATABASE_URL ?? defaultDatabaseUrl
