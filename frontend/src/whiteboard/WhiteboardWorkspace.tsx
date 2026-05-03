@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { loadLibraryFromBlob, serializeLibraryAsJSON, useHandleLibrary } from '@excalidraw/excalidraw'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { loadLibraryFromBlob, serializeLibraryAsJSON } from '@excalidraw/excalidraw'
 import type { LibraryItems, OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
+import { PopupDialog } from '@/components/PopupDialog'
 import type { AccessPerson, SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 import { makeProjectUrl } from '@/utils/route'
@@ -42,6 +43,71 @@ function normalizeWhiteboardShareRole(role: ShareRole): ShareRole {
   return role === 'edit' ? 'edit' : 'view'
 }
 
+interface LibraryInstallTokens {
+  libraryUrl: string
+  idToken: string | null
+}
+
+function parseLibraryInstallTokens(): LibraryInstallTokens | null {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const hashLibraryUrl = hash.get('addLibrary')
+  if (hashLibraryUrl) {
+    return {
+      libraryUrl: hashLibraryUrl,
+      idToken: hash.get('token'),
+    }
+  }
+
+  const query = new URLSearchParams(window.location.search)
+  const queryLibraryUrl = query.get('addLibrary')
+  if (!queryLibraryUrl) {
+    return null
+  }
+
+  return {
+    libraryUrl: queryLibraryUrl,
+    idToken: hash.get('token'),
+  }
+}
+
+function clearLibraryInstallTokensFromUrl(): void {
+  if (window.location.hash.includes('addLibrary')) {
+    const hash = new URLSearchParams(window.location.hash.slice(1))
+    hash.delete('addLibrary')
+    const nextHash = hash.toString()
+    const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`
+    window.history.replaceState({}, '', nextUrl)
+    return
+  }
+
+  if (window.location.search.includes('addLibrary')) {
+    const query = new URLSearchParams(window.location.search)
+    query.delete('addLibrary')
+    const nextQuery = query.toString()
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`
+    window.history.replaceState({}, '', nextUrl)
+  }
+}
+
+function normalizeLibraryInstallUrl(rawLibraryUrl: string): string {
+  const decodedLibraryUrl = decodeURIComponent(rawLibraryUrl)
+
+  let parsed: URL
+  try {
+    parsed = new URL(decodedLibraryUrl)
+  } catch {
+    throw new Error(`Invalid library URL: ${decodedLibraryUrl}`)
+  }
+
+  const hostname = parsed.hostname.toLowerCase()
+  const isAllowedHost = hostname === 'libraries.excalidraw.com' || hostname.endsWith('.libraries.excalidraw.com')
+  if (parsed.protocol !== 'https:' || !isAllowedHost) {
+    throw new Error(`Invalid or disallowed library URL: ${decodedLibraryUrl}`)
+  }
+
+  return parsed.toString()
+}
+
 export function WhiteboardWorkspace({
   projectId,
   projectTitle,
@@ -78,6 +144,8 @@ export function WhiteboardWorkspace({
   const [followedSocketId, setFollowedSocketId] = useState<SocketId | null>(null)
   const [libraryItems, setLibraryItems] = useState<LibraryItems>([])
   const [libraryLoaded, setLibraryLoaded] = useState(false)
+  const [libraryImportShapeCount, setLibraryImportShapeCount] = useState<number | null>(null)
+  const pendingLibraryImportPromptRef = useRef<((confirmed: boolean) => void) | null>(null)
 
   const shareHeaders = useMemo<Record<string, string>>(
     () =>
@@ -171,8 +239,107 @@ export function WhiteboardWorkspace({
     },
   })
 
-  // Enables hash-driven library imports, e.g. #addLibrary=... from libraries.excalidraw.com.
-  useHandleLibrary({ excalidrawAPI: excalidrawApi })
+  const resolveLibraryImportPrompt = useCallback((confirmed: boolean) => {
+    const resolve = pendingLibraryImportPromptRef.current
+    pendingLibraryImportPromptRef.current = null
+    setLibraryImportShapeCount(null)
+    resolve?.(confirmed)
+  }, [])
+
+  const requestLibraryImportConfirmation = useCallback((shapeCount: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (pendingLibraryImportPromptRef.current) {
+        pendingLibraryImportPromptRef.current(false)
+      }
+
+      pendingLibraryImportPromptRef.current = resolve
+      setLibraryImportShapeCount(shapeCount)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!excalidrawApi) {
+      return
+    }
+
+    let cancelled = false
+
+    const importLibraryFromTokens = async (tokens: LibraryInstallTokens): Promise<void> => {
+      try {
+        const libraryUrl = normalizeLibraryInstallUrl(tokens.libraryUrl)
+        const response = await fetch(libraryUrl)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch library: status ${response.status}`)
+        }
+
+        const blob = await response.blob()
+        const importedLibraryItems = await loadLibraryFromBlob(blob, 'published')
+        if (cancelled) {
+          return
+        }
+
+        const shouldPrompt = tokens.idToken !== excalidrawApi.id
+        if (shouldPrompt && document.hidden) {
+          await new Promise<void>((resolve) => {
+            window.addEventListener('focus', () => resolve(), { once: true })
+          })
+        }
+
+        if (shouldPrompt && !cancelled) {
+          const confirmed = await requestLibraryImportConfirmation(importedLibraryItems.length)
+          if (!confirmed || cancelled) {
+            return
+          }
+        }
+
+        await excalidrawApi.updateLibrary({
+          libraryItems: importedLibraryItems,
+          merge: true,
+          defaultStatus: 'published',
+          openLibraryMenu: true,
+        })
+      } catch (error) {
+        if (!cancelled) {
+          onPopupAlert(getErrorMessage(error), 'Library import failed')
+        }
+      } finally {
+        clearLibraryInstallTokensFromUrl()
+      }
+    }
+
+    const maybeImportLibraryFromUrl = () => {
+      const tokens = parseLibraryInstallTokens()
+      if (!tokens) {
+        return
+      }
+
+      void importLibraryFromTokens(tokens)
+    }
+
+    maybeImportLibraryFromUrl()
+
+    const onHashChange = (event: HashChangeEvent) => {
+      const tokens = parseLibraryInstallTokens()
+      if (!tokens) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      window.history.replaceState({}, '', event.oldURL)
+      void importLibraryFromTokens(tokens)
+    }
+
+    window.addEventListener('hashchange', onHashChange)
+    return () => {
+      cancelled = true
+      window.removeEventListener('hashchange', onHashChange)
+      if (pendingLibraryImportPromptRef.current) {
+        pendingLibraryImportPromptRef.current(false)
+        pendingLibraryImportPromptRef.current = null
+      }
+    }
+  }, [excalidrawApi, onPopupAlert, requestLibraryImportConfirmation])
 
   const loadAccess = useCallback(async () => {
     try {
@@ -487,6 +654,23 @@ export function WhiteboardWorkspace({
           void invalidateLinkSharing()
         }}
         allowedRoles={['view', 'edit']}
+      />
+
+      <PopupDialog
+        open={libraryImportShapeCount !== null}
+        title="Add to Library"
+        message={`This will add ${libraryImportShapeCount ?? 0} shape(s) to your library. Are you sure?`}
+        dismiss={{
+          label: 'Cancel',
+          onClick: () => resolveLibraryImportPrompt(false),
+        }}
+        actions={[
+          {
+            label: 'Add to library',
+            onClick: () => resolveLibraryImportPrompt(true),
+            autoFocus: true,
+          },
+        ]}
       />
     </div>
   )

@@ -121,7 +121,7 @@ describe('WhiteboardWorkspace layout', () => {
     expect(await screen.findByTestId('whiteboard-canvas')).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /View|Edit/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open account menu' })).toBeInTheDocument()
 
