@@ -328,6 +328,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map())
   const [activeCollaborators, setActiveCollaborators] = useState<WhiteboardPresenceUser[]>([])
   const ydocProjectIdRef = useRef(projectId)
+  const sceneHydratedForWritesRef = useRef(false)
 
   useEffect(() => {
     if (ydocProjectIdRef.current === projectId) {
@@ -337,6 +338,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     ydocProjectIdRef.current = projectId
     setIsSynced(false)
     setExcalidrawApiState(null)
+    sceneHydratedForWritesRef.current = false
     setYdoc(() => new Y.Doc())
   }, [projectId])
 
@@ -381,11 +383,13 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       setActiveCollaborators([])
       setConnectionState('connecting')
       setIsSynced(false)
+      sceneHydratedForWritesRef.current = false
     }
   }, [projectId, shareToken, ydoc])
 
   useEffect(() => {
     if (!isSynced) {
+      sceneHydratedForWritesRef.current = false
       return
     }
 
@@ -503,7 +507,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   }, [provider, localUser.userId, localUser.guestId])
 
   useEffect(() => {
-    if (!excalidrawApi) {
+    if (!excalidrawApi || !isSynced) {
       return
     }
 
@@ -545,6 +549,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     }
 
     applyFromDoc()
+    sceneHydratedForWritesRef.current = true
 
     elementsMap.observe(applyFromMapEvent)
     elementOrder.observe(applyFromArrayEvent)
@@ -556,8 +561,9 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       elementOrder.unobserve(applyFromArrayEvent)
       filesMap.unobserve(applyFromMapEvent)
       appStateMap.unobserve(applyFromMapEvent)
+      sceneHydratedForWritesRef.current = false
     }
-  }, [excalidrawApi, ydoc])
+  }, [excalidrawApi, isSynced, ydoc])
 
   useEffect(() => {
     if (!excalidrawApi) {
@@ -568,7 +574,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   }, [collaborators, excalidrawApi])
 
   const handleSceneChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
-    if (!canWrite) {
+    if (!canWrite || !isSynced || !sceneHydratedForWritesRef.current) {
       return
     }
 
@@ -581,7 +587,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       },
       'composure:whiteboard-local',
     )
-  }, [canWrite, ydoc])
+  }, [canWrite, isSynced, ydoc])
 
   const handlePointerUpdate = useCallback<NonNullable<ExcalidrawProps['onPointerUpdate']>>((payload) => {
     const awareness = provider?.awareness
@@ -598,6 +604,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   }, [provider])
 
   const setExcalidrawApi = useCallback((api: ExcalidrawImperativeAPI) => {
+    sceneHydratedForWritesRef.current = false
     setExcalidrawApiState(api)
   }, [])
 

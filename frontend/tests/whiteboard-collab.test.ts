@@ -1,14 +1,120 @@
-import { describe, expect, it } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import type { AppState, BinaryFiles } from '@excalidraw/excalidraw/types'
+import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+
+const hocuspocusMockState = vi.hoisted(() => ({
+  lastDocument: null as unknown,
+}))
+
+vi.mock('@hocuspocus/provider', () => ({
+  HocuspocusProvider: class MockHocuspocusProvider {
+    readonly awareness = new class MockAwareness {
+      clientID = 1
+      private readonly states = new Map<number, Record<string, unknown>>()
+      private readonly listeners = new Set<() => void>()
+
+      getStates(): Map<number, Record<string, unknown>> {
+        return this.states
+      }
+
+      setLocalStateField(key: string, value: unknown): void {
+        const current = this.states.get(this.clientID) ?? {}
+        if (value === null || value === undefined) {
+          const next = { ...current }
+          delete next[key]
+          if (Object.keys(next).length === 0) {
+            this.states.delete(this.clientID)
+          } else {
+            this.states.set(this.clientID, next)
+          }
+        } else {
+          this.states.set(this.clientID, { ...current, [key]: value })
+        }
+
+        for (const callback of this.listeners) {
+          callback()
+        }
+      }
+
+      on(eventName: string, callback: () => void): void {
+        if (eventName === 'change') {
+          this.listeners.add(callback)
+        }
+      }
+
+      off(eventName: string, callback: () => void): void {
+        if (eventName === 'change') {
+          this.listeners.delete(callback)
+        }
+      }
+    }()
+
+    private readonly options: {
+      document: Y.Doc
+      onConnect?: () => void
+      onDisconnect?: () => void
+      onClose?: () => void
+      onStatus?: (payload: { status: 'connected' | 'connecting' | 'disconnected' }) => void
+      onSynced?: (payload: { state: boolean }) => void
+    }
+
+    constructor(options: {
+      document: Y.Doc
+      onConnect?: () => void
+      onDisconnect?: () => void
+      onClose?: () => void
+      onStatus?: (payload: { status: 'connected' | 'connecting' | 'disconnected' }) => void
+      onSynced?: (payload: { state: boolean }) => void
+    }) {
+      this.options = options
+      hocuspocusMockState.lastDocument = options.document
+      options.onStatus?.({ status: 'connecting' })
+      options.onConnect?.()
+      options.onStatus?.({ status: 'connected' })
+      queueMicrotask(() => {
+        options.onSynced?.({ state: true })
+      })
+    }
+
+    destroy(): void {
+      this.options.onDisconnect?.()
+      this.options.onClose?.()
+    }
+  },
+}))
+
 import {
   migrateLegacyWhiteboardSceneFile,
   readWhiteboardSceneFromYDoc,
+  useWhiteboardCollab,
   writeWhiteboardSceneToYDoc,
 } from '../src/whiteboard/useWhiteboardCollab'
 
+function createMockExcalidrawApi(): {
+  api: ExcalidrawImperativeAPI
+  addFiles: ReturnType<typeof vi.fn>
+  updateScene: ReturnType<typeof vi.fn>
+} {
+  const addFiles = vi.fn()
+  const updateScene = vi.fn()
+
+  return {
+    api: {
+      addFiles,
+      updateScene,
+    } as unknown as ExcalidrawImperativeAPI,
+    addFiles,
+    updateScene,
+  }
+}
+
 describe('whiteboard collaboration scene persistence', () => {
+  beforeEach(() => {
+    hocuspocusMockState.lastDocument = null
+  })
+
   it('stores scene data in structured Yjs maps and reads it back', () => {
     const ydoc = new Y.Doc()
 
@@ -87,5 +193,73 @@ describe('whiteboard collaboration scene persistence', () => {
     expect(scene.appState.viewBackgroundColor).toBe('#f8fafc')
 
     ydoc.destroy()
+  })
+
+  it('does not clear persisted scene when API rebind emits an early empty onChange', async () => {
+    const { result } = renderHook(() => useWhiteboardCollab({
+      projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      rootFile: 'scene.excalidraw',
+      canWrite: true,
+      localUser: {
+        name: 'Owner',
+        userId: 'user-1',
+        guestId: null,
+        profileImageUrl: null,
+      },
+    }))
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+    })
+
+    const ydoc = hocuspocusMockState.lastDocument as Y.Doc | null
+    expect(ydoc).toBeTruthy()
+    if (!ydoc) {
+      throw new Error('expected mock collaboration document to be available')
+    }
+
+    const persistedElement = {
+      id: 'persisted-el',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    act(() => {
+      writeWhiteboardSceneToYDoc(
+        ydoc,
+        {
+          elements: [persistedElement],
+          appState: {
+            viewBackgroundColor: '#ffffff',
+          } as Partial<AppState>,
+          files: {} as BinaryFiles,
+        },
+        'test:seed',
+      )
+    })
+
+    const firstApi = createMockExcalidrawApi()
+    act(() => {
+      result.current.setExcalidrawApi(firstApi.api)
+    })
+
+    await waitFor(() => {
+      expect(firstApi.updateScene).toHaveBeenCalled()
+    })
+
+    const replacementApi = createMockExcalidrawApi()
+    act(() => {
+      result.current.setExcalidrawApi(replacementApi.api)
+      result.current.handleSceneChange(
+        [],
+        {
+          viewBackgroundColor: '#ffffff',
+        } as AppState,
+        {} as BinaryFiles,
+      )
+    })
+
+    const sceneAfterEarlyChange = readWhiteboardSceneFromYDoc(ydoc)
+    expect(sceneAfterEarlyChange.elements.map((element) => element.id)).toContain('persisted-el')
   })
 })
