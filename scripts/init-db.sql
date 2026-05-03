@@ -27,6 +27,10 @@ GRANT USAGE ON SCHEMA public, app TO composure_runtime;
 GRANT USAGE, CREATE ON SCHEMA public TO composure_migrator;
 GRANT USAGE, CREATE ON SCHEMA app TO composure_migrator;
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO composure_runtime;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO composure_runtime;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO composure_runtime;
+
 ALTER DEFAULT PRIVILEGES FOR ROLE composure_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO composure_runtime;
 ALTER DEFAULT PRIVILEGES FOR ROLE composure_migrator IN SCHEMA public
