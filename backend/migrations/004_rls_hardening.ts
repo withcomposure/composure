@@ -105,6 +105,42 @@ export async function up(db: Kysely<never>): Promise<void> {
       OR id = app.current_user_id()
     )
   `.execute(db)
+  await sql`
+    CREATE OR REPLACE FUNCTION app.enforce_safe_users_self_update()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public, pg_temp
+    AS $$
+    BEGIN
+      IF app.current_user_role() IN ('system', 'admin') THEN
+        RETURN NEW;
+      END IF;
+
+      IF NEW.id IS DISTINCT FROM OLD.id
+        OR NEW.role IS DISTINCT FROM OLD.role
+        OR NEW.is_guest IS DISTINCT FROM OLD.is_guest
+        OR NEW.guest_cookie_id IS DISTINCT FROM OLD.guest_cookie_id
+        OR NEW.is_suspended IS DISTINCT FROM OLD.is_suspended
+        OR NEW.max_projects IS DISTINCT FROM OLD.max_projects
+        OR NEW.last_login_at IS DISTINCT FROM OLD.last_login_at
+        OR NEW.created_at IS DISTINCT FROM OLD.created_at
+      THEN
+        RAISE EXCEPTION 'sensitive users columns require system or admin context'
+          USING ERRCODE = '42501';
+      END IF;
+
+      RETURN NEW;
+    END
+    $$
+  `.execute(db)
+  await sql`DROP TRIGGER IF EXISTS trg_users_safe_self_update ON users`.execute(db)
+  await sql`
+    CREATE TRIGGER trg_users_safe_self_update
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION app.enforce_safe_users_self_update()
+  `.execute(db)
 
   await sql`DROP POLICY IF EXISTS rls_projects_select ON projects`.execute(db)
   await sql`DROP POLICY IF EXISTS rls_projects_write ON projects`.execute(db)
@@ -274,6 +310,8 @@ export async function up(db: Kysely<never>): Promise<void> {
 }
 
 export async function down(db: Kysely<never>): Promise<void> {
+  await sql`DROP TRIGGER IF EXISTS trg_users_safe_self_update ON users`.execute(db)
+  await sql`DROP FUNCTION IF EXISTS app.enforce_safe_users_self_update()`.execute(db)
   await sql`DROP POLICY IF EXISTS rls_users_select ON users`.execute(db)
   await sql`DROP POLICY IF EXISTS rls_users_insert ON users`.execute(db)
   await sql`DROP POLICY IF EXISTS rls_users_update ON users`.execute(db)

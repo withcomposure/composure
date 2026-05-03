@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { signState } from '../src/auth/oauth.js'
 import { sql } from '../src/db/connection.js'
-import { createTestApp } from './helpers/setup.js'
+import { createTestApp, createTestUser } from './helpers/setup.js'
 
 const mutableEnvKeys = ['API_BASE_PATH', 'BACKEND_URL', 'FRONTEND_URL', 'CORS_ORIGIN'] as const
 
@@ -54,6 +54,11 @@ function extractStateFromAuthorizeRedirect(location: string | undefined): string
   const state = authUrl.searchParams.get('state')
   expect(state).toBeTruthy()
   return state as string
+}
+
+function asCookieList(header: string | string[] | undefined): string[] {
+  if (!header) return []
+  return (Array.isArray(header) ? header : [header]).filter((cookie): cookie is string => typeof cookie === 'string')
 }
 
 describe('oauth redirect targets', () => {
@@ -244,6 +249,53 @@ describe('oauth redirect targets', () => {
         await app.close()
       }
       restoreEnv(snapshot)
+    }
+  })
+
+  it('sets auth cookies when an existing linked account completes the callback', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      const user = await createTestUser({ email: 'oauth-linked@test.com' })
+      await sql`
+        INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+        VALUES ('oauth-callback-linked-id', ${user.id}, 'github', '12345', ${user.email}, extract(epoch from now())::integer)
+      `
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          id: 12345,
+          login: 'oauth-linked',
+          email: user.email,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(callback.statusCode).toBe(302)
+      expect(callback.headers.location).toBe('/')
+      const cookies = asCookieList(callback.headers['set-cookie'])
+      expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
+      expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
     }
   })
 })

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { sql } from '../src/db/connection.js'
+import { runWithIdentityContext } from '../src/db/request-context.js'
 import { canAccessProjectWithRole, getProjectRoleForPrincipal, ensureProjectAccess } from '../src/db/access.js'
 import { setLinkSharingState } from '../src/db/sharing.js'
 import type { Principal } from '../src/db/types.js'
@@ -24,7 +25,9 @@ describe('canAccessProjectWithRole', () => {
   it('guest owner can access their own project', async () => {
     const guestId = 'guest-1234'
     const guest = await createTestUser({ email: 'guest-owner@test.com' })
-    await sql`UPDATE users SET is_guest = true, guest_cookie_id = ${guestId} WHERE id = ${guest.id}`
+    await runWithIdentityContext(null, 'system', async () => {
+      await sql`UPDATE users SET is_guest = true, guest_cookie_id = ${guestId} WHERE id = ${guest.id}`
+    })
     const projectId = await createTestProject(guest.id, { isGuest: true })
     const principal: Principal = { userId: guest.id, guestId }
 

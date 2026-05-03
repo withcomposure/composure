@@ -20,15 +20,11 @@ import {
   userHasPasswordAuthMethod,
 } from '../db/index.js'
 import {
-  ACCESS_COOKIE_NAME,
   GUEST_COOKIE_NAME,
-  REFRESH_COOKIE_NAME,
-  getAuthCookieSameSite,
-  shouldUseSecureCookies,
+  issueAuthCookies,
 } from '../auth.js'
 import { inferRequestOrigin } from '../env.js'
-import { getRefreshTokenTtlSeconds, signAccessToken, tokenExpiresInSeconds } from './jwt.js'
-import { issueRefreshToken } from '../db/index.js'
+import { runWithIdentityContext } from '../db/index.js'
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -188,35 +184,20 @@ async function getProviderConfig(provider: string): Promise<OAuthProviderRow | n
   return enabled.find((p) => p.provider === provider) ?? null
 }
 
-async function setAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
-  const access = await signAccessToken(userId)
-  const refresh = await issueRefreshToken(userId, getRefreshTokenTtlSeconds())
-  await markUserLoggedIn(userId)
-
-  reply.setCookie(ACCESS_COOKIE_NAME, access.token, {
-    httpOnly: true,
-    sameSite: getAuthCookieSameSite(req),
-    maxAge: tokenExpiresInSeconds(access.expiresAt),
-    secure: shouldUseSecureCookies(req),
-    path: '/',
-  })
-
-  reply.setCookie(REFRESH_COOKIE_NAME, refresh.token, {
-    httpOnly: true,
-    sameSite: getAuthCookieSameSite(req),
-    maxAge: tokenExpiresInSeconds(refresh.expiresAt),
-    secure: shouldUseSecureCookies(req),
-    path: '/',
-  })
+async function issueOAuthAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
+  await issueAuthCookies(req, reply, userId)
+  await runWithIdentityContext(null, 'system', async () => await markUserLoggedIn(userId))
 }
 
 async function migrateGuestData(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
   const guestUserId = req.principal.userId
   if (guestUserId && guestUserId !== userId) {
-    await migrateGuestProjectsToUser(guestUserId, userId)
-    await migrateGuestRecentsToUser(guestUserId, userId)
-    await migrateGuestWorkspaceStatesToUser(guestUserId, userId)
-    await deleteUserAccount(guestUserId)
+    await runWithIdentityContext(null, 'system', async () => {
+      await migrateGuestProjectsToUser(guestUserId, userId)
+      await migrateGuestRecentsToUser(guestUserId, userId)
+      await migrateGuestWorkspaceStatesToUser(guestUserId, userId)
+      await deleteUserAccount(guestUserId)
+    })
     reply.clearCookie(GUEST_COOKIE_NAME, { path: '/' })
   }
 }
@@ -468,7 +449,7 @@ export function registerOAuthRoutes(
       }
 
       if (!req.authUser) {
-        const linkTarget = await findUserById(userId)
+        const linkTarget = await runWithIdentityContext(null, 'system', async () => await findUserById(userId))
         if (!linkTarget) {
           redirectWithAuthError(req, reply, statePayload, 'link_user_not_found')
           return
@@ -476,7 +457,11 @@ export function registerOAuthRoutes(
       }
 
       // Check if this provider profile is already claimed by another user
-      const existing = await findOAuthAccount(provider, profile.providerId)
+      const existing = await runWithIdentityContext(
+        null,
+        'system',
+        async () => await findOAuthAccount(provider, profile.providerId),
+      )
       if (existing && existing.user_id !== userId) {
         redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
         return
@@ -484,7 +469,11 @@ export function registerOAuthRoutes(
 
       if (!existing) {
         try {
-          await linkOAuthAccount(userId, provider, profile.providerId, profile.email)
+          await runWithIdentityContext(
+            null,
+            'system',
+            async () => await linkOAuthAccount(userId, provider, profile.providerId, profile.email),
+          )
         } catch {
           redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
           return
@@ -496,16 +485,24 @@ export function registerOAuthRoutes(
     }
 
     // ---- Login flow ----
-    const result = await findUserByOAuth(provider, profile.providerId, profile.email)
+    const result = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await findUserByOAuth(provider, profile.providerId, profile.email),
+    )
     if (!result) {
       redirectWithAuthError(req, reply, statePayload, 'account_suspended_or_conflict')
       return
     }
 
-    await setAuthCookies(req, reply, result.user.id)
+    await issueOAuthAuthCookies(req, reply, result.user.id)
     await migrateGuestData(req, reply, result.user.id)
 
-    const acceptedInvites = await updatePendingInvitesForUser(result.user.id, result.user.email)
+    const acceptedInvites = await runWithIdentityContext(
+      null,
+      'system',
+      async () => await updatePendingInvitesForUser(result.user.id, result.user.email),
+    )
     if (acceptedInvites > 0) {
       console.info(`[oauth] accepted pending invites userId=${result.user.id} count=${acceptedInvites}`)
     }

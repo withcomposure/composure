@@ -369,7 +369,7 @@ function setAuthCookies(
   })
 }
 
-async function issueAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
+export async function issueAuthCookies(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
   const access = await signAccessToken(userId)
   const refresh = await runWithIdentityContext(
     null,
@@ -1064,7 +1064,11 @@ export async function getPasswordResetTokenRoute(
     return
   }
 
-  const reset = await getPasswordResetTokenState(token)
+  const reset = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await getPasswordResetTokenState(token),
+  )
   if (!reset) {
     reply.status(404).send({ error: 'Password reset token not found' })
     return
@@ -1099,7 +1103,11 @@ export async function applyPasswordResetRoute(
     return
   }
 
-  const reset = await getPasswordResetTokenState(token)
+  const reset = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await getPasswordResetTokenState(token),
+  )
   if (!reset) {
     reply.status(404).send({ error: 'Password reset token not found' })
     return
@@ -1117,20 +1125,28 @@ export async function applyPasswordResetRoute(
   }
 
   // Mark token used first to prevent race conditions with concurrent requests
-  const marked = await markPasswordResetTokenUsed(token)
+  const marked = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await markPasswordResetTokenUsed(token),
+  )
   if (!marked) {
     reply.status(409).send({ error: 'Password reset token has already been used' })
     return
   }
 
-  const updated = await updateUserPasswordHash(reset.userId, hashPassword(newPassword))
+  const updated = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await updateUserPasswordHash(reset.userId, hashPassword(newPassword)),
+  )
   if (!updated) {
     reply.status(500).send({ error: 'Failed to update password' })
     return
   }
 
-  await markUserLoggedIn(reset.userId)
-  const user = await findUserByEmail(reset.email)
+  await runWithIdentityContext(null, 'system', async () => await markUserLoggedIn(reset.userId))
+  const user = await runWithIdentityContext(null, 'system', async () => await findUserByEmail(reset.email))
   if (!user) {
     reply.status(500).send({ error: 'User not found' })
     return
@@ -1148,7 +1164,11 @@ export async function applyPasswordResetRoute(
   }
   req.principal.userId = user.id
   setRequestIdentity(user.id, user.role)
-  req.currentRefreshTokenId = await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? '')
+  req.currentRefreshTokenId = await runWithIdentityContext(
+    null,
+    'system',
+    async () => await findActiveRefreshTokenId(getCookieValue(req, REFRESH_COOKIE_NAME) ?? ''),
+  )
 
   reply.send(await makeSessionPayload(req))
 }

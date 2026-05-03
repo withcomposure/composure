@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp, createTestUser, createTestSession, sessionCookie, guestCookie } from './helpers/setup.js'
 import { sql } from '../src/db/connection.js'
+import { runWithIdentityContext } from '../src/db/request-context.js'
 
 let app: FastifyInstance
 
@@ -112,7 +113,9 @@ describe('login', () => {
     })
 
     // Suspend the user
-    await sql`UPDATE users SET is_suspended = true WHERE email = ${'suspended@test.com'}`
+    await runWithIdentityContext(null, 'system', async () => {
+      await sql`UPDATE users SET is_suspended = true WHERE email = ${'suspended@test.com'}`
+    })
 
     const res = await app.inject({
       method: 'POST',

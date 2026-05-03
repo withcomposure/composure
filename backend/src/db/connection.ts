@@ -15,6 +15,11 @@ interface IdentityInput {
   userRole: RequestUserRole
 }
 
+async function applyIdentity(client: SqlClient, identity: IdentityInput): Promise<void> {
+  await client`SELECT set_config('app.current_user_id', ${identity.userId ?? ''}, true)`
+  await client`SELECT set_config('app.current_user_role', ${identity.userRole ?? ''}, true)`
+}
+
 function resolveCurrentIdentity(): IdentityInput {
   const store = getRequestContext()
   if (!store) {
@@ -33,6 +38,7 @@ async function withIdentityTransaction<T>(
 ): Promise<T> {
   const store = getRequestContext()
   if (store?.tx) {
+    await applyIdentity(store.tx, identity)
     return await fn(store.tx)
   }
 
@@ -41,8 +47,7 @@ async function withIdentityTransaction<T>(
   }
 
   return (await rawSql.begin(async (tx) => {
-    await tx`SELECT set_config('app.current_user_id', ${identity.userId ?? ''}, true)`
-    await tx`SELECT set_config('app.current_user_role', ${identity.userRole ?? ''}, true)`
+    await applyIdentity(tx, identity)
 
     if (!store) {
       return await fn(tx)
@@ -57,6 +62,7 @@ async function runContextAware<T>(
 ): Promise<T> {
   const store = getRequestContext()
   if (store?.tx) {
+    await applyIdentity(store.tx, resolveCurrentIdentity())
     return await execute(store.tx)
   }
 
