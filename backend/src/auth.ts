@@ -1065,12 +1065,12 @@ export async function updatePreferencesRoute(
 export async function getExcalidrawLibraryRoute(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const userId = req.principal.userId
   if (!userId) {
-    reply.send({ libraryItems: [] })
+    reply.send({ library: null })
     return
   }
 
   const stored = await getUserExcalidrawLibrary(userId)
-  reply.send(stored ?? { libraryItems: [] })
+  reply.send({ library: stored?.library ?? null })
 }
 
 export async function putExcalidrawLibraryRoute(

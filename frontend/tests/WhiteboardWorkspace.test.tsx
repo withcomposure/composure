@@ -4,6 +4,15 @@ import { render, screen } from '@testing-library/react'
 vi.mock('@excalidraw/excalidraw', () => ({
   exportToBlob: vi.fn(),
   exportToSvg: vi.fn(),
+  serializeLibraryAsJSON: vi.fn((libraryItems: unknown) =>
+    JSON.stringify({
+      type: 'excalidrawlib',
+      version: 2,
+      source: 'https://withcomposure.com',
+      libraryItems,
+    }),
+  ),
+  loadLibraryFromBlob: vi.fn(async () => []),
 }))
 
 vi.mock('../src/whiteboard/useWhiteboardCollab', () => ({
@@ -63,7 +72,7 @@ describe('WhiteboardWorkspace layout', () => {
       }
 
       if (url === '/api/v1/excalidraw-library') {
-        return json({ libraryItems: [] })
+        return json({ library: null })
       }
 
       return json({ error: `Unhandled request: ${url}` }, 500)

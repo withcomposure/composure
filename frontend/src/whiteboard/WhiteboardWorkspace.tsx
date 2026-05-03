@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { loadLibraryFromBlob, serializeLibraryAsJSON } from '@excalidraw/excalidraw'
 import type { LibraryItems, OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
 import type { AccessPerson, SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
@@ -104,9 +105,25 @@ export function WhiteboardWorkspace({
         if (!response.ok) {
           throw new Error('Failed to load Excalidraw library')
         }
-        const body = (await response.json()) as { libraryItems?: unknown }
+        const body = (await response.json()) as { library?: unknown; libraryItems?: unknown }
+        let nextLibraryItems: LibraryItems = []
+
+        if (typeof body.library === 'string') {
+          try {
+            nextLibraryItems = await loadLibraryFromBlob(
+              new Blob([body.library], { type: 'application/json' }),
+              'unpublished',
+            )
+          } catch (error) {
+            console.warn(`[whiteboard] load-library-blob-parse-failed ${String(error)}`)
+          }
+        } else if (Array.isArray(body.libraryItems)) {
+          // Legacy API fallback path.
+          nextLibraryItems = body.libraryItems as LibraryItems
+        }
+
         if (!cancelled) {
-          setLibraryItems((Array.isArray(body.libraryItems) ? body.libraryItems : []) as LibraryItems)
+          setLibraryItems(nextLibraryItems)
         }
       } catch (error) {
         console.warn(`[whiteboard] load-library-failed ${String(error)}`)
@@ -124,7 +141,7 @@ export function WhiteboardWorkspace({
     return () => {
       cancelled = true
     }
-  }, [projectId, sessionUser?.id])
+  }, [projectId, principal.userId])
 
   const {
     connectionState,
@@ -330,15 +347,16 @@ export function WhiteboardWorkspace({
 
   const handleLibraryChange = useCallback(async (nextLibraryItems: LibraryItems) => {
     setLibraryItems(nextLibraryItems)
-    if (!sessionUser?.id) {
+    if (!principal.userId) {
       return
     }
 
     try {
+      const serializedLibrary = serializeLibraryAsJSON(nextLibraryItems)
       const response = await apiFetch('/excalidraw-library', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ libraryItems: nextLibraryItems }),
+        body: JSON.stringify({ library: serializedLibrary }),
       })
       if (!response.ok) {
         throw new Error('Failed to save Excalidraw library')
@@ -346,7 +364,7 @@ export function WhiteboardWorkspace({
     } catch (error) {
       console.warn(`[whiteboard] save-library-failed ${String(error)}`)
     }
-  }, [sessionUser?.id])
+  }, [principal.userId])
 
   const handleUserFollow = useCallback((payload: OnUserFollowedPayload) => {
     if (payload.action === 'FOLLOW') {

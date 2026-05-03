@@ -6,5 +6,14 @@ vi.mock('@excalidraw/excalidraw', () => ({
   Excalidraw: () => null,
   exportToBlob: vi.fn(),
   serializeAsJSON: vi.fn(),
+  serializeLibraryAsJSON: vi.fn((libraryItems: unknown) =>
+    JSON.stringify({
+      type: 'excalidrawlib',
+      version: 2,
+      source: 'https://withcomposure.com',
+      libraryItems,
+    }),
+  ),
+  loadLibraryFromBlob: vi.fn(async () => []),
   // whatever else WhiteboardCanvas imports
 }))
