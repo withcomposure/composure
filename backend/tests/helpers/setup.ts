@@ -64,12 +64,14 @@ export async function createTestUser(overrides: {
   email?: string
   password?: string
   displayName?: string
+  profileImageUrl?: string | null
   role?: 'user' | 'admin'
 } = {}): Promise<SessionUser & { passwordHash: string }> {
   const id = createUid()
   const email = overrides.email ?? `user-${id.slice(0, 8)}@test.com`
   const password = overrides.password ?? 'testpassword123'
   const displayName = overrides.displayName ?? `Test User ${id.slice(0, 8)}`
+  const profileImageUrl = overrides.profileImageUrl ?? null
 
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
@@ -80,11 +82,11 @@ export async function createTestUser(overrides: {
   const role = count === 0 ? 'admin' : (overrides.role ?? 'user')
 
   await sql`
-    INSERT INTO users (id, email, password_hash, display_name, role, is_guest, created_at)
-    VALUES (${id}, ${email}, ${passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
+    INSERT INTO users (id, email, password_hash, display_name, profile_image_url, role, is_guest, created_at)
+    VALUES (${id}, ${email}, ${passwordHash}, ${displayName}, ${profileImageUrl}, ${role}, FALSE, extract(epoch from now())::integer)
   `
 
-  return { id, email, displayName, profileImageUrl: null, role, passwordHash }
+  return { id, email, displayName, profileImageUrl, role, passwordHash }
 }
 
 /**

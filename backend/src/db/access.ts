@@ -119,31 +119,35 @@ export async function ensureProjectAccess(projectId: string, principal: Principa
   return { ok: hasAccess, project: existing, created: false }
 }
 
-export async function listProjectMembers(projectId: string): Promise<ProjectMemberSummary[]> {
-  const rows = await sql`
-    SELECT
-      pm.user_id,
-      COALESCE(u.email, pm.invited_email) AS email,
-      COALESCE(u.display_name, pm.invited_email, 'Pending invite') AS display_name,
-      COALESCE(u.profile_image_url, NULL) AS profile_image_url,
-      pm.role,
-      pm.status,
-      pm.created_at
-    FROM project_members pm
-    LEFT JOIN users u ON u.id = pm.user_id
-    WHERE pm.project_id = ${projectId}
-    ORDER BY pm.created_at ASC
-  `
+async function listProjectMembers(projectId: string): Promise<ProjectMemberSummary[]> {
+  // The access route checks project visibility before calling this; use a system
+  // read here so users-table RLS does not strip visible collaborators' profiles.
+  return await runWithIdentityContext(null, 'system', async () => {
+    const rows = await sql`
+      SELECT
+        pm.user_id,
+        COALESCE(u.email, pm.invited_email) AS email,
+        COALESCE(u.display_name, pm.invited_email, 'Pending invite') AS display_name,
+        COALESCE(u.profile_image_url, NULL) AS profile_image_url,
+        pm.role,
+        pm.status,
+        pm.created_at
+      FROM project_members pm
+      LEFT JOIN users u ON u.id = pm.user_id
+      WHERE pm.project_id = ${projectId}
+      ORDER BY pm.created_at ASC
+    `
 
-  return rows.map((row) => ({
-    userId: row.user_id as string | null,
-    email: row.email as string,
-    displayName: row.display_name as string,
-    role: row.role as ProjectRole,
-    status: row.status as 'pending' | 'accepted',
-    profileImageUrl: row.profile_image_url as string | null,
-    invitedAt: row.created_at as number,
-  }))
+    return rows.map((row) => ({
+      userId: row.user_id as string | null,
+      email: row.email as string,
+      displayName: row.display_name as string,
+      role: row.role as ProjectRole,
+      status: row.status as 'pending' | 'accepted',
+      profileImageUrl: row.profile_image_url as string | null,
+      invitedAt: row.created_at as number,
+    }))
+  })
 }
 
 export async function listPeopleWithAccess(projectId: string): Promise<ProjectAccessPerson[]> {
@@ -155,7 +159,7 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
   const people: ProjectAccessPerson[] = []
 
   if (project.owner_user_id) {
-    const owner = await findUserById(project.owner_user_id)
+    const owner = await runWithIdentityContext(null, 'system', async () => await findUserById(project.owner_user_id))
     if (owner) {
       people.push({
         userId: owner.id,
@@ -231,7 +235,7 @@ export async function upsertProjectMemberInvite(input: {
   role: Exclude<ProjectRole, 'owner'>
 }): Promise<{ status: 'pending' | 'accepted'; userId: string | null }> {
   const normalizedEmail = input.email.trim().toLowerCase()
-  const targetUser = await findUserByEmail(normalizedEmail)
+  const targetUser = await runWithIdentityContext(null, 'system', async () => await findUserByEmail(normalizedEmail))
 
   if (targetUser) {
     const project = await findProjectById(input.projectId)

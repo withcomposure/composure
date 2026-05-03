@@ -49,6 +49,69 @@ describe('project sharing — invite member', () => {
     expect(body.userId).toBe(member.id)
   })
 
+  it('shows existing invitee profile details to non-admin owners', async () => {
+    await createTestUser({ email: 'admin-seed@test.com' })
+    const owner = await createTestUser({
+      email: 'owner-profile@test.com',
+      displayName: 'Owner Profile',
+      role: 'user',
+    })
+    const ownerSession = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+    const member = await createTestUser({
+      email: 'member-profile@test.com',
+      displayName: 'Member Profile',
+      profileImageUrl: 'https://example.test/member.png',
+      role: 'user',
+    })
+    const memberSession = await createTestSession(member.id)
+
+    const inviteRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { email: member.email, role: 'edit' },
+    })
+
+    expect(inviteRes.statusCode).toBe(201)
+    expect(inviteRes.json()).toMatchObject({
+      ok: true,
+      status: 'accepted',
+      userId: member.id,
+    })
+
+    const ownerAccessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: { cookie: sessionCookie(ownerSession) },
+    })
+    expect(ownerAccessRes.statusCode).toBe(200)
+    const ownerAccessBody = ownerAccessRes.json() as { people: Array<Record<string, unknown>> }
+    const memberPerson = ownerAccessBody.people.find((person) => person.userId === member.id)
+    expect(memberPerson).toMatchObject({
+      email: member.email,
+      displayName: 'Member Profile',
+      profileImageUrl: 'https://example.test/member.png',
+      role: 'edit',
+      status: 'accepted',
+      isOwner: false,
+    })
+    expect(ownerAccessBody.people.find((person) => person.userId == null && person.email === member.email)).toBeUndefined()
+
+    const memberAccessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: { cookie: sessionCookie(memberSession) },
+    })
+    expect(memberAccessRes.statusCode).toBe(200)
+    const memberAccessBody = memberAccessRes.json() as { people: Array<Record<string, unknown>> }
+    expect(memberAccessBody.people.find((person) => person.userId === owner.id)).toMatchObject({
+      email: owner.email,
+      displayName: 'Owner Profile',
+      isOwner: true,
+    })
+  })
+
   it('non-owner cannot invite members', async () => {
     const owner = await createTestUser({ email: 'owner@test.com' })
     const projectId = await createTestProject(owner.id)
