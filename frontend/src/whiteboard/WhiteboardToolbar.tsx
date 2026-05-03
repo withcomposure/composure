@@ -12,7 +12,7 @@ import type {
   SocketId,
 } from '@excalidraw/excalidraw/types'
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
-import { Avatar } from '@/components/Avatar'
+import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { useClickOutside } from '@/hooks/use-click-outside'
 import { useEscapeKey } from '@/hooks/use-escape-key'
@@ -157,69 +157,6 @@ function WhiteboardExportMenu({
   )
 }
 
-function CollaboratorsStrip({
-  collaborators,
-  followedSocketId,
-  onFollowCollaborator,
-}: {
-  collaborators: WhiteboardPresenceUser[]
-  followedSocketId: SocketId | null
-  onFollowCollaborator: (socketId: SocketId, username: string) => void
-}) {
-  if (collaborators.length === 0) {
-    return null
-  }
-
-  const visibleCollaborators = collaborators.slice(0, maxVisibleCollaborators)
-  const overflowCount = Math.max(0, collaborators.length - maxVisibleCollaborators)
-
-  return (
-    <div className="mx-1 flex items-center">
-      <div className="flex items-center -space-x-1.5">
-        {visibleCollaborators.map((collaborator) => {
-          const isFollowing = followedSocketId === collaborator.socketId
-          return (
-            <button
-              key={collaborator.socketId}
-              type="button"
-              onClick={() => onFollowCollaborator(collaborator.socketId, collaborator.name)}
-              title={
-                isFollowing
-                  ? `Stop following ${collaborator.name}`
-                  : `Follow ${collaborator.name}'s view`
-              }
-              aria-label={
-                isFollowing
-                  ? `Stop following ${collaborator.name}`
-                  : `Follow ${collaborator.name}'s view`
-              }
-              className={`rounded-full ring-2 transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent ${
-                isFollowing ? 'ring-amber-400' : 'ring-cz-surface'
-              }`}
-            >
-              <Avatar
-                name={collaborator.name}
-                imageUrl={collaborator.profileImageUrl}
-                size={24}
-              />
-            </button>
-          )
-        })}
-
-        {overflowCount > 0 && (
-          <div
-            className="z-10 flex h-6 w-6 items-center justify-center rounded-full border border-cz-border bg-cz-surface text-[10px] font-medium text-cz-text-muted ring-2 ring-cz-surface"
-            title={`${overflowCount} more collaborators`}
-            aria-label={`${overflowCount} more collaborators`}
-          >
-            +{overflowCount}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function connectionLabel(connectionState: ConnectionState): string {
   if (connectionState === 'connected') {
     return 'Connected'
@@ -319,10 +256,21 @@ export function WhiteboardToolbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <CollaboratorsStrip
+        <CollaboratorStrip
           collaborators={activeCollaborators}
-          followedSocketId={followedSocketId}
-          onFollowCollaborator={onFollowCollaborator}
+          maxVisible={maxVisibleCollaborators}
+          getKey={(c) => c.socketId}
+          variant="presence"
+          isActive={(c) => followedSocketId === c.socketId}
+          getAvatarTitle={(c) =>
+            followedSocketId === c.socketId
+              ? `Stop following ${c.name}`
+              : `Follow ${c.name}'s view`
+          }
+          getRowSubtitle={(c) =>
+            c.hasPointer ? undefined : 'Inactive'
+          }
+          onCollaboratorClick={(c) => onFollowCollaborator(c.socketId, c.name)}
         />
 
         <WhiteboardExportMenu

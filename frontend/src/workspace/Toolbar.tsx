@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, Timer, Trash2, type LucideIcon } from 'lucide-react'
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
-import { Avatar } from '@/components/Avatar'
+import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
@@ -64,95 +64,6 @@ const modeOptions = [
   { value: 'comment' as const, icon: MessageSquare, label: 'Commenting', description: 'Suggest changes'  },
   { value: 'edit'    as const, icon: Pencil,        label: 'Editing',    description: 'Full access'      },
 ] satisfies Array<{ value: 'view' | 'comment' | 'edit', icon: LucideIcon, label: string, description: string }>
-
-function ActiveEditorsStrip({
-  editors,
-  onFocusCollaborator,
-}: {
-  editors: ActiveEditor[]
-  onFocusCollaborator: (clientId: number) => void
-}) {
-  const [showList, setShowList] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!showList) return
-    const handle = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowList(false)
-      }
-    }
-    window.addEventListener('pointerdown', handle, true)
-    return () => window.removeEventListener('pointerdown', handle, true)
-  }, [showList])
-
-  if (editors.length === 0) return null
-
-  const visible = editors.slice(0, maxVisibleEditors)
-  const hasOverflow = editors.length > maxVisibleEditors
-
-  return (
-    <div className="relative flex items-center mx-1" ref={containerRef}>
-      <div className="flex items-center -space-x-1.5">
-        {visible.map((editor) => (
-          <div key={editor.clientId} className="group relative">
-            <button
-              type="button"
-              onClick={() => {
-                if (!editor.hasCursor) return
-                onFocusCollaborator(editor.clientId)
-              }}
-              className={`flex rounded-full outline-2 -outline-offset-1 outline-cz-surface transition-opacity ${editor.hasCursor ? 'cursor-pointer' : 'cursor-default opacity-45 grayscale'}`}
-              title={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
-              aria-label={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
-            >
-              <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={24} />
-            </button>
-            <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-4 -translate-x-1/2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-              <div className="flex flex-col items-center gap-1.5 rounded-lg border border-cz-border bg-cz-surface p-3 shadow-xl whitespace-nowrap">
-                <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={40} />
-                <div className="text-xs font-medium text-cz-text">{editor.name}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-        {hasOverflow && (
-          <button
-            onClick={() => setShowList((prev) => !prev)}
-            className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full border border-cz-border bg-cz-surface text-[10px] font-medium text-cz-text-muted ring-2 ring-cz-surface hover:bg-cz-surface-hover"
-          >
-            +{editors.length - maxVisibleEditors}
-          </button>
-        )}
-      </div>
-      {showList && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
-          {editors.map((editor) => (
-            <button
-              key={editor.clientId}
-              type="button"
-              onClick={() => {
-                if (!editor.hasCursor) return
-                onFocusCollaborator(editor.clientId)
-                setShowList(false)
-              }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${editor.hasCursor ? 'hover:bg-cz-surface-hover' : 'opacity-45 grayscale'}`}
-              title={editor.hasCursor ? `Jump to ${editor.name}` : `${editor.name} is inactive`}
-            >
-              <Avatar name={editor.name} imageUrl={editor.profileImageUrl} isGuest={!editor.userId} size={24} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs text-cz-text">{editor.name}</div>
-                <div className="text-[10px] text-cz-text-muted">
-                  {editor.hasCursor ? (editor.userId ? 'Signed in' : 'Guest') : 'Inactive'}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function Toolbar({
   sidebarOpen,
@@ -267,7 +178,19 @@ export function Toolbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <ActiveEditorsStrip editors={activeEditors} onFocusCollaborator={onFocusCollaborator} />
+        <CollaboratorStrip
+          collaborators={activeEditors}
+          maxVisible={maxVisibleEditors}
+          getKey={(e) => e.clientId}
+          isInteractive={(e) => e.hasCursor}
+          getAvatarTitle={(e) =>
+            e.hasCursor ? `Jump to ${e.name}` : `${e.name} is inactive`
+          }
+          getRowSubtitle={(e) =>
+            e.hasCursor ? (e.userId ? 'Signed in' : 'Guest') : 'Inactive'
+          }
+          onCollaboratorClick={(e) => onFocusCollaborator(e.clientId)}
+        />
 
         {showCompileButton && (
         <div className="relative" ref={compileMenuRef}>
