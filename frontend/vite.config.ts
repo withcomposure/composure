@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    allowedHosts: ['lvh.me'],
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

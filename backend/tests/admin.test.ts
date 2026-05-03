@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp, createTestUser, createTestSession, sessionCookie } from './helpers/setup.js'
 import { sql } from '../src/db/connection.js'
@@ -7,6 +7,12 @@ let app: FastifyInstance
 
 beforeEach(async () => {
   app = await createTestApp()
+})
+
+afterEach(async () => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  await app?.close()
 })
 
 describe('admin — user management', () => {
@@ -312,5 +318,69 @@ describe('admin — login providers', () => {
     const body = res.json() as { strandedUserIds: string[] }
     expect(body.strandedUserIds).toContain(passwordOnlyUser.id)
     expect(body.strandedUserIds).not.toContain(oauthOnlyUser.id)
+  })
+
+  it('tests provider credentials using saved client secret when keep-secret is requested', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    await sql`
+      INSERT INTO oauth_providers (provider, enabled, client_id, client_secret, updated_at)
+      VALUES ('github', true, 'stored-client-id', 'stored-client-secret', extract(epoch from now())::integer)
+      ON CONFLICT (provider) DO UPDATE SET
+        enabled = EXCLUDED.enabled,
+        client_id = EXCLUDED.client_id,
+        client_secret = EXCLUDED.client_secret,
+        updated_at = EXCLUDED.updated_at
+    `
+
+    const fetchMock = vi.fn<typeof fetch>()
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: 'bad_verification_code' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/login-providers/test',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: {
+        provider: 'github',
+        clientId: 'stored-client-id',
+        clientSecret: '__keep__',
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const requestOptions = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    const sentBody = JSON.parse(String(requestOptions?.body ?? '{}')) as { client_secret?: string }
+    expect(sentBody.client_secret).toBe('stored-client-secret')
+  })
+
+  it('returns 400 when keep-secret is requested but no saved secret exists', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/login-providers/test',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: {
+        provider: 'github',
+        clientId: 'missing-secret-client-id',
+        clientSecret: '__keep__',
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toMatch(/saved client secret not found/i)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

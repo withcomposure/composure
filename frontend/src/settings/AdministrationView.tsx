@@ -367,6 +367,34 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     }
   }, [])
 
+  const testProvider = useCallback(async (provider: string, clientId: string, clientSecret: string): Promise<{ ok: boolean; error?: string }> => {
+    setProviderTestResults((prev) => ({ ...prev, [provider]: 'testing' }))
+    setProviderTestErrors((prev) => {
+      const next = { ...prev }
+      delete next[provider]
+      return next
+    })
+    try {
+      const result = await fetchJson<{ ok: boolean; error?: string }>('/admin/login-providers/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, clientId, clientSecret }),
+      })
+      setProviderTestResults((prev) => ({ ...prev, [provider]: result.ok ? 'ok' : 'fail' }))
+      if (!result.ok) {
+        const message = result.error ?? 'Test failed'
+        setProviderTestErrors((prev) => ({ ...prev, [provider]: message }))
+        return { ok: false, error: message }
+      }
+      return { ok: true }
+    } catch (err) {
+      const message = getErrorMessage(err)
+      setProviderTestResults((prev) => ({ ...prev, [provider]: 'fail' }))
+      setProviderTestErrors((prev) => ({ ...prev, [provider]: message }))
+      return { ok: false, error: message }
+    }
+  }, [])
+
   const saveLoginProviders = useCallback(async (force = false) => {
     setLoginProvidersBusy(true)
     setLoginProvidersError(null)
@@ -375,6 +403,34 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
         setLoginProvidersError('At least one login provider must remain enabled.')
         setLoginProvidersBusy(false)
         return
+      }
+
+      const providersToValidate = loginProviders.filter(
+        (provider) => provider.provider !== 'password'
+          && provider.enabled
+          && provider.clientId.trim() !== ''
+          && (provider.clientSecret.trim() !== '' || provider.hasCredentials),
+      )
+
+      if (providersToValidate.length > 0) {
+        const testResults = await Promise.all(providersToValidate.map(async (provider) => {
+          const result = await testProvider(provider.provider, provider.clientId, provider.clientSecret || '__keep__')
+          return {
+            provider: provider.provider,
+            ok: result.ok,
+          }
+        }))
+        const failedProviders = testResults
+          .filter((result) => !result.ok)
+          .map((result) => loginProviderLabels[result.provider] ?? result.provider)
+
+        if (failedProviders.length > 0) {
+          setLoginProvidersError(
+            `${failedProviders.join(', ')} failed credential validation. Fix the provider settings and try again.`,
+          )
+          setLoginProvidersBusy(false)
+          return
+        }
       }
 
       // Determine which providers are being disabled
@@ -454,7 +510,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     } finally {
       setLoginProvidersBusy(false)
     }
-  }, [loginProviders, loginProvidersSaved, loadLoginProviders])
+  }, [loginProviders, loginProvidersSaved, loadLoginProviders, testProvider])
 
   const downloadStrandedCsv = useCallback(async (userIds: string[]) => {
     try {
@@ -477,29 +533,6 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       setStrandedCsvDownloaded(true)
     } catch {
       // ignore
-    }
-  }, [])
-
-  const testProvider = useCallback(async (provider: string, clientId: string, clientSecret: string) => {
-    setProviderTestResults((prev) => ({ ...prev, [provider]: 'testing' }))
-    setProviderTestErrors((prev) => {
-      const next = { ...prev }
-      delete next[provider]
-      return next
-    })
-    try {
-      const result = await fetchJson<{ ok: boolean; error?: string }>('/admin/login-providers/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, clientId, clientSecret }),
-      })
-      setProviderTestResults((prev) => ({ ...prev, [provider]: result.ok ? 'ok' : 'fail' }))
-      if (!result.ok && result.error) {
-        setProviderTestErrors((prev) => ({ ...prev, [provider]: result.error! }))
-      }
-    } catch (err) {
-      setProviderTestResults((prev) => ({ ...prev, [provider]: 'fail' }))
-      setProviderTestErrors((prev) => ({ ...prev, [provider]: getErrorMessage(err) }))
     }
   }, [])
 
@@ -866,12 +899,6 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   })
 
   const enabledLoginProviderCount = loginProviders.filter((p) => p.enabled).length
-
-  const allEnabledProvidersTested = loginProviders
-    .filter((p) => p.provider !== 'password' && p.enabled && p.clientId.trim() !== '' && (p.clientSecret.trim() !== '' || p.hasCredentials))
-    .every((p) => providerTestResults[p.provider] === 'ok')
-
-  const loginProvidersSaveAllowed = loginProvidersDirty && enabledLoginProviderCount > 0 && allEnabledProvidersTested
 
   const serverSettingsDirty = signupMode !== serverSettingsSaved.signupMode || guestSignupsEnabled !== serverSettingsSaved.guestSignupsEnabled || inviteExpiryHours !== serverSettingsSaved.inviteExpiryHours || passwordResetExpiryHours !== serverSettingsSaved.passwordResetExpiryHours || maxConcurrentJobs !== serverSettingsSaved.maxConcurrentJobs || defaultProjectLimitMode !== serverSettingsSaved.defaultProjectLimitMode || (defaultProjectLimitMode === 'on' && defaultProjectLimitValue !== serverSettingsSaved.defaultProjectLimitValue) || maxUploadMode !== serverSettingsSaved.maxUploadMode || (maxUploadMode === 'on' && maxUploadValue !== serverSettingsSaved.maxUploadValue) || maxTextMode !== serverSettingsSaved.maxTextMode || (maxTextMode === 'on' && maxTextValue !== serverSettingsSaved.maxTextValue) || maxFilesMode !== serverSettingsSaved.maxFilesMode || (maxFilesMode === 'on' && maxFilesValue !== serverSettingsSaved.maxFilesValue) || trashRetentionDays !== serverSettingsSaved.trashRetentionDays || largeFileThreshold !== serverSettingsSaved.largeFileThreshold
 
@@ -1554,7 +1581,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               <button
                 type="button"
                 onClick={() => { void saveLoginProviders() }}
-                disabled={loginProvidersBusy || !loginProvidersSaveAllowed}
+                disabled={loginProvidersBusy || !loginProvidersDirty}
                 className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
                   loginProvidersDirty
                     ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
@@ -1697,8 +1724,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               })}
             </div>
 
-            {loginProvidersDirty && !allEnabledProvidersTested && (
-              <div className="mt-2 text-xs text-cz-text-muted">Test all enabled providers before saving.</div>
+            {loginProvidersDirty && (
+              <div className="mt-2 text-xs text-cz-text-muted">Enabled OAuth providers are tested automatically when you apply settings.</div>
             )}
             {loginProvidersError && <div className="mt-2 text-sm text-red-300">{loginProvidersError}</div>}
           </section>

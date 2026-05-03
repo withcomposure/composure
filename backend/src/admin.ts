@@ -881,9 +881,27 @@ export async function testLoginProviderRoute(
 ): Promise<void> {
   if (!ensureAdmin(req, reply)) return
 
-  const { provider, clientId, clientSecret } = req.body ?? {}
-  if (!provider || !clientId || !clientSecret) {
-    reply.status(400).send({ error: 'provider, clientId and clientSecret are required' })
+  const provider = String(req.body?.provider ?? '').trim().toLowerCase()
+  const clientId = String(req.body?.clientId ?? '').trim()
+  const requestedClientSecret = String(req.body?.clientSecret ?? '')
+
+  if (!provider || !clientId) {
+    reply.status(400).send({ error: 'provider and clientId are required' })
+    return
+  }
+
+  let clientSecret = requestedClientSecret
+  if (clientSecret === '__keep__') {
+    const existingProvider = (await listOAuthProviders()).find((item) => item.provider === provider)
+    if (!existingProvider?.client_secret) {
+      reply.status(400).send({ error: `Saved client secret not found for provider: ${provider}` })
+      return
+    }
+    clientSecret = existingProvider.client_secret
+  }
+
+  if (!clientSecret) {
+    reply.status(400).send({ error: 'clientSecret is required' })
     return
   }
 
