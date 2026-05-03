@@ -207,7 +207,7 @@ export async function findUserByOAuth(
       if (u.is_suspended === true) {
         return null // Don't auto-link to suspended accounts
       }
-      await linkOAuthAccount(u.id as string, provider, providerId, providerEmail)
+      await linkOAuthAccount(u.id as string, provider, providerId, normalizedEmail)
       return {
         user: {
           id: u.id as string,
@@ -225,10 +225,15 @@ export async function findUserByOAuth(
     return null
   }
 
+  // Creating a new user from OAuth requires a verified, trusted provider email.
+  if (!providerEmail) {
+    return null
+  }
+
   // 3. Neither → create user + oauth_accounts row
   const id = createUid()
-  const email = providerEmail?.trim().toLowerCase() ?? `${provider}-${providerId}@oauth.local`
-  const displayName = providerEmail?.split('@')[0] ?? `${provider} user`
+  const email = providerEmail.trim().toLowerCase()
+  const displayName = email.split('@')[0] || `${provider} user`
 
   const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users`
   const role = count === 0 ? 'admin' : 'user'
@@ -243,7 +248,7 @@ export async function findUserByOAuth(
     return null
   }
 
-  await linkOAuthAccount(id, provider, providerId, providerEmail)
+  await linkOAuthAccount(id, provider, providerId, email)
 
   return {
     user: { id, email, displayName, profileImageUrl: null, role },

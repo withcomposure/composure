@@ -316,6 +316,7 @@ function isIdentityRequiredRoute(req: FastifyRequest): boolean {
     || path.endsWith('/auth/login')
     || path.endsWith('/auth/signup')
     || path.endsWith('/auth/providers')
+    || path.endsWith('/auth/oauth/confirm')
     || path.includes('/auth/password-reset/')
     || path.includes('/auth/via/')
     || path.endsWith('/templates')

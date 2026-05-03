@@ -4,7 +4,6 @@ import {
   countUserAuthMethods,
   deleteUserAccount,
   findOAuthAccount,
-  findUserById,
   findUserByOAuth,
   getPasswordLoginEnabled,
   getEnabledOAuthProviders,
@@ -99,10 +98,18 @@ interface OAuthStrategyDef {
     callbackUrl: string,
     clientId: string,
     clientSecret: string,
-  ) => Promise<{ providerId: string; email: string | null; displayName: string | null }>
+  ) => Promise<{ providerId: string; email: string | null; emailVerified: boolean; displayName: string | null }>
 }
 
 const strategies: Record<string, OAuthStrategyDef> = {}
+
+const oauthPendingTtlMs = 10 * 60 * 1000
+
+function normalizeProviderEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
 
 function registerGitHubStrategy(): void {
   strategies['github'] = {
@@ -124,18 +131,26 @@ function registerGitHubStrategy(): void {
       const userBody = (await userRes.json()) as { id?: number; login?: string; email?: string }
       if (!userBody.id) throw new Error('Failed to fetch GitHub user profile')
 
-      // Fetch primary verified email if not public
-      let email = userBody.email ?? null
-      if (!email) {
+      // GitHub only exposes verification status via /user/emails.
+      let trustedEmail: string | null = null
+      try {
         const emailRes = await fetch('https://api.github.com/user/emails', {
           headers: { Authorization: `Bearer ${tokenBody.access_token}`, Accept: 'application/json' },
         })
-        const emails = (await emailRes.json()) as Array<{ email: string; primary: boolean; verified: boolean }>
-        const primary = emails.find((e) => e.primary && e.verified)
-        email = primary?.email ?? emails.find((e) => e.verified)?.email ?? null
+        const emails = (await emailRes.json()) as Array<{ email?: string; primary?: boolean; verified?: boolean }>
+        const primary = emails.find((e) => e.primary === true && e.verified === true)
+        const anyVerified = emails.find((e) => e.verified === true)
+        trustedEmail = normalizeProviderEmail(primary?.email ?? anyVerified?.email)
+      } catch {
+        trustedEmail = null
       }
 
-      return { providerId: String(userBody.id), email, displayName: userBody.login ?? null }
+      return {
+        providerId: String(userBody.id),
+        email: trustedEmail,
+        emailVerified: trustedEmail != null,
+        displayName: userBody.login ?? null,
+      }
     },
   }
 }
@@ -166,10 +181,84 @@ function registerGoogleStrategy(): void {
       const userBody = (await userRes.json()) as { id?: string; email?: string; name?: string; verified_email?: boolean }
       if (!userBody.id) throw new Error('Failed to fetch Google user profile')
 
+      const emailVerified = userBody.verified_email === true
       return {
         providerId: userBody.id,
-        email: userBody.verified_email ? (userBody.email ?? null) : null,
+        email: emailVerified ? normalizeProviderEmail(userBody.email) : null,
+        emailVerified,
         displayName: userBody.name ?? null,
+      }
+    },
+  }
+}
+
+function registerOrcidStrategy(): void {
+  const baseUrl = (process.env.ORCID_BASE_URL ?? 'https://orcid.org').replace(/\/+$/, '')
+
+  strategies['orcid'] = {
+    authorizeUrl: (state, callbackUrl, clientId) => {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        response_type: 'code',
+        scope: 'openid',
+        redirect_uri: callbackUrl,
+        state,
+      })
+      return `${baseUrl}/oauth/authorize?${params.toString()}`
+    },
+
+    exchangeCode: async (code, callbackUrl, clientId, clientSecret) => {
+      const tokenBodyPayload = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: callbackUrl,
+      })
+      const tokenRes = await fetch(`${baseUrl}/oauth/token`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: tokenBodyPayload.toString(),
+      })
+      const tokenBody = (await tokenRes.json()) as {
+        access_token?: string
+        error?: string
+        error_description?: string
+        name?: string
+        orcid?: string
+      }
+      if (!tokenBody.access_token) {
+        throw new Error(tokenBody.error_description ?? tokenBody.error ?? 'ORCID token exchange failed')
+      }
+
+      const userRes = await fetch(`${baseUrl}/oauth/userinfo`, {
+        headers: {
+          Authorization: `Bearer ${tokenBody.access_token}`,
+          Accept: 'application/json',
+        },
+      })
+      const userBody = (await userRes.json()) as {
+        sub?: string
+        name?: string
+        email?: string
+        email_verified?: boolean
+      }
+      const providerId = typeof userBody.sub === 'string' && userBody.sub.trim().length > 0
+        ? userBody.sub.trim()
+        : (typeof tokenBody.orcid === 'string' ? tokenBody.orcid.trim() : '')
+      if (!providerId) {
+        throw new Error('Failed to fetch ORCID user profile')
+      }
+
+      const emailVerified = userBody.email_verified === true
+      return {
+        providerId,
+        email: emailVerified ? normalizeProviderEmail(userBody.email) : null,
+        emailVerified,
+        displayName: userBody.name ?? tokenBody.name ?? null,
       }
     },
   }
@@ -179,6 +268,7 @@ function registerGoogleStrategy(): void {
 export function registerAllStrategies(): void {
   registerGitHubStrategy()
   registerGoogleStrategy()
+  registerOrcidStrategy()
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +400,38 @@ export function registerOAuthRoutes(
     const basePath = intent === 'link' ? '/settings' : '/'
     const frontendOrigin = resolveFrontendOriginFromState(req, statePayload)
     reply.redirect(frontendRedirect(`${basePath}?auth_error=${encodeURIComponent(errorCode)}`, frontendOrigin))
+  }
+
+  function oauthErrorMessage(errorCode: string): string {
+    if (errorCode === 'provider_email_unverified') {
+      return 'This provider email is not verified. Verify your provider email before linking or creating an account.'
+    }
+    if (errorCode === 'link_session_mismatch') {
+      return 'Linking could not be completed because your session was not recognized. Please try again.'
+    }
+    if (errorCode === 'provider_already_linked') {
+      return 'This provider is already linked to another account.'
+    }
+    if (errorCode === 'invite_required') {
+      return 'Signups are currently invite-only. Use a valid invite link to create a new account.'
+    }
+    if (errorCode === 'invalid_invite') {
+      return 'The invite link is invalid or has expired. Request a new invite and try again.'
+    }
+    if (errorCode === 'invite_email_mismatch') {
+      return 'This invite was issued for a different email address.'
+    }
+    if (errorCode === 'account_suspended_or_conflict') {
+      return 'Sign-in failed due to account conflict or suspension.'
+    }
+    return 'Authentication provider action failed. Please try again.'
+  }
+
+  function sendOAuthConfirmError(reply: FastifyReply, statusCode: number, errorCode: string): void {
+    reply.status(statusCode).send({
+      error: oauthErrorMessage(errorCode),
+      code: errorCode,
+    })
   }
   // GET /auth/providers — list configured login providers and user's linked methods
   app.get(apiPath('/auth/providers'), async (req) => {
@@ -445,7 +567,7 @@ export function registerOAuthRoutes(
       return
     }
 
-    let profile: { providerId: string; email: string | null; displayName: string | null }
+    let profile: { providerId: string; email: string | null; emailVerified: boolean; displayName: string | null }
     try {
       profile = await strategy.exchangeCode(query.code, callbackUrl(req, provider), config.client_id, config.client_secret)
     } catch (err) {
@@ -454,83 +576,135 @@ export function registerOAuthRoutes(
       return
     }
 
-    // ---- Link flow ----
+    const stateInviteToken = parseInviteToken(statePayload.inviteToken)
+    const pendingPayload: Record<string, unknown> = {
+      kind: 'oauth_pending',
+      intent,
+      provider,
+      providerId: profile.providerId,
+      email: profile.email,
+      emailVerified: profile.emailVerified,
+      displayName: profile.displayName,
+      inviteToken: stateInviteToken,
+      ts: Date.now(),
+    }
     if (intent === 'link') {
-      const userId = typeof statePayload.userId === 'string' ? statePayload.userId : null
-      if (!userId) {
-        redirectWithAuthError(req, reply, statePayload, 'link_session_mismatch')
+      pendingPayload.userId = typeof statePayload.userId === 'string' ? statePayload.userId : null
+    }
+
+    const pendingToken = signState(pendingPayload)
+    const queryParams = new URLSearchParams({
+      oauth_pending: pendingToken,
+      oauth_provider: provider,
+      oauth_intent: intent,
+    })
+    const basePath = intent === 'link' ? '/settings' : '/'
+    redirectWithStatePath(`${basePath}?${queryParams.toString()}`)
+  })
+
+  // POST /auth/oauth/confirm — finalize OAuth login or linking after explicit user confirmation
+  app.post(apiPath('/auth/oauth/confirm'), async (req, reply) => {
+    const body = req.body as { token?: string } | undefined
+    const token = typeof body?.token === 'string' ? body.token.trim() : ''
+    if (!token) {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const pendingPayload = verifyState(token)
+    if (!pendingPayload || pendingPayload.kind !== 'oauth_pending') {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const timestamp = typeof pendingPayload.ts === 'number' ? pendingPayload.ts : Number.NaN
+    if (!Number.isFinite(timestamp) || (Date.now() - timestamp) > oauthPendingTtlMs) {
+      sendOAuthConfirmError(reply, 400, 'state_expired')
+      return
+    }
+
+    const intent = pendingPayload.intent
+    const provider = typeof pendingPayload.provider === 'string' ? pendingPayload.provider : null
+    const providerId = typeof pendingPayload.providerId === 'string' ? pendingPayload.providerId : null
+    if ((intent !== 'login' && intent !== 'link') || !provider || !providerId) {
+      sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    const providerEmail = normalizeProviderEmail(pendingPayload.email)
+    const providerEmailVerified = pendingPayload.emailVerified === true && providerEmail != null
+    const trustedProviderEmail = providerEmailVerified ? providerEmail : null
+
+    if (intent === 'link') {
+      const userId = typeof pendingPayload.userId === 'string' ? pendingPayload.userId : null
+      if (!userId || !req.authUser || req.authUser.id !== userId) {
+        sendOAuthConfirmError(reply, 401, 'link_session_mismatch')
         return
       }
 
-      if (req.authUser && req.authUser.id !== userId) {
-        redirectWithAuthError(req, reply, statePayload, 'link_session_mismatch')
-        return
-      }
-
-      if (!req.authUser) {
-        const linkTarget = await runWithIdentityContext(null, 'system', async () => await findUserById(userId))
-        if (!linkTarget) {
-          redirectWithAuthError(req, reply, statePayload, 'link_user_not_found')
-          return
-        }
-      }
-
-      // Check if this provider profile is already claimed by another user
       const existing = await runWithIdentityContext(
         null,
         'system',
-        async () => await findOAuthAccount(provider, profile.providerId),
+        async () => await findOAuthAccount(provider, providerId),
       )
       if (existing && existing.user_id !== userId) {
-        redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
+        sendOAuthConfirmError(reply, 409, 'provider_already_linked')
         return
       }
 
       if (!existing) {
+        if (!trustedProviderEmail) {
+          sendOAuthConfirmError(reply, 400, 'provider_email_unverified')
+          return
+        }
         try {
           await runWithIdentityContext(
             null,
             'system',
-            async () => await linkOAuthAccount(userId, provider, profile.providerId, profile.email),
+            async () => await linkOAuthAccount(userId, provider, providerId, trustedProviderEmail),
           )
         } catch {
-          redirectWithAuthError(req, reply, statePayload, 'provider_already_linked')
+          sendOAuthConfirmError(reply, 409, 'provider_already_linked')
           return
         }
       }
 
-      redirectWithStatePath(`/settings?oauth_linked=${encodeURIComponent(provider)}`)
+      reply.send({ ok: true, intent: 'link', provider })
       return
     }
 
-    // ---- Login flow ----
     const result = await runWithIdentityContext(
       null,
       'system',
-      async () => await findUserByOAuth(provider, profile.providerId, profile.email, { createIfMissing: false }),
+      async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, { createIfMissing: false }),
     )
 
-    const stateInviteToken = parseInviteToken(statePayload.inviteToken)
+    const stateInviteToken = parseInviteToken(pendingPayload.inviteToken)
 
     let resolved = result
     if (!resolved) {
+      if (!trustedProviderEmail) {
+        sendOAuthConfirmError(reply, 400, 'provider_email_unverified')
+        return
+      }
+
       const inviteGate = await enforceInviteOnlySignupGate({
-        email: profile.email ?? '',
+        email: trustedProviderEmail,
         inviteToken: stateInviteToken,
       })
       if (!inviteGate.ok) {
-        redirectWithAuthError(req, reply, statePayload, inviteGateErrorCode(inviteGate.error))
+        sendOAuthConfirmError(reply, 403, inviteGateErrorCode(inviteGate.error))
         return
       }
 
       resolved = await runWithIdentityContext(
         null,
         'system',
-        async () => await findUserByOAuth(provider, profile.providerId, profile.email, { createIfMissing: true }),
+        async () => await findUserByOAuth(provider, providerId, trustedProviderEmail, { createIfMissing: true }),
       )
     }
     if (!resolved) {
-      redirectWithAuthError(req, reply, statePayload, 'account_suspended_or_conflict')
+      sendOAuthConfirmError(reply, 403, 'account_suspended_or_conflict')
       return
     }
 
@@ -550,7 +724,7 @@ export function registerOAuthRoutes(
       console.info(`[oauth] accepted pending invites userId=${resolved.user.id} count=${acceptedInvites}`)
     }
 
-    redirectWithStatePath('/')
+    reply.send({ ok: true, intent: 'login', provider })
   })
 
   // DELETE /auth/via/:provider/unlink — unlink an OAuth provider from the current user

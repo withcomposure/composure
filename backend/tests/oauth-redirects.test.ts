@@ -53,6 +53,17 @@ async function enableGithubProvider(): Promise<void> {
   `
 }
 
+async function enableOrcidProvider(): Promise<void> {
+  await sql`
+    UPDATE oauth_providers
+    SET enabled = true,
+        client_id = 'orcid-client-id',
+        client_secret = 'orcid-client-secret',
+        updated_at = extract(epoch from now())::integer
+    WHERE provider = 'orcid'
+  `
+}
+
 function extractStateFromAuthorizeRedirect(location: string | undefined): string {
   expect(location).toBeDefined()
   const authUrl = new URL(location as string)
@@ -64,6 +75,14 @@ function extractStateFromAuthorizeRedirect(location: string | undefined): string
 function asCookieList(header: string | string[] | undefined): string[] {
   if (!header) return []
   return (Array.isArray(header) ? header : [header]).filter((cookie): cookie is string => typeof cookie === 'string')
+}
+
+function extractPendingTokenFromRedirect(location: string | undefined): string {
+  expect(location).toBeDefined()
+  const redirected = new URL(location as string, 'http://localhost')
+  const token = redirected.searchParams.get('oauth_pending')
+  expect(token).toBeTruthy()
+  return token as string
 }
 
 describe('oauth redirect targets', () => {
@@ -282,6 +301,12 @@ describe('oauth redirect targets', () => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: user.email, primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
       vi.stubGlobal('fetch', fetchMock)
 
       const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
@@ -291,11 +316,21 @@ describe('oauth redirect targets', () => {
       })
 
       expect(callback.statusCode).toBe(302)
-      expect(callback.headers.location === '/' || callback.headers.location === 'http://localhost/').toBe(true)
-      const cookies = asCookieList(callback.headers['set-cookie'])
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+      const callbackCookies = asCookieList(callback.headers['set-cookie'])
+      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(false)
+      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(false)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(200)
+      const cookies = asCookieList(confirm.headers['set-cookie'])
       expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
       expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
     } finally {
       vi.unstubAllGlobals()
       if (app) {
@@ -326,6 +361,12 @@ describe('oauth redirect targets', () => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: 'new-oauth@test.com', primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
       vi.stubGlobal('fetch', fetchMock)
 
       const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
@@ -335,7 +376,16 @@ describe('oauth redirect targets', () => {
       })
 
       expect(callback.statusCode).toBe(302)
-      expect(callback.headers.location).toBe('/?auth_error=invite_required')
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(403)
+      expect((confirm.json() as { error: string }).error).toMatch(/invite-only/i)
+
       const [{ count }] = await sql<[{ count: number }]>
         `SELECT COUNT(1)::integer AS count FROM users`
       expect(count).toBe(1)
@@ -370,6 +420,12 @@ describe('oauth redirect targets', () => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: 'invited-oauth@test.com', primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
       vi.stubGlobal('fetch', fetchMock)
 
       const start = await app.inject({
@@ -385,8 +441,15 @@ describe('oauth redirect targets', () => {
       })
 
       expect(callback.statusCode).toBe(302)
-      expect(callback.headers.location === '/' || callback.headers.location === 'http://localhost/').toBe(true)
-      const cookies = asCookieList(callback.headers['set-cookie'])
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(200)
+      const cookies = asCookieList(confirm.headers['set-cookie'])
       expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
       expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
 
@@ -399,6 +462,150 @@ describe('oauth redirect targets', () => {
       expect(inviteRow?.used_at).not.toBeNull()
     } finally {
       vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('blocks linking when provider email is not verified', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+
+      const user = await createTestUser({ email: 'link-unverified@test.com' })
+      const session = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: user.email, password: 'testpassword123' },
+      })
+      const loginCookies = asCookieList(session.headers['set-cookie'])
+      const cookieHeader = loginCookies.map((cookie) => cookie.split(';')[0]).join('; ')
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 654321, login: 'no-verified-email' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: 'unverified@test.com', primary: true, verified: false },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'link', provider: 'github', userId: user.id, ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
+      })
+      expect(callback.statusCode).toBe(302)
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        headers: { cookie: cookieHeader },
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(400)
+      expect((confirm.json() as { error: string }).error).toMatch(/not verified/i)
+
+      const [{ count }] = await sql<[{ count: number }]>`
+        SELECT COUNT(1)::integer AS count
+        FROM oauth_accounts
+        WHERE user_id = ${user.id} AND provider = 'github'
+      `
+      expect(count).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('allows existing linked login even without a verified provider email', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableGithubProvider()
+      const user = await createTestUser({ email: 'existing-link-no-verified@test.com' })
+      await sql`
+        INSERT INTO oauth_accounts (id, user_id, provider, provider_id, email, linked_at)
+        VALUES ('oauth-existing-no-verified', ${user.id}, 'github', '44444', ${user.email}, extract(epoch from now())::integer)
+      `
+
+      const fetchMock = vi.fn<typeof fetch>()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'github-access-token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 44444, login: 'existing-linked-user' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([
+          { email: user.email, primary: true, verified: false },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+      })
+      expect(callback.statusCode).toBe(302)
+      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+
+      const confirm = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/oauth/confirm',
+        payload: { token: pendingToken },
+      })
+      expect(confirm.statusCode).toBe(200)
+      const cookies = asCookieList(confirm.headers['set-cookie'])
+      expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
+      expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+      if (app) {
+        await app.close()
+      }
+    }
+  })
+
+  it('starts ORCID OAuth flow when provider is enabled', async () => {
+    let app: FastifyInstance | null = null
+    try {
+      app = await createTestApp()
+      await enableOrcidProvider()
+
+      const start = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/via/orcid/login',
+      })
+
+      expect(start.statusCode).toBe(302)
+      const authUrl = new URL(start.headers.location as string)
+      expect(authUrl.origin).toBe('https://orcid.org')
+      expect(authUrl.pathname).toBe('/oauth/authorize')
+      expect(authUrl.searchParams.get('scope')).toBe('openid')
+      expect(authUrl.searchParams.get('client_id')).toBe('orcid-client-id')
+      expect(authUrl.searchParams.get('response_type')).toBe('code')
+    } finally {
       if (app) {
         await app.close()
       }

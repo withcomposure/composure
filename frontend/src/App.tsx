@@ -54,11 +54,13 @@ const authErrorMessages: Record<string, string> = {
   invite_required: 'Signups are currently invite-only. Use a valid invite link to create a new account.',
   invalid_invite: 'The invite link is invalid or has expired. Request a new invite and try again.',
   invite_email_mismatch: 'This invite link was issued for a different email address.',
+  provider_email_unverified: 'This provider email is not verified. Verify your provider email before linking or creating an account.',
 }
 
 function providerLabel(provider: string): string {
   if (provider === 'github') return 'GitHub'
   if (provider === 'google') return 'Google'
+  if (provider === 'orcid') return 'ORCID'
   if (provider === 'password') return 'Password'
   return provider
 }
@@ -617,8 +619,23 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     const authError = params.get('auth_error')
     const linkedProvider = params.get('oauth_linked')
-    if (!authError && !linkedProvider) {
+    const pendingToken = params.get('oauth_pending')
+    const pendingProvider = params.get('oauth_provider')
+    const pendingIntent = params.get('oauth_intent')
+
+    if (!authError && !linkedProvider && !pendingToken) {
       return
+    }
+
+    const clearHandledParams = (): void => {
+      params.delete('auth_error')
+      params.delete('oauth_linked')
+      params.delete('oauth_pending')
+      params.delete('oauth_provider')
+      params.delete('oauth_intent')
+      const nextQuery = params.toString()
+      const nextUrl = `${window.location.pathname}${nextQuery.length > 0 ? `?${nextQuery}` : ''}${window.location.hash}`
+      history.replaceState(null, '', nextUrl)
     }
 
     if (authError) {
@@ -626,15 +643,50 @@ export default function App() {
         authErrorMessages[authError] ?? 'Authentication provider action failed. Please try again.',
         'Authentication Error',
       )
-    } else if (linkedProvider) {
-      openAlertPopup(`${providerLabel(linkedProvider)} linked successfully.`, 'Login Provider Linked')
+      clearHandledParams()
+      return
     }
 
-    params.delete('auth_error')
-    params.delete('oauth_linked')
-    const nextQuery = params.toString()
-    const nextUrl = `${window.location.pathname}${nextQuery.length > 0 ? `?${nextQuery}` : ''}${window.location.hash}`
-    history.replaceState(null, '', nextUrl)
+    if (pendingToken) {
+      if ((pendingIntent !== 'login' && pendingIntent !== 'link') || !pendingProvider) {
+        openAlertPopup('Authentication callback data was incomplete. Please retry the sign-in flow.', 'Authentication Error')
+        clearHandledParams()
+        return
+      }
+
+      const pendingProviderName = providerLabel(pendingProvider)
+      setPopup({
+        kind: 'confirm',
+        title: pendingIntent === 'link' ? 'Link Login Provider' : 'Confirm Sign In',
+        message: pendingIntent === 'link'
+          ? `Link ${pendingProviderName} to this Composure account?`
+          : `Continue signing in with ${pendingProviderName}?`,
+        confirmLabel: pendingIntent === 'link'
+          ? `Link ${pendingProviderName}`
+          : `Continue with ${pendingProviderName}`,
+        onConfirm: async () => {
+          await fetchJson<{ ok: boolean; intent: 'login' | 'link'; provider: string }>('/auth/oauth/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: pendingToken }),
+          })
+
+          const nextPath = pendingIntent === 'link'
+            ? `/settings?oauth_linked=${encodeURIComponent(pendingProvider)}`
+            : '/'
+          window.location.assign(nextPath)
+        },
+      })
+      setPopupInput('')
+      clearHandledParams()
+      return
+    }
+
+    if (linkedProvider) {
+      openAlertPopup(`${providerLabel(linkedProvider)} linked successfully.`, 'Login Provider Linked')
+      clearHandledParams()
+      return
+    }
   }, [openAlertPopup, route.kind])
 
   const closePopup = useCallback(() => {

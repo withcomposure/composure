@@ -142,6 +142,7 @@ const loginProviderLabels: Record<string, string> = {
   password: 'Password',
   github: 'GitHub',
   google: 'Google',
+  orcid: 'ORCID',
 }
 
 const adminSectionItems: Array<{ id: AdminSectionId; label: string; icon: typeof User }> = [
@@ -1610,6 +1611,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                               ? 'GitHub OAuth App'
                               : p.provider === 'google'
                                 ? 'Google OAuth 2.0'
+                                : p.provider === 'orcid'
+                                  ? 'ORCID OpenID Connect'
                                 : `${p.provider} OAuth`}
                         </div>
                       </div>

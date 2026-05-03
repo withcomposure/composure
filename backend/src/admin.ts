@@ -924,6 +924,30 @@ export async function testLoginProviderRoute(
       return
     }
 
+    if (provider === 'orcid') {
+      const res = await fetch('https://orcid.org/oauth/token', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          code: '__test__',
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: 'https://localhost/callback',
+          grant_type: 'authorization_code',
+        }).toString(),
+      })
+      const body = (await res.json()) as { error?: string; error_description?: string }
+      if (body.error === 'invalid_grant') {
+        reply.send({ ok: true })
+        return
+      }
+      reply.send({ ok: false, error: body.error_description ?? body.error ?? 'Unknown error from ORCID' })
+      return
+    }
+
     reply.status(400).send({ error: `Unknown provider: ${provider}` })
   } catch (err) {
     reply.send({ ok: false, error: err instanceof Error ? err.message : 'Connection failed' })

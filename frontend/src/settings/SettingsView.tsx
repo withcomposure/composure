@@ -49,6 +49,7 @@ const providerLabels: Record<string, string> = {
   password: 'Password',
   github: 'GitHub',
   google: 'Google',
+  orcid: 'ORCID',
 }
 
 const themeOptions = THEMES.map((theme) => ({
