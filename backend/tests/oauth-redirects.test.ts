@@ -276,7 +276,7 @@ describe('oauth redirect targets', () => {
     }
   })
 
-  it('sets auth cookies when an existing linked account completes the callback', async () => {
+  it('sets auth cookies immediately when an existing linked account completes the callback', async () => {
     let app: FastifyInstance | null = null
     try {
       app = await createTestApp()
@@ -316,20 +316,11 @@ describe('oauth redirect targets', () => {
       })
 
       expect(callback.statusCode).toBe(302)
-      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
+      const redirected = new URL(callback.headers.location as string, 'http://localhost')
+      expect(redirected.searchParams.get('oauth_pending')).toBeNull()
       const callbackCookies = asCookieList(callback.headers['set-cookie'])
-      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(false)
-      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(false)
-
-      const confirm = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/oauth/confirm',
-        payload: { token: pendingToken },
-      })
-      expect(confirm.statusCode).toBe(200)
-      const cookies = asCookieList(confirm.headers['set-cookie'])
-      expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
-      expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
+      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
+      expect(callbackCookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
       expect(fetchMock).toHaveBeenCalledTimes(3)
     } finally {
       vi.unstubAllGlobals()
@@ -568,15 +559,9 @@ describe('oauth redirect targets', () => {
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
       })
       expect(callback.statusCode).toBe(302)
-      const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
-
-      const confirm = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/oauth/confirm',
-        payload: { token: pendingToken },
-      })
-      expect(confirm.statusCode).toBe(200)
-      const cookies = asCookieList(confirm.headers['set-cookie'])
+      const redirected = new URL(callback.headers.location as string, 'http://localhost')
+      expect(redirected.searchParams.get('oauth_pending')).toBeNull()
+      const cookies = asCookieList(callback.headers['set-cookie'])
       expect(cookies.some((cookie) => cookie.startsWith('composure_access='))).toBe(true)
       expect(cookies.some((cookie) => cookie.startsWith('composure_refresh='))).toBe(true)
     } finally {

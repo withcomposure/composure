@@ -580,6 +580,38 @@ export function registerOAuthRoutes(
       return
     }
 
+    if (intent === 'login') {
+      const linkedResult = await runWithIdentityContext(
+        null,
+        'system',
+        async () => await findUserByOAuth(provider, profile.providerId, null, {
+          createIfMissing: false,
+        }),
+      )
+
+      if (linkedResult.status === 'resolved') {
+        await issueOAuthAuthCookies(req, reply, linkedResult.user.id)
+        await migrateGuestData(req, reply, linkedResult.user.id)
+
+        const acceptedInvites = await runWithIdentityContext(
+          null,
+          'system',
+          async () => await updatePendingInvitesForUser(linkedResult.user.id, linkedResult.user.email),
+        )
+        if (acceptedInvites > 0) {
+          console.info(`[oauth] accepted pending invites userId=${linkedResult.user.id} count=${acceptedInvites}`)
+        }
+
+        redirectWithStatePath('/')
+        return
+      }
+
+      if (linkedResult.status === 'suspended_or_conflict') {
+        redirectWithAuthError(req, reply, statePayload, 'account_suspended_or_conflict')
+        return
+      }
+    }
+
     const stateInviteToken = parseInviteToken(statePayload.inviteToken)
     const pendingPayload: Record<string, unknown> = {
       kind: 'oauth_pending',
