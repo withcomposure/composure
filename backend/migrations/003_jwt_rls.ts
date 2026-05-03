@@ -167,6 +167,9 @@ export async function up(db: Kysely<never>): Promise<void> {
     `.execute(db)
   }
 
+  await sql`ALTER TABLE project_members DROP CONSTRAINT IF EXISTS project_members_role_check`.execute(db)
+  await sql`ALTER TABLE project_members ADD CONSTRAINT project_members_role_check CHECK (role IN ('owner', 'view', 'comment', 'edit'))`.execute(db)
+
   await sql`
     INSERT INTO project_members (
       project_id,
@@ -246,9 +249,6 @@ export async function up(db: Kysely<never>): Promise<void> {
   await sql`ALTER TABLE project_workspace_states DROP CONSTRAINT IF EXISTS project_workspace_states_check`.execute(db)
   await sql`ALTER TABLE project_workspace_states DROP COLUMN IF EXISTS guest_id`.execute(db)
   await sql`ALTER TABLE project_workspace_states ALTER COLUMN user_id SET NOT NULL`.execute(db)
-
-  await sql`ALTER TABLE project_members DROP CONSTRAINT IF EXISTS project_members_role_check`.execute(db)
-  await sql`ALTER TABLE project_members ADD CONSTRAINT project_members_role_check CHECK (role IN ('owner', 'view', 'comment', 'edit'))`.execute(db)
 
   await sql`CREATE SCHEMA IF NOT EXISTS app`.execute(db)
   await sql`
