@@ -109,6 +109,8 @@ export interface WhiteboardPresenceUser {
   name: string
   profileImageUrl: string | null
   hasPointer: boolean
+  userId: string | null
+  guestId: string | null
 }
 
 export function readWhiteboardSceneFromYDoc(ydoc: Y.Doc): WhiteboardSceneData {
@@ -303,6 +305,19 @@ interface WhiteboardCollabResult {
   handlePointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
 }
 
+function presenceIsLocalUser(
+  person: WhiteboardPresenceUser,
+  localUser: WhiteboardCollabOptions['localUser'],
+): boolean {
+  if (localUser.userId && person.userId && person.userId === localUser.userId) {
+    return true
+  }
+  if (localUser.guestId && person.guestId && person.guestId === localUser.guestId) {
+    return true
+  }
+  return false
+}
+
 export function useWhiteboardCollab(options: WhiteboardCollabOptions): WhiteboardCollabResult {
   const { projectId, shareToken, rootFile, canWrite, localUser } = options
   const [ydoc, setYdoc] = useState(() => new Y.Doc())
@@ -418,7 +433,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       const dedupedPeople = new Map<string, WhiteboardPresenceUser>()
 
       states.forEach((value, clientId) => {
-        if (clientId === localClientId) {
+        if (Number(clientId) === Number(localClientId)) {
           return
         }
 
@@ -464,6 +479,8 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
           name: user.name ?? 'Guest',
           profileImageUrl: user.profileImageUrl ?? null,
           hasPointer: Boolean(pointer),
+          userId: user.userId ?? null,
+          guestId: user.guestId ?? null,
         }
         const existing = dedupedPeople.get(dedupeKey)
         if (!existing || (!existing.hasPointer && person.hasPointer)) {
@@ -472,7 +489,9 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       })
 
       setCollaborators(nextCollaborators)
-      setActiveCollaborators(Array.from(dedupedPeople.values()))
+      setActiveCollaborators(
+        Array.from(dedupedPeople.values()).filter((p) => !presenceIsLocalUser(p, localUser)),
+      )
     }
 
     awareness.on('change', update)
@@ -481,7 +500,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     return () => {
       awareness.off('change', update)
     }
-  }, [provider])
+  }, [provider, localUser.userId, localUser.guestId])
 
   useEffect(() => {
     if (!excalidrawApi) {

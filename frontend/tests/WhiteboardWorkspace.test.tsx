@@ -17,6 +17,8 @@ vi.mock('../src/whiteboard/useWhiteboardCollab', () => ({
         name: 'Peer',
         profileImageUrl: null,
         hasPointer: true,
+        userId: 'peer-user',
+        guestId: null,
       },
     ],
     isCollaborating: true,
