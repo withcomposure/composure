@@ -122,9 +122,20 @@ export async function getProjectAccessRoute(
     return
   }
 
-  const people = await listPeopleWithAccess(projectId)
-  const linkSharing = await getLinkSharingState(projectId)
   const currentRole = await getProjectRoleForPrincipal(projectId, req.principal, shareToken)
+  const requestingIdentityId = req.principal.userId ?? req.principal.guestId
+  if (!requestingIdentityId) {
+    reply.status(401).send({ error: 'Sign in to view project access details' })
+    return
+  }
+
+  // Viewers and commenters can see display names but not emails
+  const people = await listPeopleWithAccess({
+    projectId,
+    requestingIdentityId,
+    includeEmails: currentRole != null && currentRole !== 'view' && currentRole !== 'comment',
+  })
+  const linkSharing = await getLinkSharingState(projectId)
 
   reply.send({
     people,
@@ -165,6 +176,7 @@ export async function inviteProjectMemberRoute(
 
   const invite = await upsertProjectMemberInvite({
     projectId,
+    requestingUserId: userId,
     invitedByUserId: userId,
     email,
     role,

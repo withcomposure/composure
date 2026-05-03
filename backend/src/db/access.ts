@@ -36,6 +36,22 @@ function roleAtLeast(role: ProjectRole, minimumRole: ProjectRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minimumRole]
 }
 
+function requireRequestingIdentityId(requestingIdentityId: string | null | undefined): string {
+  const normalized = requestingIdentityId?.trim()
+  if (!normalized) {
+    throw new Error('Missing requesting identity for privileged access query')
+  }
+  return normalized
+}
+
+function requireRequestingUserId(requestingUserId: string | null | undefined): string {
+  const normalized = requestingUserId?.trim()
+  if (!normalized) {
+    throw new Error('Missing requesting user for privileged mutation')
+  }
+  return normalized
+}
+
 export async function updatePendingInvitesForUser(userId: string, email: string): Promise<number> {
   const normalizedEmail = email.trim().toLowerCase()
   if (!normalizedEmail) return 0
@@ -119,7 +135,8 @@ export async function ensureProjectAccess(projectId: string, principal: Principa
   return { ok: hasAccess, project: existing, created: false }
 }
 
-async function listProjectMembers(projectId: string): Promise<ProjectMemberSummary[]> {
+async function listProjectMembers(projectId: string, requestingIdentityId: string): Promise<ProjectMemberSummary[]> {
+  requireRequestingIdentityId(requestingIdentityId)
   // The access route checks project visibility before calling this; use a system
   // read here so users-table RLS does not strip visible collaborators' profiles.
   return await runWithIdentityContext(null, 'system', async () => {
@@ -140,7 +157,7 @@ async function listProjectMembers(projectId: string): Promise<ProjectMemberSumma
 
     return rows.map((row) => ({
       userId: row.user_id as string | null,
-      email: row.email as string,
+      email: row.email as string | null,
       displayName: row.display_name as string,
       role: row.role as ProjectRole,
       status: row.status as 'pending' | 'accepted',
@@ -150,8 +167,14 @@ async function listProjectMembers(projectId: string): Promise<ProjectMemberSumma
   })
 }
 
-export async function listPeopleWithAccess(projectId: string): Promise<ProjectAccessPerson[]> {
-  const project = await findProjectById(projectId)
+export async function listPeopleWithAccess(input: {
+  projectId: string
+  requestingIdentityId: string
+  includeEmails?: boolean
+}): Promise<ProjectAccessPerson[]> {
+  requireRequestingIdentityId(input.requestingIdentityId)
+  const includeEmails = input.includeEmails ?? true
+  const project = await findProjectById(input.projectId)
   if (!project || project.deleted_at != null) {
     return []
   }
@@ -163,7 +186,7 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
     if (owner) {
       people.push({
         userId: owner.id,
-        email: owner.email,
+        email: includeEmails ? owner.email : null,
         displayName: owner.displayName,
         profileImageUrl: owner.profileImageUrl,
         role: 'owner',
@@ -174,7 +197,7 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
   } else {
     people.push({
       userId: null,
-      email: 'Unknown owner',
+      email: null,
       displayName: 'Unknown owner',
       profileImageUrl: null,
       role: 'owner',
@@ -183,7 +206,7 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
     })
   }
 
-  const members = await listProjectMembers(projectId)
+  const members = await listProjectMembers(input.projectId, input.requestingIdentityId)
   for (const member of members) {
     if (member.role === 'owner' || (member.userId != null && member.userId === project.owner_user_id)) {
       continue
@@ -191,7 +214,7 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
 
     people.push({
       userId: member.userId,
-      email: member.email,
+      email: includeEmails ? member.email : null,
       displayName: member.displayName,
       profileImageUrl: member.profileImageUrl,
       role: member.role,
@@ -203,7 +226,12 @@ export async function listPeopleWithAccess(projectId: string): Promise<ProjectAc
   return people
 }
 
-export async function ensureProjectOwnerMembership(projectId: string, ownerUserId: string): Promise<void> {
+export async function ensureProjectOwnerMembership(
+  projectId: string,
+  ownerUserId: string,
+  requestingUserId: string,
+): Promise<void> {
+  requireRequestingUserId(requestingUserId)
   await runWithIdentityContext(null, 'system', async () => {
     await sql`
       INSERT INTO project_members (
@@ -230,17 +258,22 @@ export async function ensureProjectOwnerMembership(projectId: string, ownerUserI
 
 export async function upsertProjectMemberInvite(input: {
   projectId: string
+  requestingUserId: string
   invitedByUserId: string | null
   email: string
   role: Exclude<ProjectRole, 'owner'>
 }): Promise<{ status: 'pending' | 'accepted'; userId: string | null }> {
+  const requestingUserId = requireRequestingUserId(input.requestingUserId)
+  if (input.invitedByUserId && input.invitedByUserId !== requestingUserId) {
+    throw new Error('Invited-by user does not match requesting user')
+  }
   const normalizedEmail = input.email.trim().toLowerCase()
   const targetUser = await runWithIdentityContext(null, 'system', async () => await findUserByEmail(normalizedEmail))
 
   if (targetUser) {
     const project = await findProjectById(input.projectId)
     if (project?.owner_user_id === targetUser.id) {
-      await ensureProjectOwnerMembership(input.projectId, targetUser.id)
+      await ensureProjectOwnerMembership(input.projectId, targetUser.id, requestingUserId)
       return { status: 'accepted', userId: targetUser.id }
     }
 

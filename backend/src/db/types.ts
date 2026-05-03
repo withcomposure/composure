@@ -95,7 +95,7 @@ export type ProjectRole = 'view' | 'comment' | 'edit' | 'owner'
 
 export interface ProjectMemberSummary {
   userId: string | null
-  email: string
+  email: string | null
   displayName: string
   role: ProjectRole
   status: 'pending' | 'accepted'
@@ -105,7 +105,7 @@ export interface ProjectMemberSummary {
 
 export interface ProjectAccessPerson {
   userId: string | null
-  email: string
+  email: string | null
   displayName: string
   profileImageUrl: string | null
   role: ProjectRole

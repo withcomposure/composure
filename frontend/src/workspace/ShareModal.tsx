@@ -111,9 +111,9 @@ export function ShareModal({
           <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
             <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">People with Access</div>
             <div className="space-y-2">
-              {people.map((person) => (
+              {people.map((person, index) => (
                 <div
-                  key={`${person.userId ?? person.email}-${person.status}`}
+                  key={`${person.userId ?? person.email ?? person.displayName}-${person.status}-${index}`}
                   className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-cz-border-subtle bg-cz-surface px-3 py-2"
                 >
                   <Avatar name={person.displayName} imageUrl={person.profileImageUrl} isGuest={!person.userId} size={32} />
