@@ -13,11 +13,16 @@ export interface WorkspaceProjectTitleProps {
   backLabel?: string;
 }
 
+/** Chevron hidden until group hover / coarse pointer; overridden when `editing` (always shown). */
 const chevronRevealClasses =
   "mr-0 -translate-x-1 opacity-0 pointer-events-none transition-all duration-200 group-hover:pointer-events-auto group-hover:mr-1 group-hover:translate-x-0 group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:mr-1 [@media(pointer:coarse)]:translate-x-0 [@media(pointer:coarse)]:opacity-100";
 
+const chevronShownEditingClasses =
+  "mr-1 translate-x-0 opacity-100 pointer-events-auto transition-all duration-200";
+
+/** Fine pointer: rest further left toward the chevron; hover slides right. Coarse: chevron stays visible — keep hover alignment. */
 const titleSlideClasses =
-  "transition-transform duration-200 group-hover:translate-x-1.5 [@media(pointer:coarse)]:translate-x-1.5";
+  "transition-transform duration-150 [@media(pointer:fine)]:-translate-x-6 group-hover:!translate-x-1 [@media(pointer:coarse)]:translate-x-1";
 
 export function WorkspaceProjectTitle({
   title,
@@ -121,47 +126,55 @@ export function WorkspaceProjectTitle({
         }}
         title={backLabel}
         aria-label={backLabel}
-        className={`inline-flex shrink-0 items-center justify-center p-1 text-cz-text-muted transition-colors rounded-md ${chevronRevealClasses} hover:bg-cz-surface-hover/80 hover:text-cz-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-cz-text-muted transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent ${editing ? chevronShownEditingClasses : chevronRevealClasses}`}
       >
         <ChevronLeft size={14} className="shrink-0" />
       </button>
 
       {editing ? (
         <form
-          className="min-w-0 flex-1"
+          className="inline-grid w-max max-w-full shrink translate-x-1 overflow-x-auto font-inherit"
           data-cz-project-title-edit=""
           onSubmit={(e) => {
             e.preventDefault();
             void commitRename();
           }}
         >
+          {/* Sizer: same typography/padding as input so width tracks text in one paint (no resize flash). */}
+          <span
+            className="invisible col-start-1 row-start-1 box-border min-w-[16ch] whitespace-pre border border-transparent px-2 py-0.5 text-sm font-inherit leading-snug"
+            aria-hidden
+          >
+            {draft.length > 0 ? draft : "\u00a0"}
+          </span>
           <input
             ref={inputRef}
             type="text"
+            size={1}
             value={draft}
             disabled={renaming}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleEditKeyDown}
             onBlur={handleBlur}
-            className="box-border w-full min-w-0 border border-cz-border bg-cz-bg px-2 py-0.5 text-sm text-cz-text outline-none ring-cz-accent focus:ring-2"
+            className="col-start-1 row-start-1 box-border min-h-0 w-full min-w-0 rounded-md border border-cz-accent/40 bg-cz-bg px-2 py-0.5 text-sm font-inherit leading-snug text-cz-text outline-none ring-0 transition-[border-color] duration-150 focus:border-cz-accent/75 focus:ring-0 focus:outline-none"
             aria-label="Project name"
           />
         </form>
       ) : (
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 max-w-full">
           {canRename && onRename ? (
             <button
               type="button"
               onClick={handleTitleClick}
               title={title ? `Rename “${title}”` : "Rename project"}
-              className={`w-full min-w-0 max-w-full whitespace-normal break-words text-left ${titleSlideClasses} px-1.5 py-0.5 -mx-1.5 rounded-md text-cz-text transition-colors hover:bg-cz-surface-hover/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent`}
+              className={`inline-block min-w-[16ch] max-w-full truncate rounded-md border border-transparent box-border px-2 py-0.5 text-left text-cz-text transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent ${titleSlideClasses}`}
             >
               {title || "Untitled project"}
             </button>
           ) : (
             <span
               title={title || undefined}
-              className={`block w-full min-w-0 max-w-full whitespace-normal break-words ${titleSlideClasses} px-1.5 py-0.5 -mx-1.5`}
+              className={`inline-block min-w-[40ch] max-w-full truncate px-2 py-0.5 text-left ${titleSlideClasses}`}
             >
               {title || "Untitled project"}
             </span>
