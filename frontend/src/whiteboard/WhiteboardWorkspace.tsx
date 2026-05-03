@@ -11,6 +11,7 @@ import {
   exportWhiteboardAsSvg,
   WhiteboardToolbar,
 } from './WhiteboardToolbar'
+import { parseLibraryItemsShape } from './library-schema'
 import { useWhiteboardCollab } from './useWhiteboardCollab'
 
 interface WhiteboardWorkspaceProps {
@@ -119,7 +120,12 @@ export function WhiteboardWorkspace({
           }
         } else if (Array.isArray(body.libraryItems)) {
           // Legacy API fallback path.
-          nextLibraryItems = body.libraryItems as LibraryItems
+          const parsedLegacyLibraryItems = parseLibraryItemsShape(body.libraryItems)
+          if (parsedLegacyLibraryItems) {
+            nextLibraryItems = parsedLegacyLibraryItems
+          } else {
+            console.warn('[whiteboard] load-library-legacy-shape-invalid')
+          }
         }
 
         if (!cancelled) {
@@ -346,13 +352,19 @@ export function WhiteboardWorkspace({
   const openShareModal = useCallback(() => setShowShareModal(true), [])
 
   const handleLibraryChange = useCallback(async (nextLibraryItems: LibraryItems) => {
-    setLibraryItems(nextLibraryItems)
+    const validatedLibraryItems = parseLibraryItemsShape(nextLibraryItems)
+    if (!validatedLibraryItems) {
+      console.warn('[whiteboard] save-library-shape-invalid')
+      return
+    }
+
+    setLibraryItems(validatedLibraryItems)
     if (!principal.userId) {
       return
     }
 
     try {
-      const serializedLibrary = serializeLibraryAsJSON(nextLibraryItems)
+      const serializedLibrary = serializeLibraryAsJSON(validatedLibraryItems)
       const response = await apiFetch('/excalidraw-library', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

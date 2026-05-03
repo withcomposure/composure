@@ -1092,6 +1092,10 @@ export async function putExcalidrawLibraryRoute(
   try {
     await upsertUserExcalidrawLibrary(userId, parsed)
   } catch (err) {
+    if (err instanceof Error && err.message === 'invalid-library') {
+      reply.status(400).send({ error: 'Invalid library payload' })
+      return
+    }
     if (err instanceof Error && err.message === 'library-too-large') {
       reply.status(413).send({ error: 'Library too large' })
       return
