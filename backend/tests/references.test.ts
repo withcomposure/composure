@@ -137,7 +137,7 @@ describe('reference search route', () => {
     })
 
     expect(second.statusCode).toBe(429)
-    expect(second.json()).toMatchObject({ error: 'Please wait 1 second between OpenAlex queries.' })
+    expect(second.json()).toMatchObject({ error: 'Please wait 2 seconds between OpenAlex queries.' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
