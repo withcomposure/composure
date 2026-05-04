@@ -321,6 +321,28 @@ export async function updateProjectMemberRole(projectId: string, userId: string,
   return result.count > 0
 }
 
+export async function updatePendingProjectMemberInviteRole(
+  projectId: string,
+  email: string,
+  role: Exclude<ProjectRole, 'owner'>,
+): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) {
+    return false
+  }
+
+  const result = await sql`
+    UPDATE project_members pm
+    SET role = ${role}, updated_at = extract(epoch from now())::integer
+    WHERE pm.project_id = ${projectId}
+      AND pm.invited_email = ${normalizedEmail}
+      AND pm.user_id IS NULL
+      AND pm.status = 'pending'
+  `
+
+  return result.count > 0
+}
+
 export async function removeProjectMember(projectId: string, userId: string): Promise<boolean> {
   const result = await sql`
     DELETE FROM project_members pm
@@ -332,6 +354,23 @@ export async function removeProjectMember(projectId: string, userId: string): Pr
         WHERE p.id = pm.project_id
           AND p.owner_user_id = pm.user_id
       )
+  `
+
+  return result.count > 0
+}
+
+export async function removePendingProjectMemberInvite(projectId: string, email: string): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) {
+    return false
+  }
+
+  const result = await sql`
+    DELETE FROM project_members pm
+    WHERE pm.project_id = ${projectId}
+      AND pm.invited_email = ${normalizedEmail}
+      AND pm.user_id IS NULL
+      AND pm.status = 'pending'
   `
 
   return result.count > 0

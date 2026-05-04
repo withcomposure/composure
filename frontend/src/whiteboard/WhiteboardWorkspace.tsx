@@ -409,8 +409,9 @@ export function WhiteboardWorkspace({
     }
   }, [inviteEmail, inviteRole, loadAccess, onPopupAlert, projectId, shareHeaders])
 
-  const updateMemberRole = useCallback(async (userId: string, role: ShareRole | 'remove') => {
-    const response = await apiFetch(`/projects/${projectId}/members/${userId}`, {
+  const updateMemberRole = useCallback(async (memberId: string, role: ShareRole | 'remove') => {
+    const encodedMemberId = encodeURIComponent(memberId)
+    const response = await apiFetch(`/projects/${projectId}/members/${encodedMemberId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -640,8 +641,8 @@ export function WhiteboardWorkspace({
         onInvite={() => {
           void inviteMember()
         }}
-        onMemberRoleChange={(userId, role) => {
-          void updateMemberRole(userId, role)
+        onMemberRoleChange={(memberId, role) => {
+          void updateMemberRole(memberId, role)
         }}
         onLinkToggle={(enabled) => {
           void setLinkSharing(enabled, linkRole)

@@ -2181,8 +2181,9 @@ export function ProjectWorkspace({
   ]);
 
   const updateMemberRole = useCallback(
-    async (userId: string, role: ShareRole | "remove") => {
-      const res = await apiFetch(`/projects/${projectId}/members/${userId}`, {
+    async (memberId: string, role: ShareRole | "remove") => {
+      const encodedMemberId = encodeURIComponent(memberId);
+      const res = await apiFetch(`/projects/${projectId}/members/${encodedMemberId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -3051,8 +3052,8 @@ export function ProjectWorkspace({
         onInvite={() => {
           void inviteMember();
         }}
-        onMemberRoleChange={(userId, role) => {
-          void updateMemberRole(userId, role);
+        onMemberRoleChange={(memberId, role) => {
+          void updateMemberRole(memberId, role);
         }}
         onLinkToggle={(enabled) => {
           void setLinkSharing(enabled, linkRole);

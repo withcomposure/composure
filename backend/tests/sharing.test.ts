@@ -169,6 +169,37 @@ describe('project sharing — update/remove member', () => {
     expect(res.statusCode).toBe(200)
   })
 
+  it('owner can update pending invite role by email', async () => {
+    const owner = await createTestUser({ email: 'owner@test.com' })
+    const sessionId = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { email: 'pending@test.com', role: 'view' },
+    })
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/members/${encodeURIComponent('pending@test.com')}`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { role: 'edit' },
+    })
+
+    expect(res.statusCode).toBe(200)
+
+    const [member] = await sql<[{ role: string; status: string }?]>`
+      SELECT role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+        AND invited_email = ${'pending@test.com'}
+        AND user_id IS NULL
+    `
+    expect(member).toMatchObject({ role: 'edit', status: 'pending' })
+  })
+
   it('does not allow changing or removing the project owner membership', async () => {
     const owner = await createTestUser({ email: 'owner@test.com' })
     const sessionId = await createTestSession(owner.id)
@@ -216,6 +247,37 @@ describe('project sharing — update/remove member', () => {
     })
 
     expect(res.statusCode).toBe(200)
+  })
+
+  it('owner can cancel a pending invite by email', async () => {
+    const owner = await createTestUser({ email: 'owner@test.com' })
+    const sessionId = await createTestSession(owner.id)
+    const projectId = await createTestProject(owner.id)
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { email: 'pending-cancel@test.com', role: 'comment' },
+    })
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/members/${encodeURIComponent('pending-cancel@test.com')}`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { remove: true },
+    })
+
+    expect(res.statusCode).toBe(200)
+
+    const [member] = await sql<[{ role: string; status: string }?]>`
+      SELECT role, status
+      FROM project_members
+      WHERE project_id = ${projectId}
+        AND invited_email = ${'pending-cancel@test.com'}
+        AND user_id IS NULL
+    `
+    expect(member).toBeUndefined()
   })
 
   it('does not demote the owner when invited by their own email', async () => {

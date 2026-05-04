@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShareModal } from '../src/workspace/ShareModal'
 
@@ -54,5 +54,37 @@ describe('ShareModal link sharing controls', () => {
     expect(screen.getAllByText('Can view').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Can edit').length).toBeGreaterThan(0)
     expect(screen.queryByText('Can comment')).not.toBeInTheDocument()
+  })
+
+  it('allows changing or canceling pending invites', async () => {
+    const user = userEvent.setup()
+    const onMemberRoleChange = vi.fn()
+
+    render(
+      <ShareModal
+        {...baseProps()}
+        onMemberRoleChange={onMemberRoleChange}
+        people={[
+          {
+            userId: null,
+            email: 'pending@test.com',
+            displayName: 'pending@test.com',
+            profileImageUrl: null,
+            role: 'view',
+            status: 'pending',
+            isOwner: false,
+          },
+        ]}
+      />,
+    )
+
+    const pendingRow = screen
+      .getAllByText('pending@test.com')
+      .map((element) => element.closest('div.grid'))
+      .find((element): element is HTMLDivElement => element != null) as HTMLElement
+    await user.click(within(pendingRow).getByRole('button', { name: 'Can view' }))
+    await user.click(screen.getByRole('option', { name: 'Cancel invite' }))
+
+    expect(onMemberRoleChange).toHaveBeenCalledWith('pending@test.com', 'remove')
   })
 })

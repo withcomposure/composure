@@ -14,12 +14,14 @@ import {
   listProjectComments,
   listSharedProjectsForUser,
   listLinkSharedProjectsForPrincipal,
+  removePendingProjectMemberInvite,
   removeProjectMember,
   setLinkSharingState,
   touchProjectActivity,
   type Principal,
   type ProjectRole,
   updateProjectCommentBody,
+  updatePendingProjectMemberInviteRole,
   updateProjectMemberRole,
   upsertProjectMemberInvite,
 } from './db/index.js'
@@ -194,15 +196,18 @@ export async function patchProjectMemberRoute(
   reply: FastifyReply,
 ): Promise<void> {
   const projectId = String(req.params.projectId ?? '')
-  const targetUserId = String(req.params.userId ?? '')
+  const memberId = String(req.params.userId ?? '').trim()
 
   if (!isValidProjectId(projectId)) {
     reply.status(400).send({ error: 'Invalid project ID' })
     return
   }
 
-  if (!isValidUserId(targetUserId)) {
-    reply.status(400).send({ error: 'Invalid user ID' })
+  const targetUserId = isValidUserId(memberId) ? memberId : null
+  const targetEmail = targetUserId == null ? memberId.toLowerCase() : null
+
+  if (targetUserId == null && (targetEmail == null || !isValidEmail(targetEmail))) {
+    reply.status(400).send({ error: 'Invalid member identifier' })
     return
   }
 
@@ -221,12 +226,40 @@ export async function patchProjectMemberRoute(
     return
   }
 
+  const remove = Boolean(req.body?.remove)
+  if (targetUserId == null) {
+    if (targetEmail == null) {
+      reply.status(400).send({ error: 'Invalid member identifier' })
+      return
+    }
+
+    if (remove) {
+      const ok = await removePendingProjectMemberInvite(projectId, targetEmail)
+      if (!ok) {
+        reply.status(404).send({ error: 'Member not found' })
+        return
+      }
+
+      reply.send({ ok: true })
+      return
+    }
+
+    const role = normalizeRole(req.body?.role)
+    const ok = await updatePendingProjectMemberInviteRole(projectId, targetEmail, role)
+    if (!ok) {
+      reply.status(404).send({ error: 'Member not found' })
+      return
+    }
+
+    reply.send({ ok: true })
+    return
+  }
+
   if (project.owner_user_id === targetUserId) {
     reply.status(400).send({ error: 'Project owner access cannot be changed' })
     return
   }
 
-  const remove = Boolean(req.body?.remove)
   if (remove) {
     const ok = await removeProjectMember(projectId, targetUserId)
     if (!ok) {

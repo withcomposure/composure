@@ -19,7 +19,7 @@ interface ShareModalProps {
   onInviteEmailChange: (email: string) => void
   onInviteRoleChange: (role: ShareRole) => void
   onInvite: () => void
-  onMemberRoleChange: (userId: string, role: ShareRole | 'remove') => void
+  onMemberRoleChange: (memberId: string, role: ShareRole | 'remove') => void
   onLinkToggle: (enabled: boolean) => void
   onLinkRoleChange: (role: ShareRole) => void
   onLinkInvalidate: () => void
@@ -71,6 +71,10 @@ export function ShareModal({
     ...shareRoleOptions,
     { value: 'remove', label: 'Revoke access', icon: Trash2 },
   ]
+  const pendingMemberRoleOptions: Array<{ value: ShareRole | 'remove'; label: string; icon: LucideIcon }> = [
+    ...shareRoleOptions,
+    { value: 'remove', label: 'Cancel invite', icon: Trash2 },
+  ]
   const effectiveInviteRole = roleAllowlist.has(inviteRole) ? inviteRole : (shareRoleOptions[0]?.value ?? 'view')
   const effectiveLinkRole = roleAllowlist.has(linkRole) ? linkRole : (shareRoleOptions[0]?.value ?? 'view')
 
@@ -121,30 +125,35 @@ export function ShareModal({
           <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
             <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">People with Access</div>
             <div className="space-y-2">
-              {people.map((person, index) => (
-                <div
-                  key={`${person.userId ?? person.email ?? person.displayName}-${person.status}-${index}`}
-                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-cz-border-subtle bg-cz-surface px-3 py-2"
-                >
-                  <Avatar name={person.displayName} imageUrl={person.profileImageUrl} isGuest={!person.userId} size={32} />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-cz-text">{person.displayName}</div>
-                    {person.email && <div className="truncate text-xs text-cz-text-muted">{person.email}</div>}
+              {people.map((person, index) => {
+                const memberId = person.userId ?? person.email
+                const dropdownOptions = person.status === 'pending' ? pendingMemberRoleOptions : memberRoleOptions
+
+                return (
+                  <div
+                    key={`${person.userId ?? person.email ?? person.displayName}-${person.status}-${index}`}
+                    className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-cz-border-subtle bg-cz-surface px-3 py-2"
+                  >
+                    <Avatar name={person.displayName} imageUrl={person.profileImageUrl} isGuest={!person.userId} size={32} />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-cz-text">{person.displayName}</div>
+                      {person.email && <div className="truncate text-xs text-cz-text-muted">{person.email}</div>}
+                    </div>
+                    <div className="text-xs text-cz-text-muted">{person.status === 'pending' ? 'Pending' : ''}</div>
+                    {person.isOwner ? (
+                      <span className="rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text">Owner</span>
+                    ) : memberId && canManage ? (
+                      <CustomDropdown
+                        value={roleAllowlist.has(person.role as ShareRole) ? (person.role as ShareRole) : (shareRoleOptions[0]?.value ?? 'view')}
+                        options={dropdownOptions}
+                        onChange={(value) => onMemberRoleChange(memberId, value)}
+                      />
+                    ) : (
+                      <span className="text-xs text-cz-text-muted">{roleLabel(person.role)}</span>
+                    )}
                   </div>
-                  <div className="text-xs text-cz-text-muted">{person.status === 'pending' ? 'Pending' : ''}</div>
-                  {person.isOwner ? (
-                    <span className="rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text">Owner</span>
-                  ) : person.userId && canManage ? (
-                    <CustomDropdown
-                      value={roleAllowlist.has(person.role as ShareRole) ? (person.role as ShareRole) : (shareRoleOptions[0]?.value ?? 'view')}
-                      options={memberRoleOptions}
-                      onChange={(value) => onMemberRoleChange(person.userId as string, value)}
-                    />
-                  ) : (
-                    <span className="text-xs text-cz-text-muted">{roleLabel(person.role)}</span>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
 
