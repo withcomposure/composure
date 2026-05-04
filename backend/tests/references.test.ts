@@ -111,6 +111,36 @@ describe('reference search route', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('throttles repeated non-arXiv requests from the same client', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/v1/references/search?source=openalex&term=test',
+      headers: {
+        'x-forwarded-for': '203.0.113.88',
+      },
+    })
+    expect(first.statusCode).toBe(200)
+
+    const second = await app.inject({
+      method: 'GET',
+      url: '/api/v1/references/search?source=openalex&term=test',
+      headers: {
+        'x-forwarded-for': '203.0.113.88',
+      },
+    })
+
+    expect(second.statusCode).toBe(429)
+    expect(second.json()).toMatchObject({ error: 'Please wait 1 second between OpenAlex queries.' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects unsupported reference sources', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 

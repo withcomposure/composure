@@ -732,7 +732,7 @@ function TreeItem({
         e.stopPropagation()
         onOpenMenu('context', node.path, { x: e.clientX, y: e.clientY })
       }}
-      className={`group relative flex w-full items-center px-2 py-1 text-xs transition-colors rounded ${
+      className={`group relative flex min-h-6 w-full items-center px-2 py-1 text-xs transition-colors rounded ${
         isUploading ? 'cursor-not-allowed bg-cz-surface text-cz-text-muted opacity-70' : canSelect ? 'cursor-pointer' : 'cursor-default'
       } ${
         !isUploading && isSelected
@@ -761,16 +761,16 @@ function TreeItem({
       )}
       <FileIcon name={node.name} nodeType={node.nodeType} />
       <span className="truncate">{node.name}</span>
-      <div className={`ml-auto ${isEntrypoint || isDefaultBibliography ? 'relative' : ''}`}>
+      <div className="ml-auto relative flex h-5 items-center">
         {(isEntrypoint || isDefaultBibliography) && (
-          <div className={`flex items-center gap-1 text-cz-text-muted transition-opacity ${isUploading ? 'pointer-events-none opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>
+          <div className={`flex h-5 items-center gap-1 text-cz-text-muted transition-opacity ${isUploading ? 'pointer-events-none opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>
             {isEntrypoint && (
-              <span title="Project entrypoint" aria-label="Project entrypoint" className="inline-flex rounded p-0.5">
+              <span title="Project entrypoint" aria-label="Project entrypoint" className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5">
                 <Play size={14} className="text-cz-accent" />
               </span>
             )}
             {isDefaultBibliography && (
-              <span title="Default bibliography" aria-label="Default bibliography" className="inline-flex rounded p-0.5">
+              <span title="Default bibliography" aria-label="Default bibliography" className="inline-flex h-5 w-5 items-center justify-center rounded p-0.5">
                 <BookMarked size={14} className="text-cz-accent" />
               </span>
             )}
@@ -790,8 +790,8 @@ function TreeItem({
             isUploading
               ? 'pointer-events-none opacity-0'
               : isEntrypoint || isDefaultBibliography
-                ? 'absolute inset-0 flex items-center justify-center opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100'
-                : 'opacity-0 group-hover:opacity-100'
+                ? 'absolute inset-0 flex h-5 w-5 items-center justify-center opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100'
+                : 'flex h-5 w-5 items-center justify-center opacity-0 group-hover:opacity-100'
           }`}
           title="File actions"
           aria-label="File actions"

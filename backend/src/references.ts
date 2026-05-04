@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-type ReferenceSource = 'arxiv' | 'crossref' | 'semantic-scholar' | 'pubmed' | 'openalex'
+type ReferenceSource = 'arxiv' | 'crossref' | 'pubmed' | 'openalex'
 type ReferenceSearchField = 'all' | 'title' | 'author' | 'abstract' | 'doi'
 
 interface ReferenceSearchQuery {
@@ -33,8 +33,14 @@ const arxivFieldMap: Record<ReferenceSearchField, string> = {
   doi: 'all',
 }
 
-const minArxivClientIntervalMs = 3_000
-const lastArxivRequestByClient = new Map<string, number>()
+const minClientIntervalBySourceMs: Record<ReferenceSource, number> = {
+  arxiv: 3_000,
+  crossref: 2_000,
+  pubmed: 2_000,
+  openalex: 2_000,
+}
+
+const lastReferenceRequestByClientAndSource = new Map<string, number>()
 
 function asObject(raw: unknown): Record<string, unknown> | null {
   return typeof raw === 'object' && raw != null ? raw as Record<string, unknown> : null
@@ -168,7 +174,7 @@ function parseArxivIdentifier(idTagValue: string): string {
 }
 
 function parseReferenceSource(raw: string | undefined): ReferenceSource | null {
-  if (raw === 'arxiv' || raw === 'crossref' || raw === 'semantic-scholar' || raw === 'pubmed' || raw === 'openalex') {
+  if (raw === 'arxiv' || raw === 'crossref' || raw === 'pubmed' || raw === 'openalex') {
     return raw
   }
   return null
@@ -189,7 +195,7 @@ function parseMaxResults(raw: string | number | undefined): number {
   return Math.max(1, Math.min(50, Math.trunc(parsed)))
 }
 
-function arxivClientKey(req: FastifyRequest): string {
+function referenceClientKey(req: FastifyRequest): string {
   const forwardedFor = req.headers['x-forwarded-for']
   if (typeof forwardedFor === 'string' && forwardedFor.trim().length > 0) {
     return forwardedFor.split(',')[0].trim().toLowerCase()
@@ -197,15 +203,23 @@ function arxivClientKey(req: FastifyRequest): string {
   return String(req.ip ?? 'unknown').toLowerCase()
 }
 
-function shouldThrottleArxiv(req: FastifyRequest): boolean {
-  const key = arxivClientKey(req)
+function sourceDisplayLabel(source: ReferenceSource): string {
+  if (source === 'arxiv') return 'arXiv'
+  if (source === 'crossref') return 'Crossref'
+  if (source === 'pubmed') return 'PubMed'
+  return 'OpenAlex'
+}
+
+function shouldThrottleSource(req: FastifyRequest, source: ReferenceSource): { throttled: boolean; intervalMs: number } {
+  const key = `${source}:${referenceClientKey(req)}`
+  const intervalMs = minClientIntervalBySourceMs[source]
   const now = Date.now()
-  const last = lastArxivRequestByClient.get(key)
-  if (typeof last === 'number' && now - last < minArxivClientIntervalMs) {
-    return true
+  const last = lastReferenceRequestByClientAndSource.get(key)
+  if (typeof last === 'number' && now - last < intervalMs) {
+    return { throttled: true, intervalMs }
   }
-  lastArxivRequestByClient.set(key, now)
-  return false
+  lastReferenceRequestByClientAndSource.set(key, now)
+  return { throttled: false, intervalMs }
 }
 
 function createCitationKey(authors: string[], year: string | null, identifier: string, source: ReferenceSource): string {
@@ -377,67 +391,6 @@ function crossrefFromItem(raw: unknown): ReferenceSearchResult | null {
 
   return {
     id: doi ? `crossref:${doi.toLowerCase()}` : `crossref:${identifier.toLowerCase()}`,
-    source,
-    identifier,
-    url,
-    title,
-    authors,
-    year,
-    abstract,
-    citations: buildCitations({
-      citationKey,
-      source,
-      title,
-      authors,
-      year,
-      identifier,
-      url,
-      doi,
-    }),
-  }
-}
-
-function semanticScholarFromPaper(raw: unknown): ReferenceSearchResult | null {
-  const paper = asObject(raw)
-  if (!paper) {
-    return null
-  }
-
-  const title = normalizeWhitespace(asString(paper.title) ?? '')
-  if (!title) {
-    return null
-  }
-
-  const source: ReferenceSource = 'semantic-scholar'
-  const externalIds = asObject(paper.externalIds)
-  const doi = normalizeDoi(String(externalIds?.DOI ?? ''))
-  const paperId = normalizeWhitespace(asString(paper.paperId) ?? '')
-  const identifier = doi ?? paperId
-  if (!identifier) {
-    return null
-  }
-
-  const url = normalizeWhitespace(asString(paper.url) ?? '') || (paperId ? `https://www.semanticscholar.org/paper/${encodeURIComponent(paperId)}` : '')
-  if (!url) {
-    return null
-  }
-
-  const authorsRaw = Array.isArray(paper.authors) ? paper.authors : []
-  const authors: string[] = []
-  for (const value of authorsRaw) {
-    const author = asObject(value)
-    const name = normalizeWhitespace(asString(author?.name) ?? '')
-    if (name.length > 0) {
-      authors.push(name)
-    }
-  }
-
-  const year = extractYear(paper.year)
-  const abstract = normalizeWhitespace(asString(paper.abstract) ?? '')
-  const citationKey = createCitationKey(authors, year, identifier, source)
-
-  return {
-    id: paperId ? `semanticscholar:${paperId}` : `semanticscholar:${identifier.toLowerCase()}`,
     source,
     identifier,
     url,
@@ -643,63 +596,6 @@ async function searchCrossref(input: {
   return results
 }
 
-async function searchSemanticScholar(input: {
-  field: ReferenceSearchField
-  term: string
-  maxResults: number
-}): Promise<ReferenceSearchResult[]> {
-  const fields = 'paperId,title,authors,year,abstract,url,externalIds'
-  const normalizedDoi = normalizeDoi(input.term)
-
-  if (input.field === 'doi' && normalizedDoi) {
-    const doiUrl = new URL(`https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(normalizedDoi)}`)
-    doiUrl.searchParams.set('fields', fields)
-
-    const response = await fetch(doiUrl.toString(), {
-      method: 'GET',
-      signal: AbortSignal.timeout(12_000),
-    })
-
-    if (response.status === 404) {
-      return []
-    }
-
-    if (!response.ok) {
-      throw new Error(`Semantic Scholar DOI search failed with status ${response.status}`)
-    }
-
-    const parsed = semanticScholarFromPaper(await response.json())
-    return parsed ? [parsed] : []
-  }
-
-  const queryUrl = new URL('https://api.semanticscholar.org/graph/v1/paper/search')
-  queryUrl.searchParams.set('query', input.term)
-  queryUrl.searchParams.set('limit', String(input.maxResults))
-  queryUrl.searchParams.set('fields', fields)
-
-  const response = await fetch(queryUrl.toString(), {
-    method: 'GET',
-    signal: AbortSignal.timeout(12_000),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Semantic Scholar search failed with status ${response.status}`)
-  }
-
-  const body = asObject(await response.json())
-  const papers = Array.isArray(body?.data) ? body.data : []
-  const results: ReferenceSearchResult[] = []
-
-  for (const paper of papers) {
-    const parsed = semanticScholarFromPaper(paper)
-    if (parsed) {
-      results.push(parsed)
-    }
-  }
-
-  return results
-}
-
 async function searchOpenAlex(input: {
   field: ReferenceSearchField
   term: string
@@ -863,8 +759,11 @@ export async function referenceSearchRoute(
     return
   }
 
-  if (source === 'arxiv' && shouldThrottleArxiv(req)) {
-    reply.status(429).send({ error: 'Please wait 3 seconds between arXiv queries.' })
+  const throttle = shouldThrottleSource(req, source)
+  if (throttle.throttled) {
+    const seconds = Math.trunc(throttle.intervalMs / 1_000)
+    const plural = seconds === 1 ? '' : 's'
+    reply.status(429).send({ error: `Please wait ${seconds} second${plural} between ${sourceDisplayLabel(source)} queries.` })
     return
   }
 
@@ -884,8 +783,6 @@ export async function referenceSearchRoute(
       results = await searchArxiv({ field, term, maxResults })
     } else if (source === 'crossref') {
       results = await searchCrossref({ field, term, maxResults })
-    } else if (source === 'semantic-scholar') {
-      results = await searchSemanticScholar({ field, term, maxResults })
     } else if (source === 'pubmed') {
       results = await searchPubmed({ field, term, maxResults })
     } else if (source === 'openalex') {

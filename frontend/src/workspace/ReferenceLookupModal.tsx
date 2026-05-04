@@ -3,7 +3,7 @@ import { ArrowDownAZ, ArrowDownUp, ArrowUpAZ, BookPlus, Braces, Check, Copy, Lib
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 
-type ReferenceSource = 'arxiv' | 'crossref' | 'semantic-scholar' | 'pubmed' | 'openalex'
+type ReferenceSource = 'arxiv' | 'crossref' | 'pubmed' | 'openalex'
 type ReferenceField = 'all' | 'title' | 'author' | 'abstract' | 'doi'
 type CitationFormat = 'bibtex' | 'biblatex'
 type ReferenceSort = 'relevance' | 'year-desc' | 'year-asc' | 'title-asc'
@@ -40,7 +40,6 @@ interface ReferenceLookupModalProps {
 const referenceSourceOptions: Array<{ value: ReferenceSource; label: string; icon: LucideIcon }> = [
   { value: 'arxiv', label: 'arXiv', icon: LibraryBig },
   { value: 'crossref', label: 'Crossref', icon: Braces },
-  { value: 'semantic-scholar', label: 'Semantic Scholar', icon: Search },
   { value: 'pubmed', label: 'PubMed/NCBI', icon: UserRoundSearch },
   { value: 'openalex', label: 'OpenAlex', icon: ScanSearch },
 ]
@@ -205,7 +204,17 @@ export function ReferenceLookupModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-6" role="dialog" aria-modal="true" aria-label="Reference lookup">
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Reference lookup"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose()
+        }
+      }}
+    >
       <div className="flex h-[min(84vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-cz-border bg-cz-surface shadow-2xl">
         <div className="flex items-center gap-3 border-b border-cz-border px-4 py-3">
           <Search size={16} className="text-cz-text-muted" />
