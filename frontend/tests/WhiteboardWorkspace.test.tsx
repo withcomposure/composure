@@ -38,9 +38,13 @@ vi.mock('../src/whiteboard/useWhiteboardCollab', () => ({
     ],
     isCollaborating: true,
     isSynced: true,
+    initialScene: {
+      elements: [],
+      appState: {},
+      files: {},
+    },
     excalidrawApi: null,
     setExcalidrawApi: vi.fn(),
-    handleSceneChange: vi.fn(),
     handlePointerUpdate: vi.fn(),
   }),
 }))

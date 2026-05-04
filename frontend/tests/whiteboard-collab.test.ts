@@ -749,7 +749,7 @@ describe('whiteboard collaboration scene persistence', () => {
     })
 
     act(() => {
-      result.current.handleSceneChange(
+      api.emitChange(
         [],
         {
           viewBackgroundColor: '#ffffff',
@@ -813,8 +813,15 @@ describe('whiteboard collaboration scene persistence', () => {
       )
     })
 
-    const staleOnChange = result.current.handleSceneChange
-    const staleSetApi = result.current.setExcalidrawApi
+    const staleApi = createMockExcalidrawApi({ keepListenersOnUnsubscribe: true })
+
+    act(() => {
+      result.current.setExcalidrawApi(staleApi.api)
+    })
+
+    await waitFor(() => {
+      expect(staleApi.onChange).toHaveBeenCalled()
+    })
 
     rerender({ nextProjectId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' })
 
@@ -824,11 +831,8 @@ describe('whiteboard collaboration scene persistence', () => {
       isDeleted: false,
     } as unknown as OrderedExcalidrawElement
 
-    const staleApi = createMockExcalidrawApi()
-
     act(() => {
-      staleSetApi(staleApi.api)
-      staleOnChange(
+      staleApi.emitChange(
         [staleElement],
         {
           viewBackgroundColor: '#ffffff',

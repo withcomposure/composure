@@ -441,7 +441,6 @@ interface WhiteboardCollabResult {
   initialScene: WhiteboardSceneData | null
   excalidrawApi: ExcalidrawImperativeAPI | null
   setExcalidrawApi: (api: ExcalidrawImperativeAPI) => void
-  handleSceneChange: NonNullable<ExcalidrawProps['onChange']>
   handlePointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
 }
 
@@ -798,10 +797,6 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     })
   }, [collaborators, excalidrawApi, runWithSuppressedLocalSceneWrites])
 
-  const handleSceneChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
-    persistSceneSnapshot(elements, appState, files)
-  }, [persistSceneSnapshot])
-
   const handlePointerUpdate = useCallback<NonNullable<ExcalidrawProps['onPointerUpdate']>>((payload) => {
     if (projectId !== activeProjectIdRef.current) {
       return
@@ -841,7 +836,6 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     initialScene,
     excalidrawApi,
     setExcalidrawApi,
-    handleSceneChange,
     handlePointerUpdate,
   }
 }
