@@ -435,6 +435,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           title: { type: 'string', maxLength: 120 },
           rootFile: { type: 'string', maxLength: 512 },
           defaultBibliographyFile: { type: 'string', maxLength: 512 },
+          referenceLookupFormat: { type: 'string', enum: ['bibtex', 'biblatex'] },
           templateId: { type: 'string', maxLength: 120 },
         },
         additionalProperties: true,
@@ -481,6 +482,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         properties: {
           rootFile: { type: ['string', 'null'], minLength: 1, maxLength: 512 },
           defaultBibliographyFile: { type: ['string', 'null'], minLength: 1, maxLength: 512 },
+          referenceLookupFormat: { type: 'string', enum: ['bibtex', 'biblatex'] },
         },
         additionalProperties: false,
       },

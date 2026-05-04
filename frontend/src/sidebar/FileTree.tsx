@@ -761,9 +761,9 @@ function TreeItem({
       )}
       <FileIcon name={node.name} nodeType={node.nodeType} />
       <span className="truncate">{node.name}</span>
-      <div className="ml-auto">
-        {isEntrypoint || isDefaultBibliography ? (
-          <div className={`flex items-center gap-1 text-cz-text-muted transition-opacity ${isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+      <div className={`ml-auto ${isEntrypoint || isDefaultBibliography ? 'relative' : ''}`}>
+        {(isEntrypoint || isDefaultBibliography) && (
+          <div className={`flex items-center gap-1 text-cz-text-muted transition-opacity ${isUploading ? 'pointer-events-none opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>
             {isEntrypoint && (
               <span title="Project entrypoint" aria-label="Project entrypoint" className="inline-flex rounded p-0.5">
                 <Play size={14} className="text-cz-accent" />
@@ -775,26 +775,30 @@ function TreeItem({
               </span>
             )}
           </div>
-        ) : (
-          <button
-            onClick={(e) => {
-              if (isUploading) {
-                return
-              }
-              e.stopPropagation()
-              const rect = e.currentTarget.getBoundingClientRect()
-              onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
-            }}
-            className={`rounded p-0.5 text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${
-              isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'
-            }`}
-            title="File actions"
-            aria-label="File actions"
-            disabled={isUploading}
-          >
-            <MoreHorizontal size={14} />
-          </button>
         )}
+
+        <button
+          onClick={(e) => {
+            if (isUploading) {
+              return
+            }
+            e.stopPropagation()
+            const rect = e.currentTarget.getBoundingClientRect()
+            onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
+          }}
+          className={`rounded p-0.5 text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${
+            isUploading
+              ? 'pointer-events-none opacity-0'
+              : isEntrypoint || isDefaultBibliography
+                ? 'absolute inset-0 flex items-center justify-center opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100'
+                : 'opacity-0 group-hover:opacity-100'
+          }`}
+          title="File actions"
+          aria-label="File actions"
+          disabled={isUploading}
+        >
+          <MoreHorizontal size={14} />
+        </button>
       </div>
     </div>
   )

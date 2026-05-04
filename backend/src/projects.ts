@@ -36,6 +36,10 @@ function sanitizeDefaultBibliographyFile(defaultBibliographyFile: unknown): stri
   return normalizeRelativePath(defaultBibliographyFile) ?? null
 }
 
+function sanitizeReferenceLookupFormat(raw: unknown): 'bibtex' | 'biblatex' {
+  return String(raw ?? '').trim().toLowerCase() === 'biblatex' ? 'biblatex' : 'bibtex'
+}
+
 export async function listProjectsRoute(req: FastifyRequest): Promise<unknown> {
   const projects = await listProjectsForPrincipal(req.principal)
   return projects
@@ -69,6 +73,7 @@ export async function getProjectMetadataRoute(
     title: project.title,
     rootFile: project.root_file,
     defaultBibliographyFile: project.default_bibliography_file,
+    referenceLookupFormat: project.reference_lookup_format,
     engine: project.engine,
   })
 }
@@ -108,6 +113,7 @@ interface CreateProjectBody {
   title?: string
   rootFile?: string
   defaultBibliographyFile?: string
+  referenceLookupFormat?: string
   templateId?: string
 }
 
@@ -157,6 +163,7 @@ export async function createProjectRoute(
 
   let rootFile = sanitizeRootFile(req.body?.rootFile)
   let defaultBibliographyFile = sanitizeDefaultBibliographyFile(req.body?.defaultBibliographyFile)
+  const referenceLookupFormat = sanitizeReferenceLookupFormat(req.body?.referenceLookupFormat)
   let templateFiles: Record<string, string> | null = null
   let engine: string | null = null
 
@@ -183,6 +190,7 @@ export async function createProjectRoute(
     title,
     rootFile,
     defaultBibliographyFile,
+    referenceLookupFormat,
     engine,
   })
 
@@ -215,6 +223,7 @@ interface RenameProjectBody {
 interface PatchProjectMetadataBody {
   rootFile?: string | null
   defaultBibliographyFile?: string | null
+  referenceLookupFormat?: string
 }
 
 export async function renameProjectRoute(
@@ -261,8 +270,9 @@ export async function patchProjectMetadataRoute(
 
   const hasRootFile = Object.prototype.hasOwnProperty.call(body, 'rootFile')
   const hasDefaultBibliographyFile = Object.prototype.hasOwnProperty.call(body, 'defaultBibliographyFile')
+  const hasReferenceLookupFormat = Object.prototype.hasOwnProperty.call(body, 'referenceLookupFormat')
 
-  if (!hasRootFile && !hasDefaultBibliographyFile) {
+  if (!hasRootFile && !hasDefaultBibliographyFile && !hasReferenceLookupFormat) {
     reply.status(400).send({ error: 'No metadata fields supplied' })
     return
   }
@@ -292,6 +302,20 @@ export async function patchProjectMetadataRoute(
     }
   }
 
+  let normalizedReferenceLookupFormat: 'bibtex' | 'biblatex' | undefined
+  if (hasReferenceLookupFormat) {
+    if (typeof body.referenceLookupFormat !== 'string') {
+      reply.status(400).send({ error: 'Invalid referenceLookupFormat value' })
+      return
+    }
+    const nextReferenceLookupFormat = body.referenceLookupFormat.trim().toLowerCase()
+    if (nextReferenceLookupFormat !== 'bibtex' && nextReferenceLookupFormat !== 'biblatex') {
+      reply.status(400).send({ error: 'Invalid referenceLookupFormat value' })
+      return
+    }
+    normalizedReferenceLookupFormat = nextReferenceLookupFormat
+  }
+
   const access = await ensureProjectAccess(projectId, req.principal, false)
   if (!access.ok) {
     reply.status(404).send({ error: 'Project not found' })
@@ -302,6 +326,7 @@ export async function patchProjectMetadataRoute(
     projectId,
     ...(hasRootFile ? { rootFile: normalizedRootFile } : {}),
     ...(hasDefaultBibliographyFile ? { defaultBibliographyFile: normalizedDefaultBibliographyFile } : {}),
+    ...(hasReferenceLookupFormat ? { referenceLookupFormat: normalizedReferenceLookupFormat } : {}),
   })
 
   if (!updated) {
@@ -320,6 +345,7 @@ export async function patchProjectMetadataRoute(
     title: project.title,
     rootFile: project.root_file,
     defaultBibliographyFile: project.default_bibliography_file,
+    referenceLookupFormat: project.reference_lookup_format,
     engine: project.engine,
   })
 }

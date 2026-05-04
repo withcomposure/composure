@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react'
-import { BookPlus, Copy, Search, X } from 'lucide-react'
+import { ArrowDownAZ, ArrowDownUp, ArrowUpAZ, BookPlus, Braces, Check, Copy, LibraryBig, ScanSearch, Search, UserRoundSearch, WholeWord, X, type LucideIcon } from 'lucide-react'
+import { CustomDropdown } from '@/components/CustomDropdown'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 
 type ReferenceSource = 'arxiv'
 type ReferenceField = 'all' | 'title' | 'author' | 'abstract'
 type CitationFormat = 'bibtex' | 'biblatex'
+type ReferenceSort = 'relevance' | 'year-desc' | 'year-asc' | 'title-asc'
+
+interface AddCitationResult {
+  added: boolean
+}
 
 interface ReferenceSearchResult {
   id: string
@@ -25,19 +31,32 @@ interface ReferenceLookupModalProps {
   onClose: () => void
   canAddToBibliography: boolean
   shareHeaders?: Record<string, string>
-  onAddToBibliography: (citation: string) => Promise<void>
+  citationFormat: CitationFormat
+  onCitationFormatChange: (nextFormat: CitationFormat) => void
+  onAddToBibliography: (citation: string) => Promise<AddCitationResult>
 }
 
-const referenceFieldOptions: Array<{ value: ReferenceField; label: string }> = [
-  { value: 'all', label: 'All fields' },
-  { value: 'title', label: 'Title' },
-  { value: 'author', label: 'Author' },
-  { value: 'abstract', label: 'Abstract' },
+const referenceSourceOptions: Array<{ value: ReferenceSource; label: string; icon: LucideIcon }> = [
+  { value: 'arxiv', label: 'arXiv', icon: LibraryBig },
 ]
 
-const citationFormatOptions: Array<{ value: CitationFormat; label: string }> = [
-  { value: 'bibtex', label: 'BibTeX' },
-  { value: 'biblatex', label: 'BibLaTeX' },
+const referenceFieldOptions: Array<{ value: ReferenceField; label: string; icon: LucideIcon }> = [
+  { value: 'all', label: 'All fields', icon: WholeWord },
+  { value: 'title', label: 'Title', icon: ScanSearch },
+  { value: 'author', label: 'Author', icon: UserRoundSearch },
+  { value: 'abstract', label: 'Abstract', icon: Search },
+]
+
+const citationFormatOptions: Array<{ value: CitationFormat; label: string; icon: LucideIcon }> = [
+  { value: 'bibtex', label: 'BibTeX', icon: Braces },
+  { value: 'biblatex', label: 'BibLaTeX', icon: Braces },
+]
+
+const referenceSortOptions: Array<{ value: ReferenceSort; label: string; icon: LucideIcon }> = [
+  { value: 'relevance', label: 'Relevance', icon: ArrowDownUp },
+  { value: 'year-desc', label: 'Year (Newest)', icon: ArrowDownAZ },
+  { value: 'year-asc', label: 'Year (Oldest)', icon: ArrowUpAZ },
+  { value: 'title-asc', label: 'Title (A-Z)', icon: ArrowUpAZ },
 ]
 
 async function copyToClipboard(value: string): Promise<void> {
@@ -62,18 +81,21 @@ export function ReferenceLookupModal({
   onClose,
   canAddToBibliography,
   shareHeaders,
+  citationFormat,
+  onCitationFormatChange,
   onAddToBibliography,
 }: ReferenceLookupModalProps) {
   const [source] = useState<ReferenceSource>('arxiv')
   const [field, setField] = useState<ReferenceField>('all')
   const [term, setTerm] = useState('')
-  const [citationFormat, setCitationFormat] = useState<CitationFormat>('bibtex')
+  const [sortBy, setSortBy] = useState<ReferenceSort>('relevance')
   const [results, setResults] = useState<ReferenceSearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copyingId, setCopyingId] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | null>(null)
+  const [addedResultIds, setAddedResultIds] = useState<Set<string>>(new Set())
 
   const canSearch = term.trim().length > 0 && !loading
 
@@ -90,6 +112,47 @@ export function ReferenceLookupModal({
     return 'No results found for this query.'
   }, [error, loading, searched])
 
+  const displayedResults = useMemo(() => {
+    if (sortBy === 'relevance') {
+      return results
+    }
+
+    const sorted = [...results]
+
+    if (sortBy === 'title-asc') {
+      sorted.sort((left, right) => left.title.localeCompare(right.title, undefined, { sensitivity: 'base' }))
+      return sorted
+    }
+
+    const parseYear = (value: string | null): number | null => {
+      if (!value) {
+        return null
+      }
+      const parsed = Number.parseInt(value, 10)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+
+    sorted.sort((left, right) => {
+      const leftYear = parseYear(left.year)
+      const rightYear = parseYear(right.year)
+      if (leftYear == null && rightYear == null) {
+        return left.title.localeCompare(right.title, undefined, { sensitivity: 'base' })
+      }
+      if (leftYear == null) {
+        return 1
+      }
+      if (rightYear == null) {
+        return -1
+      }
+      if (sortBy === 'year-desc') {
+        return rightYear - leftYear
+      }
+      return leftYear - rightYear
+    })
+
+    return sorted
+  }, [results, sortBy])
+
   const runSearch = async (): Promise<void> => {
     const searchTerm = term.trim()
     if (!searchTerm || loading) {
@@ -99,6 +162,7 @@ export function ReferenceLookupModal({
     setLoading(true)
     setError(null)
     setSearched(true)
+    setAddedResultIds(new Set())
 
     try {
       const query = new URLSearchParams({
@@ -136,15 +200,13 @@ export function ReferenceLookupModal({
       <div className="flex h-[min(84vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-cz-border bg-cz-surface shadow-2xl">
         <div className="flex items-center gap-3 border-b border-cz-border px-4 py-3">
           <Search size={16} className="text-cz-text-muted" />
-          <span className="text-sm text-cz-text-muted">Search in</span>
-          <select
+          <span className="text-sm text-cz-text-muted">Find references in</span>
+          <CustomDropdown
             value={source}
+            options={referenceSourceOptions}
+            onChange={() => undefined}
             disabled
-            className="rounded-md border border-cz-border bg-cz-bg px-2 py-1 text-sm text-cz-text"
-            aria-label="Reference source"
-          >
-            <option value="arxiv">arXiv</option>
-          </select>
+          />
           <button
             type="button"
             onClick={onClose}
@@ -160,20 +222,27 @@ export function ReferenceLookupModal({
           <div className="rounded-lg border border-cz-border bg-cz-bg/60 p-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-end">
               <label className="flex flex-1 flex-col gap-1 text-xs text-cz-text-muted">
-                Field
-                <select
-                  value={field}
-                  onChange={(event) => setField(event.target.value as ReferenceField)}
-                  className="rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-sm text-cz-text"
+                <span
+                  className="text-[11px] tracking-[0.08em] text-cz-text-muted"
+                  style={{ fontVariantCaps: 'all-small-caps' }}
                 >
-                  {referenceFieldOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  Field
+                </span>
+                <CustomDropdown
+                  value={field}
+                  options={referenceFieldOptions}
+                  onChange={setField}
+                  className="w-full"
+                />
               </label>
 
               <label className="flex-[2] flex flex-col gap-1 text-xs text-cz-text-muted">
-                Search term
+                <span
+                  className="text-[11px] tracking-[0.08em] text-cz-text-muted"
+                  style={{ fontVariantCaps: 'all-small-caps' }}
+                >
+                  Search term
+                </span>
                 <input
                   value={term}
                   onChange={(event) => setTerm(event.target.value)}
@@ -204,28 +273,34 @@ export function ReferenceLookupModal({
           <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-cz-border bg-cz-bg/40">
             <div className="flex items-center justify-between border-b border-cz-border px-3 py-2">
               <span className="text-xs uppercase tracking-wide text-cz-text-muted">Results</span>
-              <select
-                value={citationFormat}
-                onChange={(event) => setCitationFormat(event.target.value as CitationFormat)}
-                className="rounded-md border border-cz-border bg-cz-bg px-2 py-1 text-xs text-cz-text"
-                aria-label="Citation format"
-              >
-                {citationFormatOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <CustomDropdown
+                  value={sortBy}
+                  options={referenceSortOptions}
+                  onChange={setSortBy}
+                  className="shrink-0"
+                />
+                <CustomDropdown
+                  value={citationFormat}
+                  options={citationFormatOptions}
+                  onChange={onCitationFormatChange}
+                  className="shrink-0"
+                />
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {results.length === 0 ? (
+              {displayedResults.length === 0 ? (
                 <div className={`flex h-full min-h-[180px] items-center justify-center rounded-md border border-dashed border-cz-border px-4 text-sm ${error ? 'text-red-300' : 'text-cz-text-muted'}`}>
                   {emptyStateMessage}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {results.map((result) => {
+                  {displayedResults.map((result) => {
                     const citationText = result.citations[citationFormat]
                     const authorsLine = result.authors.length > 0 ? result.authors.join(', ') : 'Unknown author'
+                    const alreadyAdded = addedResultIds.has(result.id)
+                    const addDisabled = !canAddToBibliography || addingId === result.id || alreadyAdded
                     return (
                       <article key={result.id} className="rounded-lg border border-cz-border bg-cz-surface p-3">
                         <div className="flex items-start gap-3">
@@ -263,23 +338,36 @@ export function ReferenceLookupModal({
 
                             <button
                               type="button"
-                              disabled={!canAddToBibliography || addingId === result.id}
+                              disabled={addDisabled}
                               onClick={() => {
-                                if (!canAddToBibliography || addingId === result.id) {
+                                if (addDisabled) {
                                   return
                                 }
                                 setAddingId(result.id)
                                 void onAddToBibliography(citationText)
+                                  .then((outcome) => {
+                                    if (outcome.added) {
+                                      setAddedResultIds((prev) => {
+                                        const next = new Set(prev)
+                                        next.add(result.id)
+                                        return next
+                                      })
+                                    }
+                                  })
                                   .catch(() => undefined)
                                   .finally(() => {
                                     setAddingId((current) => current === result.id ? null : current)
                                   })
                               }}
-                              className={`rounded border p-1.5 ${canAddToBibliography ? 'border-cz-border text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text' : 'cursor-not-allowed border-cz-border text-cz-text-muted/50 opacity-60'}`}
+                              className={`rounded border p-1.5 ${addDisabled ? 'cursor-not-allowed border-cz-border bg-cz-surface text-cz-text-muted/50 opacity-70' : 'border-cz-border text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'}`}
                               aria-label="Add citation to bibliography"
                               title={canAddToBibliography ? 'Add to bibliography' : 'Set a default bibliography file to enable this action'}
                             >
-                              <BookPlus size={14} className={addingId === result.id ? 'animate-pulse' : ''} />
+                              {alreadyAdded ? (
+                                <Check size={14} className="text-cz-accent" />
+                              ) : (
+                                <BookPlus size={14} className={addingId === result.id ? 'animate-pulse' : ''} />
+                              )}
                             </button>
                           </div>
                         </div>

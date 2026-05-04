@@ -16,6 +16,7 @@ export interface ProjectSummary {
   title: string
   rootFile: string
   defaultBibliographyFile?: string | null
+  referenceLookupFormat?: 'bibtex' | 'biblatex'
   engine: ProjectEngine | null
   createdAt: number
   lastActiveAt: number

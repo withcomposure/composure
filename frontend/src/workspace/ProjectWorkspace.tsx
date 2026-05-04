@@ -124,6 +124,7 @@ interface ProjectWorkspaceProps {
   projectTitle: string;
   entrypoint: string;
   defaultBibliographyFile: string | null;
+  referenceLookupFormat?: "bibtex" | "biblatex";
   /** When set and the user can edit the project, the sidebar title supports inline rename (Enter to save). */
   onRenameProject?: (nextTitle: string) => Promise<void>;
 }
@@ -153,6 +154,7 @@ export function ProjectWorkspace({
   projectTitle,
   entrypoint,
   defaultBibliographyFile,
+  referenceLookupFormat,
   onRenameProject,
 }: ProjectWorkspaceProps) {
   const {
@@ -222,6 +224,8 @@ export function ProjectWorkspace({
   );
   const [projectDefaultBibliographyFile, setProjectDefaultBibliographyFile] =
     useState<string | null>(defaultBibliographyFile);
+  const [projectReferenceLookupFormat, setProjectReferenceLookupFormat] =
+    useState<"bibtex" | "biblatex">(referenceLookupFormat ?? "bibtex");
   const [lastCursorFile, setLastCursorFile] = useState<string>("");
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -286,9 +290,10 @@ export function ProjectWorkspace({
   useEffect(() => {
     setProjectEntrypoint(entrypoint.trim() || null);
     setProjectDefaultBibliographyFile(defaultBibliographyFile);
+    setProjectReferenceLookupFormat(referenceLookupFormat ?? "bibtex");
     setLastCursorFile("");
     lastCursorFileRef.current = "";
-  }, [projectId, entrypoint, defaultBibliographyFile]);
+  }, [projectId, entrypoint, defaultBibliographyFile, referenceLookupFormat]);
 
   useEffect(() => {
     lastCursorFileRef.current = lastCursorFile;
@@ -788,10 +793,14 @@ export function ProjectWorkspace({
   }, [projectId, autoCompileDefault]);
 
   useEffect(() => {
+    if (!initialSyncDone) {
+      return;
+    }
+
     if (projectEntrypoint && !allFilePaths.has(projectEntrypoint)) {
       setProjectEntrypoint(null);
     }
-  }, [allFilePaths, projectEntrypoint]);
+  }, [allFilePaths, initialSyncDone, projectEntrypoint]);
 
   const focusCollaborator = useCallback((clientId: number) => {
     setFocusCollaboratorRequest((prev) => ({
@@ -832,6 +841,7 @@ export function ProjectWorkspace({
     async (patch: {
       rootFile?: string;
       defaultBibliographyFile?: string | null;
+      referenceLookupFormat?: "bibtex" | "biblatex";
     }) => {
       const res = await apiFetch(`/projects/${projectId}/metadata`, {
         method: "PATCH",
@@ -852,6 +862,7 @@ export function ProjectWorkspace({
       return (await res.json()) as {
         rootFile?: string;
         defaultBibliographyFile?: string | null;
+        referenceLookupFormat?: "bibtex" | "biblatex";
       };
     },
     [projectId, shareHeaders],
@@ -875,6 +886,10 @@ export function ProjectWorkspace({
   );
 
   useEffect(() => {
+    if (!initialSyncDone) {
+      return;
+    }
+
     if (
       !projectDefaultBibliographyFile ||
       allFilePaths.has(projectDefaultBibliographyFile)
@@ -886,7 +901,72 @@ export function ProjectWorkspace({
     void patchProjectMetadata({ defaultBibliographyFile: null }).catch(() => {
       /* best-effort cleanup */
     });
-  }, [allFilePaths, patchProjectMetadata, projectDefaultBibliographyFile]);
+  }, [
+    allFilePaths,
+    initialSyncDone,
+    patchProjectMetadata,
+    projectDefaultBibliographyFile,
+  ]);
+
+  const handleReferenceLookupFormatChange = useCallback(
+    (nextFormat: "bibtex" | "biblatex") => {
+      setProjectReferenceLookupFormat(nextFormat);
+      if (nextFormat === projectReferenceLookupFormat) {
+        return;
+      }
+
+      void patchProjectMetadata({ referenceLookupFormat: nextFormat })
+        .then((next) => {
+          setProjectReferenceLookupFormat(next.referenceLookupFormat ?? nextFormat);
+        })
+        .catch((err) => {
+          setProjectReferenceLookupFormat(projectReferenceLookupFormat);
+          onPopupAlert(getErrorMessage(err), "Could not save citation format");
+        });
+    },
+    [
+      onPopupAlert,
+      patchProjectMetadata,
+      projectReferenceLookupFormat,
+    ],
+  );
+
+  const escapeRegExp = useCallback((raw: string): string => {
+    return raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }, []);
+
+  const extractCitationKey = useCallback((citation: string): string | null => {
+    const match = /@\w+\s*\{\s*([^,\s]+)\s*,/i.exec(citation);
+    const key = match?.[1]?.trim() ?? "";
+    return key.length > 0 ? key : null;
+  }, []);
+
+  const bibliographyAlreadyContainsCitation = useCallback(
+    (bibliographyContent: string, citation: string): boolean => {
+      const normalizedCitation = citation.trim().replace(/\r\n/g, "\n");
+      const normalizedBibliography = bibliographyContent.replace(/\r\n/g, "\n");
+
+      if (!normalizedCitation) {
+        return false;
+      }
+
+      if (normalizedBibliography.includes(normalizedCitation)) {
+        return true;
+      }
+
+      const key = extractCitationKey(normalizedCitation);
+      if (!key) {
+        return false;
+      }
+
+      const keyPattern = new RegExp(
+        `@\\w+\\s*\\{\\s*${escapeRegExp(key)}\\s*,`,
+        "i",
+      );
+      return keyPattern.test(normalizedBibliography);
+    },
+    [escapeRegExp, extractCitationKey],
+  );
 
   const resolveCurrentCompileFile = useCallback((): string => {
     const lastFocusedPath = lastCursorFileRef.current;
@@ -897,7 +977,10 @@ export function ProjectWorkspace({
   }, [allFilePaths]);
 
   const appendCitationToDefaultBibliography = useCallback(
-    async (citation: string) => {
+    async (
+      citation: string,
+      options?: { allowDuplicate?: boolean },
+    ): Promise<{ added: boolean; duplicate: boolean }> => {
       const targetPath = activeDefaultBibliographyFile;
       if (!targetPath) {
         throw new Error("No default bibliography file is configured for this project.");
@@ -913,21 +996,48 @@ export function ProjectWorkspace({
         throw new Error("Default bibliography file is not a text file.");
       }
 
+      const text = ydoc.getText(`file:${targetPath}`);
+      const current = text.toString();
+      const duplicate = bibliographyAlreadyContainsCitation(current, citation);
+
+      if (duplicate && !options?.allowDuplicate) {
+        return { added: false, duplicate: true };
+      }
+
       ydoc.transact(() => {
-        const text = ydoc.getText(`file:${targetPath}`);
-        const current = text.toString();
         const separator = current.length === 0 ? "" : current.endsWith("\n") ? "\n" : "\n\n";
         text.insert(text.length, `${separator}${citation}\n`);
       }, "composure:add-reference-citation");
+
+      return { added: true, duplicate };
     },
-    [activeDefaultBibliographyFile, fileMap, ydoc],
+    [
+      activeDefaultBibliographyFile,
+      bibliographyAlreadyContainsCitation,
+      fileMap,
+      ydoc,
+    ],
   );
 
   const handleAddCitationToBibliography = useCallback(
-    async (citation: string) => {
+    async (citation: string): Promise<{ added: boolean }> => {
       try {
-        await appendCitationToDefaultBibliography(citation);
-        onPopupAlert("Citation added to the default bibliography file.", "Reference added");
+        const initialAttempt = await appendCitationToDefaultBibliography(citation);
+        if (initialAttempt.duplicate) {
+          const shouldAddDuplicate = window.confirm(
+            "This source is already in the target bibliography. Do you want to add a duplicate?",
+          );
+          if (!shouldAddDuplicate) {
+            return { added: false };
+          }
+
+          await appendCitationToDefaultBibliography(citation, {
+            allowDuplicate: true,
+          });
+          return { added: true };
+        }
+
+        return { added: initialAttempt.added };
       } catch (err) {
         onPopupAlert(getErrorMessage(err), "Could not add citation");
         throw err;
@@ -3325,6 +3435,8 @@ export function ProjectWorkspace({
         onClose={() => setShowReferenceLookup(false)}
         canAddToBibliography={activeDefaultBibliographyFile != null && canEditLive}
         shareHeaders={shareHeaders}
+        citationFormat={projectReferenceLookupFormat}
+        onCitationFormatChange={handleReferenceLookupFormatChange}
         onAddToBibliography={handleAddCitationToBibliography}
       />
     </div>

@@ -230,6 +230,7 @@ describe('project CRUD', () => {
       payload: {
         rootFile: 'paper/main.tex',
         defaultBibliographyFile: 'paper/refs.bib',
+        referenceLookupFormat: 'biblatex',
       },
     })
 
@@ -238,6 +239,7 @@ describe('project CRUD', () => {
       id: projectId,
       rootFile: 'paper/main.tex',
       defaultBibliographyFile: 'paper/refs.bib',
+      referenceLookupFormat: 'biblatex',
     })
 
     const clearRes = await app.inject({
@@ -254,16 +256,18 @@ describe('project CRUD', () => {
       id: projectId,
       rootFile: 'paper/main.tex',
       defaultBibliographyFile: null,
+      referenceLookupFormat: 'biblatex',
     })
 
-    const [row] = await sql<[{ root_file: string; default_bibliography_file: string | null }?]>`
-      SELECT root_file, default_bibliography_file
+    const [row] = await sql<[{ root_file: string; default_bibliography_file: string | null; reference_lookup_format: string }?]>`
+      SELECT root_file, default_bibliography_file, reference_lookup_format
       FROM projects
       WHERE id = ${projectId}
     `
     expect(row).toMatchObject({
       root_file: 'paper/main.tex',
       default_bibliography_file: null,
+      reference_lookup_format: 'biblatex',
     })
   })
 

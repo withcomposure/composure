@@ -8,6 +8,7 @@ export interface ProjectRow {
   title: string
   root_file: string
   default_bibliography_file: string | null
+  reference_lookup_format: 'bibtex' | 'biblatex'
   engine: string | null
   owner_user_id: string
   created_at: number
@@ -20,6 +21,7 @@ export interface ProjectSummary {
   title: string
   rootFile: string
   defaultBibliographyFile?: string | null
+  referenceLookupFormat?: 'bibtex' | 'biblatex'
   engine: string | null
   createdAt: number
   lastActiveAt: number

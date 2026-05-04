@@ -22,6 +22,7 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
       p.title,
       p.root_file,
       p.default_bibliography_file,
+      p.reference_lookup_format,
       p.engine,
       p.created_at,
       p.last_active_at,
@@ -45,6 +46,7 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
     title: row.title as string,
     rootFile: row.root_file as string,
     defaultBibliographyFile: row.default_bibliography_file as string | null,
+    referenceLookupFormat: row.reference_lookup_format as 'bibtex' | 'biblatex',
     engine: row.engine as string | null,
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
@@ -61,6 +63,7 @@ export async function createProjectForPrincipal(input: {
   title?: string
   rootFile?: string
   defaultBibliographyFile?: string | null
+  referenceLookupFormat?: 'bibtex' | 'biblatex'
   engine?: string | null
 }): Promise<ProjectSummary> {
   const { projectId, principal } = input
@@ -72,14 +75,15 @@ export async function createProjectForPrincipal(input: {
   const title = normalizeTitle(input.title)
   const rootFile = normalizeRelativePath(input.rootFile) ?? 'main.tex'
   const defaultBibliographyFile = normalizeRelativePath(input.defaultBibliographyFile) ?? null
+  const referenceLookupFormat = input.referenceLookupFormat === 'biblatex' ? 'biblatex' : 'bibtex'
   const engine = input.engine ?? null
 
   await runWithIdentityContext(null, 'system', async () => {
     await sql.begin(async (tx) => {
       await tx`
         INSERT INTO projects (
-          id, title, root_file, default_bibliography_file, engine, owner_user_id, created_at, last_active_at
-        ) VALUES (${projectId}, ${title}, ${rootFile}, ${defaultBibliographyFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+          id, title, root_file, default_bibliography_file, reference_lookup_format, engine, owner_user_id, created_at, last_active_at
+        ) VALUES (${projectId}, ${title}, ${rootFile}, ${defaultBibliographyFile}, ${referenceLookupFormat}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
       `
 
       await tx`
@@ -112,6 +116,7 @@ export async function createProjectForPrincipal(input: {
     title,
     rootFile,
     defaultBibliographyFile,
+    referenceLookupFormat,
     engine,
     createdAt: nowUnix(),
     lastActiveAt: nowUnix(),
@@ -138,6 +143,7 @@ export async function updateProjectMetadataDefaults(input: {
   projectId: string
   rootFile?: string | null
   defaultBibliographyFile?: string | null
+  referenceLookupFormat?: 'bibtex' | 'biblatex'
 }): Promise<boolean> {
   const updates: string[] = []
   const values: Array<string | null> = []
@@ -151,6 +157,12 @@ export async function updateProjectMetadataDefaults(input: {
   if (Object.prototype.hasOwnProperty.call(input, 'defaultBibliographyFile')) {
     const normalized = normalizeRelativePath(input.defaultBibliographyFile)
     updates.push(`default_bibliography_file = $${updates.length + 1}`)
+    values.push(normalized)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'referenceLookupFormat')) {
+    const normalized = input.referenceLookupFormat === 'biblatex' ? 'biblatex' : 'bibtex'
+    updates.push(`reference_lookup_format = $${updates.length + 1}`)
     values.push(normalized)
   }
 
@@ -235,6 +247,7 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
       p.title,
       p.root_file,
       p.default_bibliography_file,
+      p.reference_lookup_format,
       p.engine,
       p.created_at,
       p.last_active_at,
@@ -258,6 +271,7 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
     title: row.title as string,
     rootFile: row.root_file as string,
     defaultBibliographyFile: row.default_bibliography_file as string | null,
+    referenceLookupFormat: row.reference_lookup_format as 'bibtex' | 'biblatex',
     engine: row.engine as string | null,
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
