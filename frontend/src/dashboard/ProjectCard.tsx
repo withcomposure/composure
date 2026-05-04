@@ -59,9 +59,9 @@ export function ProjectCard({
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="line-clamp-1 text-sm font-medium text-cz-text">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-cz-text">
             {project.title}
           </div>
           <div className="mt-1">

@@ -588,7 +588,7 @@ export function DashboardView({
                     No pinned projects.
                   </div>
                 ) : dashboardLayout === "grid" ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredPinned.map((project) => (
                       <ProjectCard
                         key={project.id}
@@ -643,7 +643,7 @@ export function DashboardView({
                     There's nothing here yet.
                   </div>
                 ) : dashboardLayout === "grid" ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredProjects.map((project) => (
                       <ProjectCard
                         key={project.id}
@@ -688,7 +688,7 @@ export function DashboardView({
                     There's nothing here yet.
                   </div>
                 ) : dashboardLayout === "grid" ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredShared.map((project) => (
                       <ProjectCard
                         key={project.id}
@@ -727,7 +727,7 @@ export function DashboardView({
                     No recently deleted projects match your search.
                   </div>
                 ) : dashboardLayout === "grid" ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredTrashed.map((project) => {
                       const purgeDate = new Date(
                         (project.deletedAt + trashRetentionDays * 86400) * 1000,
