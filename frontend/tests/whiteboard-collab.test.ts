@@ -409,6 +409,54 @@ describe('whiteboard collaboration scene persistence', () => {
     ydoc.destroy()
   })
 
+  it('hydrates initial scene snapshot from synced Yjs state', async () => {
+    const { result } = renderHook(() => useWhiteboardCollab({
+      projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      rootFile: 'scene.excalidraw',
+      canWrite: true,
+      localUser: {
+        name: 'Owner',
+        userId: 'user-1',
+        guestId: null,
+        profileImageUrl: null,
+      },
+    }))
+
+    const ydoc = hocuspocusMockState.lastDocument as Y.Doc | null
+    expect(ydoc).toBeTruthy()
+    if (!ydoc) {
+      throw new Error('expected collaboration document to be available')
+    }
+
+    const seededElement = {
+      id: 'initial-el',
+      type: 'rectangle',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    act(() => {
+      writeWhiteboardSceneToYDoc(
+        ydoc,
+        {
+          elements: [seededElement],
+          appState: {
+            viewBackgroundColor: '#0f172a',
+          } as Partial<AppState>,
+          files: {} as BinaryFiles,
+        },
+        'test:seed-initial-scene',
+      )
+    })
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+      expect(result.current.initialScene).toBeTruthy()
+    })
+
+    expect(result.current.initialScene?.elements.map((element) => element.id)).toContain('initial-el')
+    expect(result.current.initialScene?.appState.viewBackgroundColor).toBe('#0f172a')
+  })
+
   it('does not clear persisted scene when API rebind emits an early empty onChange', async () => {
     const { result } = renderHook(() => useWhiteboardCollab({
       projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -444,7 +492,7 @@ describe('whiteboard collaboration scene persistence', () => {
         {
           elements: [persistedElement],
           appState: {
-            viewBackgroundColor: '#ffffff',
+            viewBackgroundColor: '#0f172a',
           } as Partial<AppState>,
           files: {} as BinaryFiles,
         },
@@ -483,6 +531,7 @@ describe('whiteboard collaboration scene persistence', () => {
 
     const sceneAfterEarlyChange = readWhiteboardSceneFromYDoc(ydoc)
     expect(sceneAfterEarlyChange.elements.map((element) => element.id)).toContain('persisted-el')
+    expect(sceneAfterEarlyChange.appState.viewBackgroundColor).toBe('#0f172a')
   })
 
   it('does not clear persisted scene when a late empty onChange snapshot arrives', async () => {
@@ -520,7 +569,7 @@ describe('whiteboard collaboration scene persistence', () => {
         {
           elements: [persistedElement],
           appState: {
-            viewBackgroundColor: '#ffffff',
+            viewBackgroundColor: '#0f172a',
           } as Partial<AppState>,
           files: {} as BinaryFiles,
         },
@@ -554,6 +603,7 @@ describe('whiteboard collaboration scene persistence', () => {
 
     const sceneAfterLateEmptyChange = readWhiteboardSceneFromYDoc(ydoc)
     expect(sceneAfterLateEmptyChange.elements.map((element) => element.id)).toContain('persisted-late-el')
+    expect(sceneAfterLateEmptyChange.appState.viewBackgroundColor).toBe('#0f172a')
   })
 
   it('ignores stale callbacks after switching projects', async () => {

@@ -136,6 +136,36 @@ function mergeElementOrder(existingOrder: readonly string[], incomingOrder: read
   return mergedOrder
 }
 
+function dedupeIds(ids: readonly string[]): string[] {
+  const deduped: string[] = []
+  const seen = new Set<string>()
+  for (const id of ids) {
+    if (seen.has(id)) {
+      continue
+    }
+    seen.add(id)
+    deduped.push(id)
+  }
+  return deduped
+}
+
+function snapshotCoversExistingElements(
+  existingElementIds: readonly string[],
+  incomingElements: readonly OrderedExcalidrawElement[],
+): boolean {
+  if (existingElementIds.length === 0) {
+    return true
+  }
+
+  const incomingIds = new Set<string>(dedupeIds(toSortedIds(incomingElements)))
+  for (const elementId of existingElementIds) {
+    if (!incomingIds.has(elementId)) {
+      return false
+    }
+  }
+  return true
+}
+
 function toPersistedOrderedElements(
   elements: readonly ExcalidrawElement[],
 ): OrderedExcalidrawElement[] {
@@ -288,6 +318,11 @@ export function writeWhiteboardSceneToYDoc(
 
   ydoc.transact(() => {
     const currentOrder = elementOrder.toArray()
+    const existingElementIds = currentOrder.length > 0
+      ? dedupeIds(currentOrder)
+      : dedupeIds(Array.from(elementsMap.keys()))
+    let didApplyAnyElementUpdate = false
+
     for (const element of scene.elements) {
       const serialized = JSON.stringify(element)
       const existingRawValue = elementsMap.get(element.id)
@@ -300,8 +335,11 @@ export function writeWhiteboardSceneToYDoc(
 
       if (elementsMap.get(element.id) !== serialized) {
         elementsMap.set(element.id, serialized)
+        didApplyAnyElementUpdate = true
       }
     }
+
+    const incomingSnapshotIsComplete = snapshotCoversExistingElements(existingElementIds, scene.elements)
 
     // Merge element order so partial snapshots cannot drop existing elements.
     const nextOrder = mergeElementOrder(currentOrder, toSortedIds(scene.elements))
@@ -312,17 +350,19 @@ export function writeWhiteboardSceneToYDoc(
       }
     }
 
-    for (const [fileId, file] of Object.entries(scene.files)) {
-      const serialized = JSON.stringify(file)
-      if (filesMap.get(fileId) !== serialized) {
-        filesMap.set(fileId, serialized)
+    if (incomingSnapshotIsComplete || didApplyAnyElementUpdate) {
+      for (const [fileId, file] of Object.entries(scene.files)) {
+        const serialized = JSON.stringify(file)
+        if (filesMap.get(fileId) !== serialized) {
+          filesMap.set(fileId, serialized)
+        }
       }
-    }
 
-    for (const [key, value] of Object.entries(persistedAppState)) {
-      const serialized = JSON.stringify(value)
-      if (appStateMap.get(key) !== serialized) {
-        appStateMap.set(key, serialized)
+      for (const [key, value] of Object.entries(persistedAppState)) {
+        const serialized = JSON.stringify(value)
+        if (appStateMap.get(key) !== serialized) {
+          appStateMap.set(key, serialized)
+        }
       }
     }
   }, origin)
@@ -394,6 +434,7 @@ interface WhiteboardCollabResult {
   activeCollaborators: WhiteboardPresenceUser[]
   isCollaborating: boolean
   isSynced: boolean
+  initialScene: WhiteboardSceneData | null
   excalidrawApi: ExcalidrawImperativeAPI | null
   setExcalidrawApi: (api: ExcalidrawImperativeAPI) => void
   handleSceneChange: NonNullable<ExcalidrawProps['onChange']>
@@ -419,6 +460,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
   const [isSynced, setIsSynced] = useState(false)
+  const [initialScene, setInitialScene] = useState<WhiteboardSceneData | null>(null)
   const [excalidrawApi, setExcalidrawApiState] = useState<ExcalidrawImperativeAPI | null>(null)
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map())
   const [activeCollaborators, setActiveCollaborators] = useState<WhiteboardPresenceUser[]>([])
@@ -480,6 +522,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
 
     ydocProjectIdRef.current = projectId
     setIsSynced(false)
+    setInitialScene(null)
     setExcalidrawApiState(null)
     sceneHydratedForWritesRef.current = false
     setYdoc(() => new Y.Doc())
@@ -527,17 +570,20 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       setActiveCollaborators([])
       setConnectionState('connecting')
       setIsSynced(false)
+      setInitialScene(null)
       sceneHydratedForWritesRef.current = false
     }
   }, [projectId, shareToken, ydoc])
 
   useEffect(() => {
     if (!isSynced) {
+      setInitialScene(null)
       sceneHydratedForWritesRef.current = false
       return
     }
 
     migrateLegacyWhiteboardSceneFile(ydoc, rootFile)
+    setInitialScene(readWhiteboardSceneFromYDoc(ydoc))
   }, [isSynced, rootFile, ydoc])
 
   useEffect(() => {
@@ -778,6 +824,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     activeCollaborators,
     isCollaborating,
     isSynced,
+    initialScene,
     excalidrawApi,
     setExcalidrawApi,
     handleSceneChange,

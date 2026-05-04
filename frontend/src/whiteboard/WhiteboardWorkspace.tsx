@@ -222,6 +222,7 @@ export function WhiteboardWorkspace({
     collaborators,
     activeCollaborators,
     isCollaborating,
+    initialScene,
     excalidrawApi,
     setExcalidrawApi,
     handlePointerUpdate,
@@ -603,13 +604,14 @@ export function WhiteboardWorkspace({
       />
 
       <main className="min-h-0 flex-1">
-        {libraryLoaded ? (
+        {libraryLoaded && initialScene ? (
           <WhiteboardCanvas
             key={projectId}
             canEdit={canWrite}
             isCollaborating={isCollaborating}
             collaborators={collaborators}
             initialLibraryItems={libraryItems}
+            initialScene={initialScene}
             onSetApi={setExcalidrawApi}
             onLibraryChange={handleLibraryChange}
             onPointerUpdate={handlePointerUpdate}
@@ -617,7 +619,7 @@ export function WhiteboardWorkspace({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-cz-text-muted">
-            Loading whiteboard library...
+            Loading whiteboard...
           </div>
         )}
       </main>

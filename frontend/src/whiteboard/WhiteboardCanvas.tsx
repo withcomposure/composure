@@ -9,12 +9,14 @@ import type {
   Collaborator,
 } from '@excalidraw/excalidraw/types'
 import '@excalidraw/excalidraw/index.css'
+import type { WhiteboardSceneData } from './useWhiteboardCollab'
 
 interface WhiteboardCanvasProps {
   canEdit: boolean
   isCollaborating: boolean
   collaborators: Map<SocketId, Collaborator>
   initialLibraryItems: LibraryItems
+  initialScene: WhiteboardSceneData
   onSetApi: (api: ExcalidrawImperativeAPI) => void
   onLibraryChange: NonNullable<ExcalidrawProps['onLibraryChange']>
   onPointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
@@ -26,6 +28,7 @@ function WhiteboardCanvasComponent({
   isCollaborating,
   collaborators,
   initialLibraryItems,
+  initialScene,
   onSetApi,
   onLibraryChange,
   onPointerUpdate,
@@ -41,6 +44,12 @@ function WhiteboardCanvasComponent({
     },
   }), [canEdit])
 
+  const initialAppState = useMemo<Partial<AppState>>(() => ({
+    ...initialScene.appState,
+    viewBackgroundColor: initialScene.appState.viewBackgroundColor ?? '#ffffff',
+    collaborators,
+  }), [collaborators, initialScene.appState])
+
   return (
     <div className="whiteboard-excalidraw-host h-full w-full">
       <Excalidraw
@@ -52,10 +61,9 @@ function WhiteboardCanvasComponent({
         viewModeEnabled={!canEdit}
         UIOptions={uiOptions}
         initialData={{
-          appState: {
-            viewBackgroundColor: '#ffffff',
-            collaborators,
-          } as Partial<AppState>,
+          elements: initialScene.elements,
+          appState: initialAppState,
+          files: initialScene.files,
           libraryItems: initialLibraryItems,
         }}
       />
