@@ -149,9 +149,9 @@ export async function updateProjectMetadataDefaults(input: {
   const values: Array<string | null> = []
 
   if (Object.prototype.hasOwnProperty.call(input, 'rootFile')) {
-    const normalized = normalizeRelativePath(input.rootFile)
+    const normalized = input.rootFile == null ? '' : normalizeRelativePath(input.rootFile)
     updates.push(`root_file = $${updates.length + 1}`)
-    values.push(normalized)
+    values.push(normalized ?? '')
   }
 
   if (Object.prototype.hasOwnProperty.call(input, 'defaultBibliographyFile')) {

@@ -3,8 +3,8 @@ import { ArrowDownAZ, ArrowDownUp, ArrowUpAZ, BookPlus, Braces, Check, Copy, Lib
 import { CustomDropdown } from '@/components/CustomDropdown'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 
-type ReferenceSource = 'arxiv'
-type ReferenceField = 'all' | 'title' | 'author' | 'abstract'
+type ReferenceSource = 'arxiv' | 'crossref' | 'semantic-scholar' | 'pubmed' | 'openalex'
+type ReferenceField = 'all' | 'title' | 'author' | 'abstract' | 'doi'
 type CitationFormat = 'bibtex' | 'biblatex'
 type ReferenceSort = 'relevance' | 'year-desc' | 'year-asc' | 'title-asc'
 
@@ -16,6 +16,7 @@ interface ReferenceSearchResult {
   id: string
   source: ReferenceSource
   identifier: string
+  url: string
   title: string
   authors: string[]
   year: string | null
@@ -38,6 +39,10 @@ interface ReferenceLookupModalProps {
 
 const referenceSourceOptions: Array<{ value: ReferenceSource; label: string; icon: LucideIcon }> = [
   { value: 'arxiv', label: 'arXiv', icon: LibraryBig },
+  { value: 'crossref', label: 'Crossref', icon: Braces },
+  { value: 'semantic-scholar', label: 'Semantic Scholar', icon: Search },
+  { value: 'pubmed', label: 'PubMed/NCBI', icon: UserRoundSearch },
+  { value: 'openalex', label: 'OpenAlex', icon: ScanSearch },
 ]
 
 const referenceFieldOptions: Array<{ value: ReferenceField; label: string; icon: LucideIcon }> = [
@@ -45,6 +50,7 @@ const referenceFieldOptions: Array<{ value: ReferenceField; label: string; icon:
   { value: 'title', label: 'Title', icon: ScanSearch },
   { value: 'author', label: 'Author', icon: UserRoundSearch },
   { value: 'abstract', label: 'Abstract', icon: Search },
+  { value: 'doi', label: 'DOI', icon: Braces },
 ]
 
 const citationFormatOptions: Array<{ value: CitationFormat; label: string; icon: LucideIcon }> = [
@@ -85,7 +91,7 @@ export function ReferenceLookupModal({
   onCitationFormatChange,
   onAddToBibliography,
 }: ReferenceLookupModalProps) {
-  const [source] = useState<ReferenceSource>('arxiv')
+  const [source, setSource] = useState<ReferenceSource>('arxiv')
   const [field, setField] = useState<ReferenceField>('all')
   const [term, setTerm] = useState('')
   const [sortBy, setSortBy] = useState<ReferenceSort>('relevance')
@@ -98,10 +104,13 @@ export function ReferenceLookupModal({
   const [addedResultIds, setAddedResultIds] = useState<Set<string>>(new Set())
 
   const canSearch = term.trim().length > 0 && !loading
+  const selectedSourceLabel = useMemo(() => {
+    return referenceSourceOptions.find((option) => option.value === source)?.label ?? source
+  }, [source])
 
   const emptyStateMessage = useMemo(() => {
     if (loading) {
-      return 'Searching arXiv...'
+      return `Searching ${selectedSourceLabel}...`
     }
     if (error) {
       return error
@@ -110,7 +119,7 @@ export function ReferenceLookupModal({
       return 'Search results will appear here.'
     }
     return 'No results found for this query.'
-  }, [error, loading, searched])
+  }, [error, loading, searched, selectedSourceLabel])
 
   const displayedResults = useMemo(() => {
     if (sortBy === 'relevance') {
@@ -200,12 +209,22 @@ export function ReferenceLookupModal({
       <div className="flex h-[min(84vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-cz-border bg-cz-surface shadow-2xl">
         <div className="flex items-center gap-3 border-b border-cz-border px-4 py-3">
           <Search size={16} className="text-cz-text-muted" />
-          <span className="text-sm text-cz-text-muted">Find references in</span>
+          <span className="text-sm text-cz-text-muted">Find references in:</span>
           <CustomDropdown
             value={source}
             options={referenceSourceOptions}
-            onChange={() => undefined}
-            disabled
+            onChange={(nextSource) => {
+              setSource(nextSource)
+              setField((current) => {
+                if (nextSource === 'crossref') {
+                  return 'doi'
+                }
+                if (nextSource === 'arxiv' && current === 'doi') {
+                  return 'all'
+                }
+                return current
+              })
+            }}
           />
           <button
             type="button"
@@ -219,11 +238,11 @@ export function ReferenceLookupModal({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-          <div className="rounded-lg border border-cz-border bg-cz-bg/60 p-3">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end">
-              <label className="flex flex-1 flex-col gap-1 text-xs text-cz-text-muted">
+          <div className="rounded-lg border border-cz-border bg-cz-bg/60 px-3 pb-3 pt-2">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:gap-2">
+              <label className="flex flex-col gap-1 text-xs text-cz-text-muted md:w-40 md:flex-none">
                 <span
-                  className="text-[11px] tracking-[0.08em] text-cz-text-muted"
+                  className="text-xs tracking-[0.06em] text-cz-text-muted"
                   style={{ fontVariantCaps: 'all-small-caps' }}
                 >
                   Field
@@ -236,9 +255,9 @@ export function ReferenceLookupModal({
                 />
               </label>
 
-              <label className="flex-[2] flex flex-col gap-1 text-xs text-cz-text-muted">
+              <label className="flex flex-1 flex-col gap-1 text-xs text-cz-text-muted">
                 <span
-                  className="text-[11px] tracking-[0.08em] text-cz-text-muted"
+                  className="text-xs tracking-[0.06em] text-cz-text-muted"
                   style={{ fontVariantCaps: 'all-small-caps' }}
                 >
                   Search term
@@ -253,7 +272,7 @@ export function ReferenceLookupModal({
                     }
                   }}
                   placeholder="e.g. diffusion models"
-                  className="rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-7 rounded-md border border-cz-border bg-cz-bg px-2 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </label>
 
@@ -263,7 +282,7 @@ export function ReferenceLookupModal({
                   void runSearch()
                 }}
                 disabled={!canSearch}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${canSearch ? 'bg-cz-accent text-white hover:bg-cz-accent-hover' : 'cursor-not-allowed border border-cz-border text-cz-text-muted opacity-60'}`}
+                className={`h-7 rounded-md px-3 text-sm font-medium transition-colors ${canSearch ? 'bg-cz-accent text-white hover:bg-cz-accent-hover' : 'cursor-not-allowed border border-cz-border text-cz-text-muted opacity-60'}`}
               >
                 {loading ? 'Searching...' : 'Search'}
               </button>
@@ -305,7 +324,15 @@ export function ReferenceLookupModal({
                       <article key={result.id} className="rounded-lg border border-cz-border bg-cz-surface p-3">
                         <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-cz-text">{result.title}</div>
+                            <a
+                              href={result.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="block truncate text-sm font-medium text-cz-text hover:text-cz-accent"
+                              title="Open paper in a new tab"
+                            >
+                              {result.title}
+                            </a>
                             <div className="truncate text-xs text-cz-text-muted">{authorsLine}</div>
                             <div className="mt-0.5 text-[11px] text-cz-text-muted">{result.year ?? 'Unknown'} · {result.identifier}</div>
                             <p

@@ -160,7 +160,7 @@ export function ShareModal({
           <section className="rounded-lg border border-cz-border bg-cz-bg/60 p-4">
             <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">Link Sharing</div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-cz-text-muted">Anyone with this link can</span>
+              <span className="text-sm text-cz-text-muted">Anyone with this link:</span>
               <CustomDropdown
                 value={effectiveLinkRole}
                 options={shareRoleOptions}

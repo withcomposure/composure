@@ -280,15 +280,15 @@ export async function patchProjectMetadataRoute(
   let normalizedRootFile: string | undefined
   if (hasRootFile) {
     if (body.rootFile == null) {
-      reply.status(400).send({ error: 'rootFile cannot be null' })
-      return
+      normalizedRootFile = ''
+    } else {
+      const nextRootFile = normalizeRelativePath(body.rootFile)
+      if (!nextRootFile) {
+        reply.status(400).send({ error: 'Invalid rootFile path' })
+        return
+      }
+      normalizedRootFile = nextRootFile
     }
-    const nextRootFile = normalizeRelativePath(body.rootFile)
-    if (!nextRootFile) {
-      reply.status(400).send({ error: 'Invalid rootFile path' })
-      return
-    }
-    normalizedRootFile = nextRootFile
   }
 
   let normalizedDefaultBibliographyFile: string | null | undefined

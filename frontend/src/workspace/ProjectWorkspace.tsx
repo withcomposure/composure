@@ -27,6 +27,7 @@ import { ReferenceLookupModal } from "./ReferenceLookupModal";
 import { Toolbar } from "./Toolbar";
 import { EditorPane } from "@/editor/EditorPane";
 import { PaneLayout } from "@/editor/PaneLayout";
+import { PopupDialog } from "@/components/PopupDialog";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useResizeDrag } from "@/hooks/use-resize-drag";
 import type {
@@ -219,6 +220,8 @@ export function ProjectWorkspace({
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReferenceLookup, setShowReferenceLookup] = useState(false);
+  const [showDuplicateCitationDialog, setShowDuplicateCitationDialog] =
+    useState(false);
   const [projectEntrypoint, setProjectEntrypoint] = useState<string | null>(
     () => entrypoint.trim() || null,
   );
@@ -280,6 +283,9 @@ export function ProjectWorkspace({
   const previousProjectIdRef = useRef(projectId);
   const ydocProjectIdRef = useRef(projectId);
   const markdownDebounceTimerRef = useRef<number | null>(null);
+  const duplicateCitationDecisionResolverRef = useRef<
+    ((allowDuplicate: boolean) => void) | null
+  >(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const editorLayoutSurfaceRef = useRef<HTMLDivElement | null>(null);
   const sidebarWidthRef = useRef(sidebarWidth);
@@ -298,6 +304,14 @@ export function ProjectWorkspace({
   useEffect(() => {
     lastCursorFileRef.current = lastCursorFile;
   }, [lastCursorFile]);
+
+  useEffect(() => {
+    return () => {
+      duplicateCitationDecisionResolverRef.current?.(false);
+      duplicateCitationDecisionResolverRef.current = null;
+    };
+  }, []);
+
   const activeCommentId = hoveredCommentId ?? selectedCommentId;
   const openTabs = useMemo(
     () => paneStateById[activePaneId]?.tabs ?? [],
@@ -839,7 +853,7 @@ export function ProjectWorkspace({
 
   const patchProjectMetadata = useCallback(
     async (patch: {
-      rootFile?: string;
+      rootFile?: string | null;
       defaultBibliographyFile?: string | null;
       referenceLookupFormat?: "bibtex" | "biblatex";
     }) => {
@@ -869,9 +883,12 @@ export function ProjectWorkspace({
   );
 
   const handleSetEntrypoint = useCallback(
-    async (path: string) => {
+    async (path: string | null) => {
       const next = await patchProjectMetadata({ rootFile: path });
-      const resolvedPath = typeof next.rootFile === "string" ? next.rootFile : path;
+      const resolvedPath =
+        typeof next.rootFile === "string" && next.rootFile.trim().length > 0
+          ? next.rootFile
+          : null;
       setProjectEntrypoint(resolvedPath);
     },
     [patchProjectMetadata],
@@ -1019,14 +1036,30 @@ export function ProjectWorkspace({
     ],
   );
 
+  const requestDuplicateCitationConfirmation = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      duplicateCitationDecisionResolverRef.current = resolve;
+      setShowDuplicateCitationDialog(true);
+    });
+  }, []);
+
+  const resolveDuplicateCitationConfirmation = useCallback(
+    (allowDuplicate: boolean) => {
+      setShowDuplicateCitationDialog(false);
+      const resolver = duplicateCitationDecisionResolverRef.current;
+      duplicateCitationDecisionResolverRef.current = null;
+      resolver?.(allowDuplicate);
+    },
+    [],
+  );
+
   const handleAddCitationToBibliography = useCallback(
     async (citation: string): Promise<{ added: boolean }> => {
       try {
         const initialAttempt = await appendCitationToDefaultBibliography(citation);
         if (initialAttempt.duplicate) {
-          const shouldAddDuplicate = window.confirm(
-            "This source is already in the target bibliography. Do you want to add a duplicate?",
-          );
+          const shouldAddDuplicate =
+            await requestDuplicateCitationConfirmation();
           if (!shouldAddDuplicate) {
             return { added: false };
           }
@@ -1043,7 +1076,11 @@ export function ProjectWorkspace({
         throw err;
       }
     },
-    [appendCitationToDefaultBibliography, onPopupAlert],
+    [
+      appendCitationToDefaultBibliography,
+      onPopupAlert,
+      requestDuplicateCitationConfirmation,
+    ],
   );
 
   useEffect(() => {
@@ -3428,6 +3465,27 @@ export function ProjectWorkspace({
         onLinkInvalidate={() => {
           void invalidateLinkSharing();
         }}
+      />
+
+      <PopupDialog
+        open={showDuplicateCitationDialog}
+        title="Duplicate citation"
+        message="This source is already in the target bibliography. Do you want to add a duplicate?"
+        dismiss={{
+          label: "Cancel",
+          onClick: () => {
+            resolveDuplicateCitationConfirmation(false);
+          },
+        }}
+        actions={[
+          {
+            label: "Add Duplicate",
+            onClick: () => {
+              resolveDuplicateCitationConfirmation(true);
+            },
+            autoFocus: true,
+          },
+        ]}
       />
 
       <ReferenceLookupModal

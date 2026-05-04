@@ -55,7 +55,7 @@ export interface FileTreeProps {
   onDelete: (path: string) => boolean
   entrypointPath: string | null
   defaultBibliographyPath: string | null
-  onSetEntrypoint: (path: string) => Promise<void>
+  onSetEntrypoint: (path: string | null) => Promise<void>
   onSetDefaultBibliography: (path: string | null) => Promise<void>
 }
 
@@ -1556,10 +1556,9 @@ export function FileTree({
     return [
       {
         icon: Play,
-        name: isEntrypoint ? 'Entrypoint' : 'Set as Entrypoint',
-        disabled: isEntrypoint,
+        name: isEntrypoint ? 'Clear Entrypoint' : 'Set as Entrypoint',
         action: () => {
-          void onSetEntrypoint(path).catch((err) => {
+          void onSetEntrypoint(isEntrypoint ? null : path).catch((err) => {
             openAlert(String(err instanceof Error ? err.message : err), 'Could not update entrypoint')
           })
         },

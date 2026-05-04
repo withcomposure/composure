@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, Timer, Trash2, type LucideIcon } from 'lucide-react'
+import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, LibraryBig, Timer, Trash2, type LucideIcon } from 'lucide-react'
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
@@ -156,11 +156,11 @@ export function Toolbar({
           <button
             type="button"
             onClick={onOpenReferenceLookup}
-            className="rounded-md border border-cz-border px-2.5 py-1.5 text-xs font-medium text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-cz-border text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
             aria-label="Open reference lookup"
             title="Reference lookup"
           >
-            Reference Lookup
+            <LibraryBig size={12} />
           </button>
 
           <button
