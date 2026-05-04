@@ -7,6 +7,7 @@ export interface ProjectRow {
   id: string
   title: string
   root_file: string
+  default_bibliography_file: string | null
   engine: string | null
   owner_user_id: string
   created_at: number
@@ -18,6 +19,7 @@ export interface ProjectSummary {
   id: string
   title: string
   rootFile: string
+  defaultBibliographyFile?: string | null
   engine: string | null
   createdAt: number
   lastActiveAt: number
@@ -72,6 +74,7 @@ export interface RecentProjectSummary {
   id: string
   title: string
   rootFile: string
+  defaultBibliographyFile?: string | null
   engine: string | null
   createdAt: number
   lastActiveAt: number

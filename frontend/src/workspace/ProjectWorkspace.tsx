@@ -23,6 +23,7 @@ import { HtmlPreview } from "@/preview/HtmlPreview";
 import { CompilePreview } from "@/preview/CompilePreview";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import { ShareModal } from "./ShareModal";
+import { ReferenceLookupModal } from "./ReferenceLookupModal";
 import { Toolbar } from "./Toolbar";
 import { EditorPane } from "@/editor/EditorPane";
 import { PaneLayout } from "@/editor/PaneLayout";
@@ -121,6 +122,8 @@ interface ProjectWorkspaceProps {
   onLogout: () => void;
   onPopupAlert: (message: string, title?: string) => void;
   projectTitle: string;
+  entrypoint: string;
+  defaultBibliographyFile: string | null;
   /** When set and the user can edit the project, the sidebar title supports inline rename (Enter to save). */
   onRenameProject?: (nextTitle: string) => Promise<void>;
 }
@@ -148,6 +151,8 @@ export function ProjectWorkspace({
   onLogout,
   onPopupAlert,
   projectTitle,
+  entrypoint,
+  defaultBibliographyFile,
   onRenameProject,
 }: ProjectWorkspaceProps) {
   const {
@@ -211,6 +216,13 @@ export function ProjectWorkspace({
   const [saving, setSaving] = useState(false);
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showReferenceLookup, setShowReferenceLookup] = useState(false);
+  const [projectEntrypoint, setProjectEntrypoint] = useState<string | null>(
+    () => entrypoint.trim() || null,
+  );
+  const [projectDefaultBibliographyFile, setProjectDefaultBibliographyFile] =
+    useState<string | null>(defaultBibliographyFile);
+  const [lastCursorFile, setLastCursorFile] = useState<string>("");
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<ShareRole>("view");
@@ -258,6 +270,7 @@ export function ProjectWorkspace({
   const lastTextLimitPopupAtRef = useRef(0);
   const lastAutoCompiledRevisionRef = useRef(0);
   const autoCompileRevisionRef = useRef(0);
+  const lastCursorFileRef = useRef<string>("");
   const paneIdCounterRef = useRef(2);
   const splitIdCounterRef = useRef(1);
   const previousProjectIdRef = useRef(projectId);
@@ -269,6 +282,17 @@ export function ProjectWorkspace({
   const [workspaceStateLoaded, setWorkspaceStateLoaded] = useState(false);
   const lastPersistedWorkspaceStateRef = useRef<string | null>(null);
   const [ydoc, setYdoc] = useState(() => new Y.Doc());
+
+  useEffect(() => {
+    setProjectEntrypoint(entrypoint.trim() || null);
+    setProjectDefaultBibliographyFile(defaultBibliographyFile);
+    setLastCursorFile("");
+    lastCursorFileRef.current = "";
+  }, [projectId, entrypoint, defaultBibliographyFile]);
+
+  useEffect(() => {
+    lastCursorFileRef.current = lastCursorFile;
+  }, [lastCursorFile]);
   const activeCommentId = hoveredCommentId ?? selectedCommentId;
   const openTabs = useMemo(
     () => paneStateById[activePaneId]?.tabs ?? [],
@@ -763,6 +787,12 @@ export function ProjectWorkspace({
     setAutoCompileEnabled(autoCompileDefault);
   }, [projectId, autoCompileDefault]);
 
+  useEffect(() => {
+    if (projectEntrypoint && !allFilePaths.has(projectEntrypoint)) {
+      setProjectEntrypoint(null);
+    }
+  }, [allFilePaths, projectEntrypoint]);
+
   const focusCollaborator = useCallback((clientId: number) => {
     setFocusCollaboratorRequest((prev) => ({
       clientId,
@@ -780,6 +810,130 @@ export function ProjectWorkspace({
         ? { "X-Share-Token": shareToken }
         : ({} as Record<string, string>),
     [shareToken],
+  );
+
+  const activeEntrypoint = useMemo(() => {
+    if (!projectEntrypoint) {
+      return null;
+    }
+    return allFilePaths.has(projectEntrypoint) ? projectEntrypoint : null;
+  }, [allFilePaths, projectEntrypoint]);
+
+  const activeDefaultBibliographyFile = useMemo(() => {
+    if (!projectDefaultBibliographyFile) {
+      return null;
+    }
+    return allFilePaths.has(projectDefaultBibliographyFile)
+      ? projectDefaultBibliographyFile
+      : null;
+  }, [allFilePaths, projectDefaultBibliographyFile]);
+
+  const patchProjectMetadata = useCallback(
+    async (patch: {
+      rootFile?: string;
+      defaultBibliographyFile?: string | null;
+    }) => {
+      const res = await apiFetch(`/projects/${projectId}/metadata`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...shareHeaders,
+        },
+        body: JSON.stringify(patch),
+      });
+
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Failed to update project metadata" }));
+        throw new Error(String(err.error ?? "Failed to update project metadata"));
+      }
+
+      return (await res.json()) as {
+        rootFile?: string;
+        defaultBibliographyFile?: string | null;
+      };
+    },
+    [projectId, shareHeaders],
+  );
+
+  const handleSetEntrypoint = useCallback(
+    async (path: string) => {
+      const next = await patchProjectMetadata({ rootFile: path });
+      const resolvedPath = typeof next.rootFile === "string" ? next.rootFile : path;
+      setProjectEntrypoint(resolvedPath);
+    },
+    [patchProjectMetadata],
+  );
+
+  const handleSetDefaultBibliography = useCallback(
+    async (path: string | null) => {
+      const next = await patchProjectMetadata({ defaultBibliographyFile: path });
+      setProjectDefaultBibliographyFile(next.defaultBibliographyFile ?? null);
+    },
+    [patchProjectMetadata],
+  );
+
+  useEffect(() => {
+    if (
+      !projectDefaultBibliographyFile ||
+      allFilePaths.has(projectDefaultBibliographyFile)
+    ) {
+      return;
+    }
+
+    setProjectDefaultBibliographyFile(null);
+    void patchProjectMetadata({ defaultBibliographyFile: null }).catch(() => {
+      /* best-effort cleanup */
+    });
+  }, [allFilePaths, patchProjectMetadata, projectDefaultBibliographyFile]);
+
+  const resolveCurrentCompileFile = useCallback((): string => {
+    const lastFocusedPath = lastCursorFileRef.current;
+    if (lastFocusedPath && allFilePaths.has(lastFocusedPath)) {
+      return lastFocusedPath;
+    }
+    return "";
+  }, [allFilePaths]);
+
+  const appendCitationToDefaultBibliography = useCallback(
+    async (citation: string) => {
+      const targetPath = activeDefaultBibliographyFile;
+      if (!targetPath) {
+        throw new Error("No default bibliography file is configured for this project.");
+      }
+
+      const existing = fileMap.get(targetPath);
+      if (typeof existing !== "string") {
+        throw new Error("Default bibliography file is missing.");
+      }
+
+      const meta = parseFileMetadata(existing);
+      if (meta.type !== "text") {
+        throw new Error("Default bibliography file is not a text file.");
+      }
+
+      ydoc.transact(() => {
+        const text = ydoc.getText(`file:${targetPath}`);
+        const current = text.toString();
+        const separator = current.length === 0 ? "" : current.endsWith("\n") ? "\n" : "\n\n";
+        text.insert(text.length, `${separator}${citation}\n`);
+      }, "composure:add-reference-citation");
+    },
+    [activeDefaultBibliographyFile, fileMap, ydoc],
+  );
+
+  const handleAddCitationToBibliography = useCallback(
+    async (citation: string) => {
+      try {
+        await appendCitationToDefaultBibliography(citation);
+        onPopupAlert("Citation added to the default bibliography file.", "Reference added");
+      } catch (err) {
+        onPopupAlert(getErrorMessage(err), "Could not add citation");
+        throw err;
+      }
+    },
+    [appendCitationToDefaultBibliography, onPopupAlert],
   );
 
   useEffect(() => {
@@ -1327,8 +1481,15 @@ export function ProjectWorkspace({
         }
         return current === paneId ? null : current;
       });
+
+      if (isFocused) {
+        const focusedPath = paneStateById[paneId]?.activePath ?? "";
+        if (focusedPath.length > 0) {
+          setLastCursorFile(focusedPath);
+        }
+      }
     },
-    [],
+    [paneStateById],
   );
 
   const openFileFromTree = useCallback(
@@ -1355,6 +1516,7 @@ export function ProjectWorkspace({
       });
       setHistoryState(null);
       focusPane(paneId, path);
+      setLastCursorFile(path);
     },
     [focusPane],
   );
@@ -1709,16 +1871,40 @@ export function ProjectWorkspace({
     onPopupAlert,
   ]);
 
+  const compileDefaultRootFile = useMemo(() => {
+    if (activeEntrypoint) {
+      return activeEntrypoint;
+    }
+    if (activeFile && allFilePaths.has(activeFile)) {
+      return activeFile;
+    }
+    return "";
+  }, [activeEntrypoint, activeFile, allFilePaths]);
+
   const handleCompile = useCallback(
-    async (isAutoCompile = false) => {
+    async (options?: {
+      isAutoCompile?: boolean;
+      target?: "default" | "current";
+    }) => {
+      const isAutoCompile = options?.isAutoCompile ?? false;
+      const target = options?.target ?? "default";
+
       // Cancel any pending auto-compile timer by marking the current revision as handled.
       lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
 
-      const isHistory = historyState != null;
-      const rootFile = isHistory ? historyState.filePath : activeFile;
+      const isHistory = historyState != null && target === "default";
+      const rootFile = isHistory
+        ? historyState.filePath
+        : target === "current"
+          ? resolveCurrentCompileFile()
+          : compileDefaultRootFile;
 
       if (!rootFile) {
-        setCompileError("Create or select a file before compiling.");
+        setCompileError(
+          target === "current"
+            ? "Focus a file editor tab before compiling the current file."
+            : "Create or select a file before compiling.",
+        );
         return;
       }
 
@@ -1816,14 +2002,24 @@ export function ProjectWorkspace({
     },
     [
       projectId,
-      activeFile,
+      compileDefaultRootFile,
       historyState,
       ydoc,
       persistSnapshot,
       shareHeaders,
       shareToken,
       autoSaveOnCompile,
+      resolveCurrentCompileFile,
     ],
+  );
+
+  const handleCompileCurrentFile = useCallback(() => {
+    void handleCompile({ target: "current" });
+  }, [handleCompile]);
+
+  const canCompileCurrentFile = useMemo(
+    () => resolveCurrentCompileFile().length > 0,
+    [resolveCurrentCompileFile],
   );
 
   const handleExport = useCallback(
@@ -1893,7 +2089,12 @@ export function ProjectWorkspace({
 
   useEffect(() => {
     const onDocUpdate = (_update: Uint8Array, origin: unknown) => {
-      if (!autoCompileEnabled || !canEdit || !initialSyncDone || !activeFile)
+      if (
+        !autoCompileEnabled ||
+        !canEdit ||
+        !initialSyncDone ||
+        !compileDefaultRootFile
+      )
         return;
       if (origin === provider) return;
       if (typeof origin === "string" && origin.startsWith("composure:")) return;
@@ -1914,7 +2115,7 @@ export function ProjectWorkspace({
     autoCompileEnabled,
     canEdit,
     initialSyncDone,
-    activeFile,
+    compileDefaultRootFile,
   ]);
 
   useEffect(() => {
@@ -1922,7 +2123,7 @@ export function ProjectWorkspace({
       !autoCompileEnabled ||
       !canEdit ||
       !initialSyncDone ||
-      !activeFile ||
+      !compileDefaultRootFile ||
       compiling
     )
       return;
@@ -1930,7 +2131,7 @@ export function ProjectWorkspace({
 
     const timeout = window.setTimeout(() => {
       lastAutoCompiledRevisionRef.current = autoCompileRevision;
-      void handleCompile(true);
+      void handleCompile({ isAutoCompile: true });
     }, autoCompileTimeoutSeconds * 1000);
 
     return () => {
@@ -1940,7 +2141,7 @@ export function ProjectWorkspace({
     autoCompileEnabled,
     canEdit,
     initialSyncDone,
-    activeFile,
+    compileDefaultRootFile,
     compiling,
     autoCompileRevision,
     autoCompileTimeoutSeconds,
@@ -2521,6 +2722,21 @@ export function ProjectWorkspace({
       if (activeFile === path) {
         setActiveFile(trimmed);
       }
+      if (projectEntrypoint === path) {
+        setProjectEntrypoint(trimmed);
+        void patchProjectMetadata({ rootFile: trimmed }).catch(() => {
+          /* best-effort sync */
+        });
+      }
+      if (projectDefaultBibliographyFile === path) {
+        setProjectDefaultBibliographyFile(trimmed);
+        void patchProjectMetadata({ defaultBibliographyFile: trimmed }).catch(() => {
+          /* best-effort sync */
+        });
+      }
+      if (lastCursorFileRef.current === path) {
+        setLastCursorFile(trimmed);
+      }
       setPaneStateById((prev) => {
         let changed = false;
         const next: Record<string, EditorPaneState> = {};
@@ -2550,7 +2766,14 @@ export function ProjectWorkspace({
       });
       return true;
     },
-    [fileMap, ydoc, activeFile],
+    [
+      fileMap,
+      ydoc,
+      activeFile,
+      patchProjectMetadata,
+      projectDefaultBibliographyFile,
+      projectEntrypoint,
+    ],
   );
 
   const deleteFile = useCallback(
@@ -2639,9 +2862,30 @@ export function ProjectWorkspace({
             "",
         );
       }
+      if (projectEntrypoint === path) {
+        setProjectEntrypoint(null);
+      }
+      if (projectDefaultBibliographyFile === path) {
+        setProjectDefaultBibliographyFile(null);
+        void patchProjectMetadata({ defaultBibliographyFile: null }).catch(() => {
+          /* best-effort sync */
+        });
+      }
+      if (lastCursorFileRef.current === path) {
+        setLastCursorFile("");
+      }
       return true;
     },
-    [fileMap, ydoc, activeFile, openTabs, activePaneId],
+    [
+      fileMap,
+      ydoc,
+      activeFile,
+      openTabs,
+      activePaneId,
+      patchProjectMetadata,
+      projectDefaultBibliographyFile,
+      projectEntrypoint,
+    ],
   );
 
   const resolveTextFileSizeBytes = useCallback(
@@ -2858,6 +3102,10 @@ export function ProjectWorkspace({
             shareHeaders={shareHeaders}
             activeFile={activeFile}
             isDocumentLoading={!initialSyncDone}
+            entrypointPath={activeEntrypoint}
+            defaultBibliographyPath={activeDefaultBibliographyFile}
+            onSetEntrypoint={handleSetEntrypoint}
+            onSetDefaultBibliography={handleSetDefaultBibliography}
             onSelect={(path) => {
               openFileFromTree(path, "ephemeral");
             }}
@@ -2931,7 +3179,11 @@ export function ProjectWorkspace({
           mode={effectiveMode}
           onModeChange={setEditorMode}
           onOpenShare={() => setShowShareModal(true)}
-          onCompile={handleCompile}
+          onCompile={() => {
+            void handleCompile();
+          }}
+          onCompileCurrentFile={handleCompileCurrentFile}
+          canCompileCurrentFile={canCompileCurrentFile}
           onClearCompileOutput={() => {
             void handleClearCompileOutput();
           }}
@@ -2947,6 +3199,7 @@ export function ProjectWorkspace({
           activeFile={activeFile}
           activeEditors={activeEditors}
           onFocusCollaborator={focusCollaborator}
+          onOpenReferenceLookup={() => setShowReferenceLookup(true)}
           projectFormat={projectFormat}
           onExport={handleExport}
           exporting={exporting}
@@ -3065,6 +3318,14 @@ export function ProjectWorkspace({
         onLinkInvalidate={() => {
           void invalidateLinkSharing();
         }}
+      />
+
+      <ReferenceLookupModal
+        open={showReferenceLookup}
+        onClose={() => setShowReferenceLookup(false)}
+        canAddToBibliography={activeDefaultBibliographyFile != null && canEditLive}
+        shareHeaders={shareHeaders}
+        onAddToBibliography={handleAddCitationToBibliography}
       />
     </div>
   );

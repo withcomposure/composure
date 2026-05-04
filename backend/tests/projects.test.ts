@@ -218,6 +218,55 @@ describe('project CRUD', () => {
     expect(res.json().ok).toBe(true)
   })
 
+  it('updates project metadata defaults', async () => {
+    const user = await createTestUser()
+    const sessionId = await createTestSession(user.id)
+    const projectId = await createTestProject(user.id, { rootFile: 'main.tex' })
+
+    const setRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/metadata`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: {
+        rootFile: 'paper/main.tex',
+        defaultBibliographyFile: 'paper/refs.bib',
+      },
+    })
+
+    expect(setRes.statusCode).toBe(200)
+    expect(setRes.json()).toMatchObject({
+      id: projectId,
+      rootFile: 'paper/main.tex',
+      defaultBibliographyFile: 'paper/refs.bib',
+    })
+
+    const clearRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/metadata`,
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: {
+        defaultBibliographyFile: null,
+      },
+    })
+
+    expect(clearRes.statusCode).toBe(200)
+    expect(clearRes.json()).toMatchObject({
+      id: projectId,
+      rootFile: 'paper/main.tex',
+      defaultBibliographyFile: null,
+    })
+
+    const [row] = await sql<[{ root_file: string; default_bibliography_file: string | null }?]>`
+      SELECT root_file, default_bibliography_file
+      FROM projects
+      WHERE id = ${projectId}
+    `
+    expect(row).toMatchObject({
+      root_file: 'paper/main.tex',
+      default_bibliography_file: null,
+    })
+  })
+
   it('soft-deletes a project', async () => {
     const user = await createTestUser()
     const sessionId = await createTestSession(user.id)

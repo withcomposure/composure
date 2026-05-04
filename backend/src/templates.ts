@@ -17,6 +17,7 @@ interface TemplateDefinition {
   category: string
   tags: string[]
   entrypoint: string
+  defaultBibliographyFile: string | null
   isBlank: boolean
   files: TemplateFileSpec[]
 }
@@ -29,6 +30,7 @@ interface RawTemplateDefinition {
   category?: unknown
   tags?: unknown
   entrypoint?: unknown
+  defaultBibliographyFile?: unknown
   isBlank?: unknown
   files?: unknown
 }
@@ -50,6 +52,7 @@ export interface ProjectTemplateSummary {
   category: string
   tags: string[]
   entrypoint: string
+  defaultBibliographyFile: string | null
   isBlank: boolean
 }
 
@@ -58,6 +61,7 @@ export interface InstantiatedTemplate {
   name: string
   engine: TemplateEngine
   rootFile: string
+  defaultBibliographyFile: string | null
   files: Record<string, string>
 }
 
@@ -133,6 +137,8 @@ function normalizeTemplateDefinition(raw: RawTemplateDefinition): TemplateDefini
   const category = String(raw.category ?? '').trim().toLowerCase()
   const tags = Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag).trim()).filter(Boolean) : []
   const entrypoint = normalizeRelativePath(String(raw.entrypoint ?? ''))
+  const defaultBibliographyFileCandidate = normalizeRelativePath(String(raw.defaultBibliographyFile ?? ''))
+  const defaultBibliographyFile = defaultBibliographyFileCandidate || null
   const files = normalizeTemplateFiles(raw.files)
   const isBlank = Boolean(raw.isBlank)
 
@@ -144,6 +150,10 @@ function normalizeTemplateDefinition(raw: RawTemplateDefinition): TemplateDefini
     return null
   }
 
+  if (defaultBibliographyFile && !files.some((file) => file.path === defaultBibliographyFile)) {
+    return null
+  }
+
   return {
     id,
     name,
@@ -152,6 +162,7 @@ function normalizeTemplateDefinition(raw: RawTemplateDefinition): TemplateDefini
     category,
     tags,
     entrypoint,
+    defaultBibliographyFile,
     isBlank,
     files,
   }
@@ -194,6 +205,7 @@ export function listProjectTemplates(): ProjectTemplateSummary[] {
     category: template.category,
     tags: template.tags,
     entrypoint: template.entrypoint,
+    defaultBibliographyFile: template.defaultBibliographyFile,
     isBlank: template.isBlank,
   }))
 }
@@ -217,6 +229,7 @@ export function instantiateTemplateById(templateId: string): InstantiatedTemplat
     name: template.name,
     engine: template.engine,
     rootFile: template.entrypoint,
+    defaultBibliographyFile: template.defaultBibliographyFile,
     files,
   }
 }

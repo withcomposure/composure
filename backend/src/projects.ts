@@ -12,6 +12,7 @@ import {
   listTrashForPrincipal,
   recordRecentProjectOpen,
   renameProject,
+  updateProjectMetadataDefaults,
   storeDocument,
   softDeleteProject,
   restoreProject,
@@ -29,6 +30,10 @@ import * as Y from 'yjs'
 
 function sanitizeRootFile(rootFile: unknown): string {
   return normalizeRelativePath(rootFile) ?? 'main.tex'
+}
+
+function sanitizeDefaultBibliographyFile(defaultBibliographyFile: unknown): string | null {
+  return normalizeRelativePath(defaultBibliographyFile) ?? null
 }
 
 export async function listProjectsRoute(req: FastifyRequest): Promise<unknown> {
@@ -63,6 +68,7 @@ export async function getProjectMetadataRoute(
     id: project.id,
     title: project.title,
     rootFile: project.root_file,
+    defaultBibliographyFile: project.default_bibliography_file,
     engine: project.engine,
   })
 }
@@ -101,6 +107,7 @@ export async function markProjectOpenedRoute(
 interface CreateProjectBody {
   title?: string
   rootFile?: string
+  defaultBibliographyFile?: string
   templateId?: string
 }
 
@@ -149,6 +156,7 @@ export async function createProjectRoute(
   const templateId = String(req.body?.templateId ?? '').trim()
 
   let rootFile = sanitizeRootFile(req.body?.rootFile)
+  let defaultBibliographyFile = sanitizeDefaultBibliographyFile(req.body?.defaultBibliographyFile)
   let templateFiles: Record<string, string> | null = null
   let engine: string | null = null
 
@@ -159,6 +167,9 @@ export async function createProjectRoute(
       engine = instantiated.engine
       if (!req.body?.rootFile) {
         rootFile = sanitizeRootFile(instantiated.rootFile)
+      }
+      if (!req.body?.defaultBibliographyFile) {
+        defaultBibliographyFile = instantiated.defaultBibliographyFile
       }
     } catch {
       reply.status(400).send({ error: 'Unknown template ID' })
@@ -171,6 +182,7 @@ export async function createProjectRoute(
     principal: req.principal,
     title,
     rootFile,
+    defaultBibliographyFile,
     engine,
   })
 
@@ -200,6 +212,11 @@ interface RenameProjectBody {
   title?: string
 }
 
+interface PatchProjectMetadataBody {
+  rootFile?: string | null
+  defaultBibliographyFile?: string | null
+}
+
 export async function renameProjectRoute(
   req: FastifyRequest<{ Params: ProjectParams; Body: RenameProjectBody }>,
   reply: FastifyReply,
@@ -227,6 +244,84 @@ export async function renameProjectRoute(
   await touchProjectActivity(projectId)
 
   reply.send({ ok: true })
+}
+
+export async function patchProjectMetadataRoute(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const params = (req.params ?? {}) as Partial<ProjectParams>
+  const body = (req.body ?? {}) as PatchProjectMetadataBody
+  const projectId = String(params.projectId ?? '')
+
+  if (!isValidProjectId(projectId)) {
+    reply.status(400).send({ error: 'Invalid project ID' })
+    return
+  }
+
+  const hasRootFile = Object.prototype.hasOwnProperty.call(body, 'rootFile')
+  const hasDefaultBibliographyFile = Object.prototype.hasOwnProperty.call(body, 'defaultBibliographyFile')
+
+  if (!hasRootFile && !hasDefaultBibliographyFile) {
+    reply.status(400).send({ error: 'No metadata fields supplied' })
+    return
+  }
+
+  let normalizedRootFile: string | undefined
+  if (hasRootFile) {
+    if (body.rootFile == null) {
+      reply.status(400).send({ error: 'rootFile cannot be null' })
+      return
+    }
+    const nextRootFile = normalizeRelativePath(body.rootFile)
+    if (!nextRootFile) {
+      reply.status(400).send({ error: 'Invalid rootFile path' })
+      return
+    }
+    normalizedRootFile = nextRootFile
+  }
+
+  let normalizedDefaultBibliographyFile: string | null | undefined
+  if (hasDefaultBibliographyFile) {
+    normalizedDefaultBibliographyFile = body.defaultBibliographyFile == null
+      ? null
+      : normalizeRelativePath(body.defaultBibliographyFile)
+    if (body.defaultBibliographyFile != null && !normalizedDefaultBibliographyFile) {
+      reply.status(400).send({ error: 'Invalid defaultBibliographyFile path' })
+      return
+    }
+  }
+
+  const access = await ensureProjectAccess(projectId, req.principal, false)
+  if (!access.ok) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  const updated = await updateProjectMetadataDefaults({
+    projectId,
+    ...(hasRootFile ? { rootFile: normalizedRootFile } : {}),
+    ...(hasDefaultBibliographyFile ? { defaultBibliographyFile: normalizedDefaultBibliographyFile } : {}),
+  })
+
+  if (!updated) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
+    reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  reply.send({
+    id: project.id,
+    title: project.title,
+    rootFile: project.root_file,
+    defaultBibliographyFile: project.default_bibliography_file,
+    engine: project.engine,
+  })
 }
 
 export async function deleteProjectRoute(

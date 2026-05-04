@@ -10,8 +10,10 @@ import {
   FileText,
   Folder,
   FolderPlus,
+  BookMarked,
   MoreHorizontal,
   Pencil,
+  Play,
   Plus,
   Trash2,
   Upload,
@@ -51,6 +53,10 @@ export interface FileTreeProps {
   onSelectPersistent: (path: string) => void
   onRename: (path: string, nextPath: string) => boolean
   onDelete: (path: string) => boolean
+  entrypointPath: string | null
+  defaultBibliographyPath: string | null
+  onSetEntrypoint: (path: string) => Promise<void>
+  onSetDefaultBibliography: (path: string | null) => Promise<void>
 }
 
 interface TreeNode {
@@ -397,6 +403,8 @@ function TreeItem({
   onRenameChange,
   onRenameConfirm,
   onRenameCancel,
+  entrypointPath,
+  defaultBibliographyPath,
 }: {
   node: TreeNode
   activeFile: string
@@ -425,6 +433,8 @@ function TreeItem({
   onRenameChange: (v: string) => void
   onRenameConfirm: () => void
   onRenameCancel: () => void
+  entrypointPath: string | null
+  defaultBibliographyPath: string | null
 }) {
   const expanded = expandedFolders.has(node.path)
   const canSelect = !node.isDir
@@ -434,6 +444,8 @@ function TreeItem({
   const isSelected = selectedPaths.has(node.path)
   const isDropTarget = node.isDir && node.path === dropTarget
   const isRenaming = renaming?.path === node.path && !isUploading
+  const isEntrypoint = !node.isDir && entrypointPath === node.path
+  const isDefaultBibliography = !node.isDir && defaultBibliographyPath === node.path
 
   if (node.isDir) {
     if (isRenaming) {
@@ -501,6 +513,8 @@ function TreeItem({
                   onRenameChange={onRenameChange}
                   onRenameConfirm={onRenameConfirm}
                   onRenameCancel={onRenameCancel}
+                  entrypointPath={entrypointPath}
+                  defaultBibliographyPath={defaultBibliographyPath}
                 />
               ))}
             </div>
@@ -615,6 +629,8 @@ function TreeItem({
                 onRenameChange={onRenameChange}
                 onRenameConfirm={onRenameConfirm}
                 onRenameCancel={onRenameCancel}
+                entrypointPath={entrypointPath}
+                defaultBibliographyPath={defaultBibliographyPath}
               />
             ))}
             {inlineInput && inlineInput.folder === node.path && (
@@ -746,24 +762,39 @@ function TreeItem({
       <FileIcon name={node.name} nodeType={node.nodeType} />
       <span className="truncate">{node.name}</span>
       <div className="ml-auto">
-        <button
-          onClick={(e) => {
-            if (isUploading) {
-              return
-            }
-            e.stopPropagation()
-            const rect = e.currentTarget.getBoundingClientRect()
-            onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
-          }}
-          className={`rounded p-0.5 text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${
-            isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'
-          }`}
-          title="File actions"
-          aria-label="File actions"
-          disabled={isUploading}
-        >
-          <MoreHorizontal size={14} />
-        </button>
+        {isEntrypoint || isDefaultBibliography ? (
+          <div className={`flex items-center gap-1 text-cz-text-muted transition-opacity ${isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+            {isEntrypoint && (
+              <span title="Project entrypoint" aria-label="Project entrypoint" className="inline-flex rounded p-0.5">
+                <Play size={14} className="text-cz-accent" />
+              </span>
+            )}
+            {isDefaultBibliography && (
+              <span title="Default bibliography" aria-label="Default bibliography" className="inline-flex rounded p-0.5">
+                <BookMarked size={14} className="text-cz-accent" />
+              </span>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={(e) => {
+              if (isUploading) {
+                return
+              }
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              onOpenMenu('row-action', node.path, { x: rect.right, y: rect.bottom })
+            }}
+            className={`rounded p-0.5 text-cz-text-muted transition-opacity hover:bg-cz-surface-hover hover:text-cz-text ${
+              isUploading ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            title="File actions"
+            aria-label="File actions"
+            disabled={isUploading}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -784,6 +815,10 @@ export function FileTree({
   onSelectPersistent,
   onRename,
   onDelete,
+  entrypointPath,
+  defaultBibliographyPath,
+  onSetEntrypoint,
+  onSetDefaultBibliography,
 }: FileTreeProps) {
   const [popup, setPopup] = useState<FilePopupState | null>(null)
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>(null)
@@ -1500,6 +1535,9 @@ export function FileTree({
     const nodeEntry = entries.find((e) => e.path === path)
     const nodeType = nodeEntry?.meta.type ?? meta.type
     const isDir = nodeType === 'folder' || entries.some((e) => e.path.startsWith(path + '/'))
+    const isEntrypoint = entrypointPath === path
+    const isDefaultBibliography = defaultBibliographyPath === path
+    const isBibliographyCandidate = path.toLowerCase().endsWith('.bib')
 
     if (isDir) {
       return [
@@ -1512,10 +1550,31 @@ export function FileTree({
     }
 
     return [
+      {
+        icon: Play,
+        name: isEntrypoint ? 'Entrypoint' : 'Set as Entrypoint',
+        disabled: isEntrypoint,
+        action: () => {
+          void onSetEntrypoint(path).catch((err) => {
+            openAlert(String(err instanceof Error ? err.message : err), 'Could not update entrypoint')
+          })
+        },
+      },
+      ...(isBibliographyCandidate ? [
+        {
+          icon: BookMarked,
+          name: isDefaultBibliography ? 'Clear Default Bibliography' : 'Set as Default Bibliography',
+          action: () => {
+            void onSetDefaultBibliography(isDefaultBibliography ? null : path).catch((err) => {
+              openAlert(String(err instanceof Error ? err.message : err), 'Could not update default bibliography')
+            })
+          },
+        },
+      ] : []),
       { icon: Pencil, name: 'Rename', action: () => openRename(path, nodeType) },
       { icon: Trash2, name: 'Delete', action: () => openDelete(path, nodeType), danger: true },
     ]
-  }, [fileMap, entries, openRename, openDelete, selectedPaths])
+  }, [fileMap, entries, openRename, openDelete, selectedPaths, entrypointPath, defaultBibliographyPath, onSetEntrypoint, onSetDefaultBibliography, openAlert])
 
   // +New / empty space menu items — always add to root
   const newMenuItems: ContextMenuItem[] = useMemo(() => [
@@ -1667,6 +1726,8 @@ export function FileTree({
           onRenameChange={(v) => setRenaming((prev) => prev ? { ...prev, value: v } : prev)}
           onRenameConfirm={confirmRename}
           onRenameCancel={cancelRename}
+          entrypointPath={entrypointPath}
+          defaultBibliographyPath={defaultBibliographyPath}
         />
       ))}
 

@@ -18,6 +18,8 @@ const defaults = {
   onModeChange: () => {},
   onOpenShare: () => {},
   onCompile: () => {},
+  onCompileCurrentFile: () => {},
+  canCompileCurrentFile: false,
   onClearCompileOutput: () => {},
   hasCompiledOutput: false,
   clearingCompileOutput: false,
@@ -31,6 +33,7 @@ const defaults = {
   activeFile: "",
   activeEditors: [],
   onFocusCollaborator: () => {},
+  onOpenReferenceLookup: () => {},
   projectFormat: "latex" as const,
   onExport: () => {},
   exporting: false,
@@ -42,25 +45,19 @@ const defaults = {
 };
 
 describe("Toolbar", () => {
-  it("shows placeholder when no file is selected", () => {
+  it("shows reference lookup button when no file is selected", () => {
     render(<Toolbar {...defaults} activeFile="" />);
-    const placeholder = screen.getByText("No file selected");
-    expect(placeholder).toBeInTheDocument();
-    expect(placeholder.tagName).toBe("SPAN");
-    expect(placeholder.className).toContain("italic");
+    expect(screen.getByRole('button', { name: 'Open reference lookup' })).toBeInTheDocument()
   });
 
   it("shows breadcrumbs when a file is selected", () => {
     render(<Toolbar {...defaults} activeFile="src/main.tex" />);
-    expect(screen.queryByText("No file selected")).toBeNull();
-    expect(screen.getByText("src")).toBeInTheDocument();
-    expect(screen.getByText("main.tex")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open reference lookup' })).toBeInTheDocument()
   });
 
   it("shows single segment for root-level file", () => {
     render(<Toolbar {...defaults} activeFile="main.tex" />);
-    expect(screen.queryByText("No file selected")).toBeNull();
-    expect(screen.getByText("main.tex")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open reference lookup' })).toBeInTheDocument()
   });
 
   it("renders clear output action in compile menu and disables it without compiled output", () => {
@@ -92,4 +89,21 @@ describe("Toolbar", () => {
 
     expect(onClearCompileOutput).toHaveBeenCalledTimes(1);
   });
+
+  it('invokes compile current file action when enabled in compile menu', () => {
+    const onCompileCurrentFile = vi.fn<() => void>()
+
+    render(
+      <Toolbar
+        {...defaults}
+        canCompileCurrentFile={true}
+        onCompileCurrentFile={onCompileCurrentFile}
+      />,
+    )
+
+    fireEvent.click(screen.getByLabelText('Compile options'))
+    fireEvent.click(screen.getByRole('button', { name: 'Compile current file' }))
+
+    expect(onCompileCurrentFile).toHaveBeenCalledTimes(1)
+  })
 });

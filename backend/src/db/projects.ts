@@ -21,6 +21,7 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
       p.id,
       p.title,
       p.root_file,
+      p.default_bibliography_file,
       p.engine,
       p.created_at,
       p.last_active_at,
@@ -43,6 +44,7 @@ export async function listProjectsForPrincipal(principal: Principal): Promise<Pr
     id: row.id as string,
     title: row.title as string,
     rootFile: row.root_file as string,
+    defaultBibliographyFile: row.default_bibliography_file as string | null,
     engine: row.engine as string | null,
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
@@ -58,6 +60,7 @@ export async function createProjectForPrincipal(input: {
   principal: Principal
   title?: string
   rootFile?: string
+  defaultBibliographyFile?: string | null
   engine?: string | null
 }): Promise<ProjectSummary> {
   const { projectId, principal } = input
@@ -68,14 +71,15 @@ export async function createProjectForPrincipal(input: {
 
   const title = normalizeTitle(input.title)
   const rootFile = normalizeRelativePath(input.rootFile) ?? 'main.tex'
+  const defaultBibliographyFile = normalizeRelativePath(input.defaultBibliographyFile) ?? null
   const engine = input.engine ?? null
 
   await runWithIdentityContext(null, 'system', async () => {
     await sql.begin(async (tx) => {
       await tx`
         INSERT INTO projects (
-          id, title, root_file, engine, owner_user_id, created_at, last_active_at
-        ) VALUES (${projectId}, ${title}, ${rootFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+          id, title, root_file, default_bibliography_file, engine, owner_user_id, created_at, last_active_at
+        ) VALUES (${projectId}, ${title}, ${rootFile}, ${defaultBibliographyFile}, ${engine}, ${userId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
       `
 
       await tx`
@@ -107,6 +111,7 @@ export async function createProjectForPrincipal(input: {
     id: projectId,
     title,
     rootFile,
+    defaultBibliographyFile,
     engine,
     createdAt: nowUnix(),
     lastActiveAt: nowUnix(),
@@ -126,6 +131,38 @@ export async function renameProject(projectId: string, title: string): Promise<b
   const result = await sql`
     UPDATE projects SET title = ${normalized}, last_active_at = extract(epoch from now())::integer WHERE id = ${projectId} AND deleted_at IS NULL
   `
+  return result.count > 0
+}
+
+export async function updateProjectMetadataDefaults(input: {
+  projectId: string
+  rootFile?: string | null
+  defaultBibliographyFile?: string | null
+}): Promise<boolean> {
+  const updates: string[] = []
+  const values: Array<string | null> = []
+
+  if (Object.prototype.hasOwnProperty.call(input, 'rootFile')) {
+    const normalized = normalizeRelativePath(input.rootFile)
+    updates.push(`root_file = $${updates.length + 1}`)
+    values.push(normalized)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'defaultBibliographyFile')) {
+    const normalized = normalizeRelativePath(input.defaultBibliographyFile)
+    updates.push(`default_bibliography_file = $${updates.length + 1}`)
+    values.push(normalized)
+  }
+
+  if (updates.length === 0) {
+    return false
+  }
+
+  const result = await sql.unsafe(
+    `UPDATE projects SET ${updates.join(', ')}, last_active_at = extract(epoch from now())::integer WHERE id = $${updates.length + 1} AND deleted_at IS NULL`,
+    [...values, input.projectId],
+  )
+
   return result.count > 0
 }
 
@@ -197,6 +234,7 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
       p.id,
       p.title,
       p.root_file,
+      p.default_bibliography_file,
       p.engine,
       p.created_at,
       p.last_active_at,
@@ -219,6 +257,7 @@ export async function listTrashForPrincipal(principal: Principal): Promise<Array
     id: row.id as string,
     title: row.title as string,
     rootFile: row.root_file as string,
+    defaultBibliographyFile: row.default_bibliography_file as string | null,
     engine: row.engine as string | null,
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,

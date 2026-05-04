@@ -8,6 +8,7 @@
       "tags": ["blank", "starter"],
       "description": "A minimal LaTeX starter document.",
       "entrypoint": "main.tex",
+      "defaultBibliographyFile": null,
       "isBlank": true,
       "files": [
         {
@@ -24,6 +25,7 @@
       "tags": ["paper", "two-column", "ieee"],
       "description": "Double-column paper format for IEEE conference submissions.",
       "entrypoint": "main.tex",
+      "defaultBibliographyFile": "refs.bib",
       "files": [
         {
           "path": "main.tex",
@@ -43,6 +45,7 @@
       "tags": ["report", "business"],
       "description": "Single-column report with sections and bibliography stub.",
       "entrypoint": "main.tex",
+      "defaultBibliographyFile": null,
       "files": [
         {
           "path": "main.tex",
@@ -58,6 +61,7 @@
       "tags": ["blank", "starter"],
       "description": "A minimal Typst starter document.",
       "entrypoint": "main.typ",
+      "defaultBibliographyFile": null,
       "isBlank": true,
       "files": [
         {
@@ -74,6 +78,7 @@
       "tags": ["paper", "apa"],
       "description": "Academic paper layout with title, abstract, and references section.",
       "entrypoint": "main.typ",
+      "defaultBibliographyFile": null,
       "files": [
         {
           "path": "main.typ",
@@ -89,6 +94,7 @@
       "tags": ["slides", "deck"],
       "description": "A concise Typst slides starter deck.",
       "entrypoint": "main.typ",
+      "defaultBibliographyFile": null,
       "files": [
         {
           "path": "main.typ",
@@ -104,6 +110,7 @@
       "tags": ["blank", "starter"],
       "description": "A minimal Markdown document with live preview.",
       "entrypoint": "main.md",
+      "defaultBibliographyFile": null,
       "isBlank": true,
       "files": [
         {
@@ -120,6 +127,7 @@
       "tags": ["blank", "starter", "whiteboard"],
       "description": "A blank Excalidraw whiteboard starter scene.",
       "entrypoint": "scene.excalidraw",
+      "defaultBibliographyFile": null,
       "isBlank": true,
       "files": [
         {
@@ -136,6 +144,7 @@
       "tags": ["blank", "starter"],
       "description": "A minimal AsciiDoc document with live preview.",
       "entrypoint": "main.adoc",
+      "defaultBibliographyFile": null,
       "isBlank": true,
       "files": [
         {

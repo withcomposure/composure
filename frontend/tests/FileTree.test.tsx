@@ -87,6 +87,8 @@ function createFileTreeHarness() {
 
   const onSelect = vi.fn<(path: string) => void>()
   const onSelectPersistent = vi.fn<(path: string) => void>()
+  const onSetEntrypoint = vi.fn<(path: string) => Promise<void>>().mockResolvedValue(undefined)
+  const onSetDefaultBibliography = vi.fn<(path: string | null) => Promise<void>>().mockResolvedValue(undefined)
 
   const view = render(
     <FileTree
@@ -96,6 +98,10 @@ function createFileTreeHarness() {
       shareHeaders={{}}
       activeFile=""
       isDocumentLoading={false}
+      entrypointPath={null}
+      defaultBibliographyPath={null}
+      onSetEntrypoint={onSetEntrypoint}
+      onSetDefaultBibliography={onSetDefaultBibliography}
       onSelect={onSelect}
       onSelectPersistent={onSelectPersistent}
       onRename={() => true}

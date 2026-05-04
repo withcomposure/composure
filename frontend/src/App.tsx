@@ -69,7 +69,7 @@ function providerLabel(provider: string): string {
 }
 
 export default function App() {
-  type ProjectWorkspaceMetadata = Pick<ProjectSummary, 'id' | 'title' | 'rootFile' | 'engine'>
+  type ProjectWorkspaceMetadata = Pick<ProjectSummary, 'id' | 'title' | 'rootFile' | 'engine' | 'defaultBibliographyFile'>
 
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [oauthProfileCompletion, setOAuthProfileCompletion] = useState<{
@@ -138,6 +138,7 @@ export default function App() {
         id: project.id,
         title: project.title,
         rootFile: project.rootFile,
+        defaultBibliographyFile: project.defaultBibliographyFile ?? null,
         engine: project.engine,
       })
     }
@@ -146,6 +147,7 @@ export default function App() {
         id: project.id,
         title: project.title,
         rootFile: project.rootFile,
+        defaultBibliographyFile: project.defaultBibliographyFile ?? null,
         engine: project.engine,
       })
     }
@@ -154,6 +156,7 @@ export default function App() {
         id: project.id,
         title: project.title,
         rootFile: project.rootFile,
+        defaultBibliographyFile: project.defaultBibliographyFile ?? null,
         engine: project.engine,
       })
     }
@@ -1185,6 +1188,8 @@ export default function App() {
         <ProjectWorkspace
           projectId={route.projectId}
           projectTitle={activeProjectMetadata?.title ?? 'Untitled project'}
+          entrypoint={activeProjectMetadata?.rootFile ?? ''}
+          defaultBibliographyFile={activeProjectMetadata?.defaultBibliographyFile ?? null}
           onRenameProject={patchActiveProjectTitle}
           session={{
             accountLabel,

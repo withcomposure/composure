@@ -33,6 +33,8 @@ interface ToolbarProps {
   onModeChange: (mode: 'view' | 'comment' | 'edit') => void
   onOpenShare: () => void
   onCompile: () => void
+  onCompileCurrentFile: () => void
+  canCompileCurrentFile: boolean
   onClearCompileOutput: () => void
   hasCompiledOutput: boolean
   clearingCompileOutput: boolean
@@ -46,6 +48,7 @@ interface ToolbarProps {
   activeFile: string
   activeEditors: ActiveEditor[]
   onFocusCollaborator: (clientId: number) => void
+  onOpenReferenceLookup: () => void
   projectFormat: 'latex' | 'typst' | 'markdown' | 'asciidoc'
   onExport: (format: string) => void
   exporting: boolean
@@ -81,6 +84,8 @@ export function Toolbar({
   onModeChange,
   onOpenShare,
   onCompile,
+  onCompileCurrentFile,
+  canCompileCurrentFile,
   onClearCompileOutput,
   hasCompiledOutput,
   clearingCompileOutput,
@@ -94,6 +99,7 @@ export function Toolbar({
   activeFile,
   activeEditors,
   onFocusCollaborator,
+  onOpenReferenceLookup,
   projectFormat,
   onExport,
   exporting,
@@ -146,34 +152,29 @@ export function Toolbar({
           {sidebarOpen ? <PanelLeftClose size={16} strokeWidth={1.7} /> : <PanelLeftOpen size={16} strokeWidth={1.7} />}
         </button>
 
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex min-w-0 items-center gap-1.5 text-xs">
-          {displayFileName ? displayFileName.split('/').map((segment, i, arr) => (
-            <span key={i} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-cz-text-muted opacity-40">/</span>}
-              <span className={i === arr.length - 1 ? 'text-cz-text font-medium' : 'text-cz-text-muted'}>
-                {segment}
-              </span>
-            </span>
-          )) : (
-            <span className="italic text-cz-text-muted">No file selected</span>
-          )}
-          </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenReferenceLookup}
+            className="rounded-md border border-cz-border px-2.5 py-1.5 text-xs font-medium text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+            aria-label="Open reference lookup"
+            title="Reference lookup"
+          >
+            Reference Lookup
+          </button>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onSave}
-              disabled={saving || !canEdit}
-              className={`inline-flex items-center gap-2 rounded-md px-2 py-2 text-xs text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60 ${saving ? 'cursor-wait' : ''}`}
-              title={`${connectionLabel}${saving ? '. Saving...' : ''}`}
-              aria-label={`${connectionLabel}${saving ? ', saving' : ''}`}
-            >
-              <span className={`h-2 w-2 rounded-full ${connectionDotClass}`} />
-            </button>
-            {showConnectionLabel && (
-              <span className="text-xs text-cz-text-muted">{connectionLabel}</span>
-            )}
-          </div>
+          <button
+            onClick={onSave}
+            disabled={saving || !canEdit}
+            className={`inline-flex items-center gap-2 rounded-md px-2 py-2 text-xs text-cz-text-muted transition-colors hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60 ${saving ? 'cursor-wait' : ''}`}
+            title={`${connectionLabel}${saving ? '. Saving...' : ''}`}
+            aria-label={`${connectionLabel}${saving ? ', saving' : ''}`}
+          >
+            <span className={`h-2 w-2 rounded-full ${connectionDotClass}`} />
+          </button>
+          {showConnectionLabel && (
+            <span className="text-xs text-cz-text-muted">{connectionLabel}</span>
+          )}
         </div>
       </div>
 
@@ -244,6 +245,26 @@ export function Toolbar({
                   ariaLabel="Toggle Auto-Compile"
                 />
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canCompileCurrentFile) {
+                    return
+                  }
+                  onCompileCurrentFile()
+                  setShowCompileMenu(false)
+                }}
+                disabled={!canCompileCurrentFile || compiling}
+                className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canCompileCurrentFile && !compiling ? 'text-cz-text hover:bg-cz-surface-hover' : 'cursor-not-allowed text-cz-text-muted opacity-60'}`}
+                title={canCompileCurrentFile ? 'Compile from the last editor tab that had cursor focus' : 'Focus an editor tab to enable compile-current-file'}
+                aria-label="Compile current file"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Play size={14} className={'text-cz-text-muted'} />
+                  <span>Compile Current File</span>
+                </span>
+              </button>
 
               <button
                 type="button"

@@ -176,6 +176,7 @@ export async function applySchema(instance: postgres.Sql): Promise<void> {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT 'Untitled',
       root_file TEXT NOT NULL DEFAULT 'main.tex',
+      default_bibliography_file TEXT,
       engine TEXT,
       owner_user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT extract(epoch from now())::integer,

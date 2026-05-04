@@ -74,6 +74,7 @@ import {
   listProjectsRoute,
   listRecentProjectsRoute,
   listTemplatesRoute,
+  patchProjectMetadataRoute,
   listTrashRoute,
   markProjectOpenedRoute,
   permanentDeleteProjectRoute,
@@ -86,6 +87,7 @@ import {
 } from './workspace-state.js'
 import { dispatchClearPreview, dispatchCompile, dispatchPreview } from './compile-dispatch.js'
 import { bibliographyRoute } from './bibliography.js'
+import { referenceSearchRoute } from './references.js'
 import { exportRoute } from './export.js'
 import { uploadRoute, deleteAssetRoute, listAssetsRoute, assetStore, isValidStorageKey } from './storage.js'
 import {
@@ -432,6 +434,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         properties: {
           title: { type: 'string', maxLength: 120 },
           rootFile: { type: 'string', maxLength: 512 },
+          defaultBibliographyFile: { type: 'string', maxLength: 512 },
           templateId: { type: 'string', maxLength: 120 },
         },
         additionalProperties: true,
@@ -463,6 +466,26 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.post(apiPath('/projects/:projectId/restore'), restoreProjectRoute)
   app.delete(apiPath('/projects/:projectId/permanent'), permanentDeleteProjectRoute)
   app.get(apiPath('/projects/:projectId/metadata'), getProjectMetadataRoute)
+  app.patch(apiPath('/projects/:projectId/metadata'), {
+    preHandler: requireProjectParamAccess('edit', false),
+    schema: {
+      params: {
+        type: 'object',
+        required: ['projectId'],
+        properties: {
+          projectId: { type: 'string', pattern: '^[a-f0-9]{32}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          rootFile: { type: ['string', 'null'], minLength: 1, maxLength: 512 },
+          defaultBibliographyFile: { type: ['string', 'null'], minLength: 1, maxLength: 512 },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, patchProjectMetadataRoute)
   app.get(apiPath('/projects/:projectId/access'), getProjectAccessRoute)
   app.get(apiPath('/projects/:projectId/workspace-state'), getProjectWorkspaceStateRoute)
   app.patch(apiPath('/projects/:projectId/workspace-state'), {
@@ -815,6 +838,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get(apiPath('/bibliography/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, bibliographyRoute)
+  app.get(apiPath('/references/search'), {
+    schema: {
+      querystring: {
+        type: 'object',
+        required: ['source', 'term'],
+        properties: {
+          source: { type: 'string', minLength: 1, maxLength: 32 },
+          field: { type: 'string', minLength: 1, maxLength: 32 },
+          term: { type: 'string', minLength: 1, maxLength: 512 },
+          maxResults: { type: 'string', minLength: 1, maxLength: 3 },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, referenceSearchRoute)
   app.post(apiPath('/export/:projectId'), {
     preHandler: requireProjectParamAccess('view', false),
   }, exportRoute)

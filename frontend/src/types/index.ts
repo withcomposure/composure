@@ -15,6 +15,7 @@ export interface ProjectSummary {
   id: string
   title: string
   rootFile: string
+  defaultBibliographyFile?: string | null
   engine: ProjectEngine | null
   createdAt: number
   lastActiveAt: number
@@ -34,6 +35,7 @@ export interface TrashedProjectSummary {
   id: string
   title: string
   rootFile: string
+  defaultBibliographyFile?: string | null
   engine: ProjectEngine | null
   createdAt: number
   deletedAt: number
@@ -215,5 +217,6 @@ export interface ProjectTemplate {
   category: string
   tags: string[]
   entrypoint: string
+  defaultBibliographyFile: string | null
   isBlank: boolean
 }
