@@ -92,7 +92,7 @@ import {
   writeWhiteboardSceneToYDoc,
 } from '../src/whiteboard/useWhiteboardCollab'
 
-function createMockExcalidrawApi(): {
+function createMockExcalidrawApi(options?: { keepListenersOnUnsubscribe?: boolean }): {
   api: ExcalidrawImperativeAPI
   addFiles: ReturnType<typeof vi.fn>
   updateScene: ReturnType<typeof vi.fn>
@@ -117,6 +117,9 @@ function createMockExcalidrawApi(): {
   ) => void) => {
     changeListeners.add(listener)
     return () => {
+      if (options?.keepListenersOnUnsubscribe) {
+        return
+      }
       changeListeners.delete(listener)
     }
   })
@@ -376,6 +379,76 @@ describe('whiteboard collaboration scene persistence', () => {
     ydoc.destroy()
   })
 
+  it('does not apply metadata from stale full snapshots when element updates are rejected', () => {
+    const ydoc = new Y.Doc()
+
+    const currentElement = {
+      id: 'stale-metadata-el',
+      type: 'rectangle',
+      version: 7,
+      versionNonce: 22,
+      isDeleted: false,
+      index: 'a0',
+    } as unknown as OrderedExcalidrawElement
+
+    const currentFiles = {
+      'file-current': {
+        id: 'file-current',
+        mimeType: 'image/png',
+        dataURL: 'data:image/png;base64,current',
+        created: 1,
+      },
+    } as unknown as BinaryFiles
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [currentElement],
+        appState: {
+          viewBackgroundColor: '#0f172a',
+        } as Partial<AppState>,
+        files: currentFiles,
+      },
+      'test:seed-current-metadata',
+    )
+
+    const staleFiles = {
+      'file-stale': {
+        id: 'file-stale',
+        mimeType: 'image/png',
+        dataURL: 'data:image/png;base64,stale',
+        created: 2,
+      },
+    } as unknown as BinaryFiles
+
+    writeWhiteboardSceneToYDoc(
+      ydoc,
+      {
+        elements: [
+          {
+            ...currentElement,
+            version: 6,
+            versionNonce: 21,
+          } as unknown as OrderedExcalidrawElement,
+        ],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+          theme: 'dark',
+        } as Partial<AppState>,
+        files: staleFiles,
+      },
+      'test:stale-full-metadata-snapshot',
+    )
+
+    const scene = readWhiteboardSceneFromYDoc(ydoc)
+    expect(scene.appState.viewBackgroundColor).toBe('#0f172a')
+    expect(scene.appState.theme).toBeUndefined()
+    expect(Object.keys(scene.files)).toContain('file-current')
+    expect(Object.keys(scene.files)).not.toContain('file-stale')
+
+    ydoc.destroy()
+  })
+
   it('migrates legacy scene text document into structured maps', () => {
     const ydoc = new Y.Doc()
 
@@ -532,6 +605,90 @@ describe('whiteboard collaboration scene persistence', () => {
     const sceneAfterEarlyChange = readWhiteboardSceneFromYDoc(ydoc)
     expect(sceneAfterEarlyChange.elements.map((element) => element.id)).toContain('persisted-el')
     expect(sceneAfterEarlyChange.appState.viewBackgroundColor).toBe('#0f172a')
+  })
+
+  it('ignores stale onChange listeners from replaced APIs in the same project', async () => {
+    const { result } = renderHook(() => useWhiteboardCollab({
+      projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      rootFile: 'scene.excalidraw',
+      canWrite: true,
+      localUser: {
+        name: 'Owner',
+        userId: 'user-1',
+        guestId: null,
+        profileImageUrl: null,
+      },
+    }))
+
+    await waitFor(() => {
+      expect(result.current.isSynced).toBe(true)
+    })
+
+    const ydoc = hocuspocusMockState.lastDocument as Y.Doc | null
+    expect(ydoc).toBeTruthy()
+    if (!ydoc) {
+      throw new Error('expected mock collaboration document to be available')
+    }
+
+    const persistedElement = {
+      id: 'persisted-rebind-el',
+      type: 'rectangle',
+      version: 3,
+      versionNonce: 12,
+      index: 'a0',
+      isDeleted: false,
+    } as unknown as OrderedExcalidrawElement
+
+    act(() => {
+      writeWhiteboardSceneToYDoc(
+        ydoc,
+        {
+          elements: [persistedElement],
+          appState: {
+            viewBackgroundColor: '#0f172a',
+          } as Partial<AppState>,
+          files: {} as BinaryFiles,
+        },
+        'test:seed-rebind-guard',
+      )
+    })
+
+    const firstApi = createMockExcalidrawApi({ keepListenersOnUnsubscribe: true })
+    act(() => {
+      result.current.setExcalidrawApi(firstApi.api)
+    })
+
+    await waitFor(() => {
+      expect(firstApi.onChange).toHaveBeenCalled()
+    })
+
+    const replacementApi = createMockExcalidrawApi()
+    act(() => {
+      result.current.setExcalidrawApi(replacementApi.api)
+    })
+
+    await waitFor(() => {
+      const appliedSceneFromDoc = replacementApi.updateScene.mock.calls.some(([payload]) => (
+        typeof payload === 'object'
+          && payload !== null
+          && Object.prototype.hasOwnProperty.call(payload as object, 'elements')
+      ))
+      expect(appliedSceneFromDoc).toBe(true)
+    })
+
+    act(() => {
+      firstApi.emitChange(
+        [persistedElement],
+        {
+          viewBackgroundColor: '#ffffff',
+        } as AppState,
+        {} as BinaryFiles,
+      )
+    })
+
+    const sceneAfterStaleListener = readWhiteboardSceneFromYDoc(ydoc)
+    expect(sceneAfterStaleListener.elements.map((element) => element.id)).toContain('persisted-rebind-el')
+    expect(sceneAfterStaleListener.appState.viewBackgroundColor).toBe('#0f172a')
   })
 
   it('does not clear persisted scene when a late empty onChange snapshot arrives', async () => {

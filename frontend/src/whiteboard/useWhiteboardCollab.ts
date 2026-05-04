@@ -322,6 +322,7 @@ export function writeWhiteboardSceneToYDoc(
       ? dedupeIds(currentOrder)
       : dedupeIds(Array.from(elementsMap.keys()))
     let didApplyAnyElementUpdate = false
+    let didRejectAnyIncomingElementUpdate = false
 
     for (const element of scene.elements) {
       const serialized = JSON.stringify(element)
@@ -330,6 +331,7 @@ export function writeWhiteboardSceneToYDoc(
         continue
       }
       if (!shouldAcceptIncomingElement(existingRawValue, element)) {
+        didRejectAnyIncomingElementUpdate = true
         continue
       }
 
@@ -340,6 +342,8 @@ export function writeWhiteboardSceneToYDoc(
     }
 
     const incomingSnapshotIsComplete = snapshotCoversExistingElements(existingElementIds, scene.elements)
+    const shouldApplyMetadata = didApplyAnyElementUpdate
+      || (incomingSnapshotIsComplete && !didRejectAnyIncomingElementUpdate)
 
     // Merge element order so partial snapshots cannot drop existing elements.
     const nextOrder = mergeElementOrder(currentOrder, toSortedIds(scene.elements))
@@ -350,7 +354,7 @@ export function writeWhiteboardSceneToYDoc(
       }
     }
 
-    if (incomingSnapshotIsComplete || didApplyAnyElementUpdate) {
+    if (shouldApplyMetadata) {
       for (const [fileId, file] of Object.entries(scene.files)) {
         const serialized = JSON.stringify(file)
         if (filesMap.get(fileId) !== serialized) {
@@ -466,6 +470,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const [activeCollaborators, setActiveCollaborators] = useState<WhiteboardPresenceUser[]>([])
   const ydocProjectIdRef = useRef(projectId)
   const activeProjectIdRef = useRef(projectId)
+  const activeExcalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const sceneHydratedForWritesRef = useRef(false)
   const suppressLocalSceneWritesRef = useRef(false)
   const suppressLocalSceneWritesTokenRef = useRef(0)
@@ -524,6 +529,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     setIsSynced(false)
     setInitialScene(null)
     setExcalidrawApiState(null)
+    activeExcalidrawApiRef.current = null
     sceneHydratedForWritesRef.current = false
     setYdoc(() => new Y.Doc())
   }, [projectId])
@@ -566,6 +572,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       nextProvider.destroy()
       setProvider(null)
       setExcalidrawApiState(null)
+      activeExcalidrawApiRef.current = null
       setCollaborators(new Map())
       setActiveCollaborators([])
       setConnectionState('connecting')
@@ -765,7 +772,11 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       return
     }
 
-    const unsubscribe = excalidrawApi.onChange((elements, appState, files) => {
+    const subscribedApi = excalidrawApi
+    const unsubscribe = subscribedApi.onChange((elements, appState, files) => {
+      if (activeExcalidrawApiRef.current !== subscribedApi) {
+        return
+      }
       persistSceneSnapshot(elements, appState, files)
     })
 
@@ -779,11 +790,13 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       return
     }
 
-    excalidrawApi.updateScene({
-      collaborators,
-      captureUpdate: CaptureUpdateAction.NEVER,
+    runWithSuppressedLocalSceneWrites(() => {
+      excalidrawApi.updateScene({
+        collaborators,
+        captureUpdate: CaptureUpdateAction.NEVER,
+      })
     })
-  }, [collaborators, excalidrawApi])
+  }, [collaborators, excalidrawApi, runWithSuppressedLocalSceneWrites])
 
   const handleSceneChange = useCallback<NonNullable<ExcalidrawProps['onChange']>>((elements, appState, files) => {
     persistSceneSnapshot(elements, appState, files)
@@ -812,6 +825,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       return
     }
 
+    activeExcalidrawApiRef.current = api
     sceneHydratedForWritesRef.current = false
     setExcalidrawApiState(api)
   }, [projectId])
