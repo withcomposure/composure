@@ -1,5 +1,5 @@
 import { AlertCircle, type LucideIcon } from "lucide-react";
-import { CustomDropdown } from "@/components/CustomDropdown";
+import { IconDropdown } from "@/components/IconDropdown";
 import { NumberStepper } from "@/components/NumberStepper";
 import { PopupDialog } from "@/components/PopupDialog";
 import { SegmentedControl } from "@/components/SegmentedControl";
@@ -157,7 +157,7 @@ export function UserFormModal(props: UserFormModalProps) {
                   Controls administration permissions for this user.
                 </div>
               </div>
-              <CustomDropdown
+              <IconDropdown
                 value={props.role}
                 options={props.roleOptions}
                 onChange={props.onRoleChange}
@@ -227,7 +227,7 @@ export function UserFormModal(props: UserFormModalProps) {
                     : "Controls administration permissions for this user."}
                 </div>
               </div>
-              <CustomDropdown
+              <IconDropdown
                 value={props.role}
                 options={props.roleOptions}
                 onChange={props.onRoleChange}

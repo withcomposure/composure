@@ -14,7 +14,7 @@ interface DropdownOption<T extends string> {
   disabled?: boolean
 }
 
-interface CustomDropdownProps<T extends string> {
+interface IconDropdownProps<T extends string> {
   value: T
   options: Array<DropdownOption<T>>
   onChange: (value: T) => void
@@ -24,7 +24,7 @@ interface CustomDropdownProps<T extends string> {
   menuClassName?: string
 }
 
-export function CustomDropdown<T extends string>({
+export function IconDropdown<T extends string>({
   value,
   options,
   onChange,
@@ -32,7 +32,7 @@ export function CustomDropdown<T extends string>({
   iconOnly = false,
   className = '',
   menuClassName = '',
-}: CustomDropdownProps<T>) {
+}: IconDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)

@@ -2,7 +2,7 @@ import { Avatar } from '@/components/Avatar'
 import { X } from 'lucide-react'
 import { Eye, MessageSquare, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import type { AccessPerson, ShareRole } from '@/types'
 
 interface ShareModalProps {
@@ -106,7 +106,7 @@ export function ShareModal({
                 placeholder="person@example.com"
                 className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-xs text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
               />
-              <CustomDropdown
+              <IconDropdown
                 value={effectiveInviteRole}
                 options={shareRoleOptions}
                 onChange={onInviteRoleChange}
@@ -143,7 +143,7 @@ export function ShareModal({
                     {person.isOwner ? (
                       <span className="rounded-full border border-cz-border px-2 py-1 text-xs text-cz-text">Owner</span>
                     ) : memberId && canManage ? (
-                      <CustomDropdown
+                      <IconDropdown
                         value={roleAllowlist.has(person.role as ShareRole) ? (person.role as ShareRole) : (shareRoleOptions[0]?.value ?? 'view')}
                         options={dropdownOptions}
                         onChange={(value) => onMemberRoleChange(memberId, value)}
@@ -161,7 +161,7 @@ export function ShareModal({
             <div className="mb-3 text-xs uppercase tracking-wider text-cz-text-muted">Link Sharing</div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm text-cz-text-muted">Anyone with this link:</span>
-              <CustomDropdown
+              <IconDropdown
                 value={effectiveLinkRole}
                 options={shareRoleOptions}
                 onChange={onLinkRoleChange}

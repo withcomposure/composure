@@ -23,7 +23,7 @@ import {
   TextCursor,
   Trash2,
 } from "lucide-react";
-import { CustomDropdown } from "@/components/CustomDropdown";
+import { IconDropdown } from "@/components/IconDropdown";
 import { SideDrawer } from "@/components/SideDrawer";
 import { ProfileMenu } from "@/workspace/ProfileMenu";
 import { ProjectCard } from "./ProjectCard";
@@ -554,7 +554,7 @@ export function DashboardView({
           )}
 
           <div className="mb-3 flex items-center justify-end gap-2 text-xs">
-            <CustomDropdown
+            <IconDropdown
               value={dashboardSortBy}
               options={sortOptions}
               onChange={onSortByChange}

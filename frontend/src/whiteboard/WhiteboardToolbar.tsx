@@ -14,7 +14,7 @@ import type {
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { WorkspaceProjectTitle } from '@/components/WorkspaceProjectTitle'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import { useClickOutside } from '@/hooks/use-click-outside'
 import { useEscapeKey } from '@/hooks/use-escape-key'
 import { useMenuPosition } from '@/hooks/use-menu-position'
@@ -295,7 +295,7 @@ export function WhiteboardToolbar({
           onExportSvg={onExportSvg}
         />
 
-        <CustomDropdown
+        <IconDropdown
           value={selectedMode}
           options={modeOptions.map((option) => (
             option.value === 'edit' && !canRoleEdit

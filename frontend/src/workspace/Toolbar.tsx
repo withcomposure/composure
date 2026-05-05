@@ -3,7 +3,7 @@ import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRi
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import { ToggleSwitch } from '@/components/ToggleSwitch'
 import { VersionsDropdown } from './VersionsDropdown'
 import type { HistoryState } from '@/types'
@@ -298,7 +298,7 @@ export function Toolbar({
 
         <VersionsDropdown projectId={projectId} activeFile={displayFileName} onViewDiff={onViewDiff} />
 
-        <CustomDropdown
+        <IconDropdown
           value={mode}
           disabled={inDiffMode}
           iconOnly

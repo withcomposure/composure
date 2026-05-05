@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, AlertTriangle, Camera, History, KeyRound, Lock, Palette, Shield, Type, User } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { BackToProjectsButton } from './BackToProjectsButton'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'
 import { PopupDialog } from '@/components/PopupDialog'
@@ -640,7 +640,7 @@ export function SettingsView({
               <div className="mt-3 border-t border-cz-border pt-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm text-cz-text">Theme</div>
-                  <CustomDropdown
+                  <IconDropdown
                     value={preferences.theme ?? 'default'}
                     options={themeOptions}
                     onChange={(nextTheme) => {

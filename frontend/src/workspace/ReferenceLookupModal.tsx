@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowDownAZ, ArrowDownUp, ArrowUpAZ, BookPlus, Braces, Check, Copy, LibraryBig, ScanSearch, Search, UserRoundSearch, WholeWord, X, type LucideIcon } from 'lucide-react'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
 
 type ReferenceSource = 'arxiv' | 'crossref' | 'pubmed' | 'openalex'
@@ -219,7 +219,7 @@ export function ReferenceLookupModal({
         <div className="flex items-center gap-3 border-b border-cz-border px-4 py-3">
           <Search size={16} className="text-cz-text-muted" />
           <span className="text-sm text-cz-text-muted">Find references in:</span>
-          <CustomDropdown
+          <IconDropdown
             value={source}
             options={referenceSourceOptions}
             onChange={(nextSource) => {
@@ -256,7 +256,7 @@ export function ReferenceLookupModal({
                 >
                   Field
                 </span>
-                <CustomDropdown
+                <IconDropdown
                   value={field}
                   options={referenceFieldOptions}
                   onChange={setField}
@@ -302,13 +302,13 @@ export function ReferenceLookupModal({
             <div className="flex items-center justify-between border-b border-cz-border px-3 py-2">
               <span className="text-xs uppercase tracking-wide text-cz-text-muted">Results</span>
               <div className="flex items-center gap-2">
-                <CustomDropdown
+                <IconDropdown
                   value={sortBy}
                   options={referenceSortOptions}
                   onChange={setSortBy}
                   className="shrink-0"
                 />
-                <CustomDropdown
+                <IconDropdown
                   value={citationFormat}
                   options={citationFormatOptions}
                   onChange={onCitationFormatChange}

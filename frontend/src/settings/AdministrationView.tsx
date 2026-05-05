@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { ActionMenu } from '@/components/ActionMenu'
 import { BackToProjectsButton } from './BackToProjectsButton'
-import { CustomDropdown } from '@/components/CustomDropdown'
+import { IconDropdown } from '@/components/IconDropdown'
 import { MobileDrawerToolbar } from '@/components/MobileDrawerToolbar'
 import { NumberStepper } from '@/components/NumberStepper'
 import { PopupDialog } from '@/components/PopupDialog'
@@ -1473,7 +1473,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                     <strong>TLS/SSL</strong> (e.g., port 465) is encrypted from the start.
                   </div>
                 </div>
-                <CustomDropdown value={smtpEncryption} options={encryptionOptions} onChange={setSmtpEncryption} />
+                <IconDropdown value={smtpEncryption} options={encryptionOptions} onChange={setSmtpEncryption} />
               </div>
 
               {/* Username */}
