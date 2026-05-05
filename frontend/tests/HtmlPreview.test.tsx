@@ -43,7 +43,14 @@ describe('HtmlPreview', () => {
       throw new Error('Expected HtmlPreview to generate a Blob document')
     }
 
-    const srcdoc = await firstBlobArg.text()
+    const srcdoc = typeof firstBlobArg.text === 'function'
+      ? await firstBlobArg.text()
+      : await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read preview blob'))
+        reader.readAsText(firstBlobArg)
+      })
     expect(srcdoc).toContain('width: 100%;')
     expect(srcdoc).toContain('max-width: 100%;')
   })
