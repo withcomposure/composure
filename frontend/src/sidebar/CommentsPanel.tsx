@@ -218,7 +218,7 @@ export function CommentsPanel({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden bg-cz-surface/30">
       <div className="mb-2 px-3 pt-2">
         <div className="text-[10px] font-medium uppercase tracking-widest text-cz-text-muted">Review</div>
         <div
