@@ -89,20 +89,6 @@ body {
   min-height: 0;
 }
 
-.cz-diff-view-container .cm-mergeViewEditors {
-  height: 100%;
-  min-height: 0;
-}
-
-.cz-diff-view-container .cm-mergeViewEditor {
-  min-height: 0;
-}
-
-.cz-diff-view-container .cm-mergeView .cm-editor {
-  height: 100%;
-  min-height: 0;
-}
-
 .cm-editor .cm-gutters {
   background: var(--color-cz-surface) !important;
   border-right: 1px solid var(--color-cz-border) !important;

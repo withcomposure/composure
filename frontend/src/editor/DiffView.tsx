@@ -71,7 +71,6 @@ export function DiffView({
       lineNumbers(),
       EditorView.theme({
         '&': { height: '100%', minHeight: '0' },
-        '.cm-scroller': { overflow: 'auto' },
       }),
     ]
 
