@@ -1,4 +1,9 @@
 import type { EditorPaneState } from './workspace-state'
+import type { WorkspaceTab } from '@/types'
+import {
+  createFileWorkspaceTab,
+  isFileWorkspaceTab,
+} from './workspace-tabs'
 
 interface ApplyDroppedPathsOptions {
   fromTabBar: boolean
@@ -35,14 +40,51 @@ export function removeDroppedTabPathsFromSource(
   return { ...paneStateById }
 }
 
-function insertPersistentPathsIntoPane(
-  pane: EditorPaneState,
+function normalizeMovedTab(tab: WorkspaceTab): WorkspaceTab {
+  if (isFileWorkspaceTab(tab)) {
+    return tab.isEphemeral ? createFileWorkspaceTab(tab.path, false) : tab
+  }
+
+  return tab
+}
+
+function resolveTabsForDrop(
+  paneStateById: Record<string, EditorPaneState>,
   paths: string[],
+  options: ApplyDroppedPathsOptions,
+): WorkspaceTab[] {
+  if (!options.fromTabBar) {
+    return paths.map((path) => createFileWorkspaceTab(path, false))
+  }
+
+  const sourcePaneId = options.sourcePaneId ?? null
+  if (!sourcePaneId || !paneStateById[sourcePaneId]) {
+    return paths.map((path) => createFileWorkspaceTab(path, false))
+  }
+
+  const sourceTabsByPath = new Map(
+    paneStateById[sourcePaneId].tabs.map((tab) => [tab.path, tab]),
+  )
+  const movedTabs = paths
+    .map((path) => sourceTabsByPath.get(path))
+    .filter((tab): tab is WorkspaceTab => Boolean(tab))
+    .map(normalizeMovedTab)
+
+  if (movedTabs.length !== paths.length) {
+    return paths.map((path) => createFileWorkspaceTab(path, false))
+  }
+
+  return movedTabs
+}
+
+function insertTabsIntoPane(
+  pane: EditorPaneState,
+  insertedTabs: WorkspaceTab[],
   targetIndex: number | null,
 ): EditorPaneState {
-  const pathSet = new Set(paths)
+  const insertedPaths = insertedTabs.map((tab) => tab.path)
+  const pathSet = new Set(insertedPaths)
   const tabsWithoutPaths = pane.tabs.filter((tab) => !pathSet.has(tab.path))
-  const insertedTabs = paths.map((path) => ({ path, isEphemeral: false }))
 
   const nextTabs = targetIndex === null
     ? [...tabsWithoutPaths, ...insertedTabs]
@@ -54,7 +96,7 @@ function insertPersistentPathsIntoPane(
 
   return {
     tabs: nextTabs,
-    activePath: paths[paths.length - 1],
+    activePath: insertedTabs[insertedTabs.length - 1]?.path ?? pane.activePath,
     showSnippetToolbar: pane.showSnippetToolbar,
   }
 }
@@ -77,10 +119,11 @@ export function applyDroppedPathsToPaneState(
     ? null
     : Math.max(0, Math.min(options.targetIndex, targetPane.tabs.length))
 
+  const insertedTabs = resolveTabsForDrop(paneStateById, paths, options)
   const shouldAppend = requestedIndex === null || (options.fromTabBar && targetHadPathBeforeDrop)
-  const nextTargetPane = insertPersistentPathsIntoPane(
+  const nextTargetPane = insertTabsIntoPane(
     targetPane,
-    paths,
+    insertedTabs,
     shouldAppend ? null : requestedIndex,
   )
 

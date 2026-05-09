@@ -8,8 +8,8 @@ import { FileTabs, type FileTabsDropPayload } from "./FileTabs";
 import { AssetPreview } from "@/preview/AssetPreview";
 import type { CommentLineNumbers } from "@/sidebar/CommentsPanel";
 import type {
+  DiffWorkspaceTab,
   EditorMode,
-  HistoryState,
   ProjectComment,
   SessionUser,
 } from "@/types";
@@ -25,11 +25,10 @@ interface EditorPaneProps {
   paneDropZone: SplitDropZone | null;
   projectId: string;
   shareToken?: string;
-  historyState: HistoryState | null;
+  activeDiffTab: DiffWorkspaceTab | null;
   canEdit: boolean;
-  diffMode: "side-by-side" | "inline";
-  onDiffModeChange: (mode: "side-by-side" | "inline") => void;
-  onExitHistoryMode: () => void;
+  onActiveDiffModeChange: (mode: "side-by-side" | "inline") => void;
+  onActiveDiffBaseChange: (base: "parent" | "current") => void;
   onHistoryRestored: () => void;
   onPopupAlert: (message: string, title?: string) => void;
   paneActiveFile: string;
@@ -95,11 +94,10 @@ export function EditorPane({
   paneDropZone,
   projectId,
   shareToken,
-  historyState,
+  activeDiffTab,
   canEdit,
-  diffMode,
-  onDiffModeChange,
-  onExitHistoryMode,
+  onActiveDiffModeChange,
+  onActiveDiffBaseChange,
   onHistoryRestored,
   onPopupAlert,
   paneActiveFile,
@@ -177,15 +175,16 @@ export function EditorPane({
         onDragLeaveCapture={(event) => onPaneDragLeave(event, paneId)}
         onDropCapture={(event) => onPaneDrop(event, paneId)}
       >
-        {historyState && paneId === activePaneId ? (
+        {activeDiffTab ? (
           <DiffView
             projectId={projectId}
-            commitSha={historyState.commitSha}
-            filePath={historyState.filePath}
-            diffMode={diffMode}
-            onDiffModeChange={onDiffModeChange}
+            commitSha={activeDiffTab.commitSha}
+            filePath={activeDiffTab.filePath}
+            diffMode={activeDiffTab.diffMode}
+            diffBase={activeDiffTab.diffBase}
+            onDiffModeChange={onActiveDiffModeChange}
+            onDiffBaseChange={onActiveDiffBaseChange}
             canRestore={canEdit}
-            onExitHistory={onExitHistoryMode}
             onRestore={onHistoryRestored}
             onPopupAlert={onPopupAlert}
           />

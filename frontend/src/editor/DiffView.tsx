@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, FileX2, GitCompareArrows, RotateCcw } from 'lucide-react'
+import { FileX2, GitCompareArrows, RotateCcw } from 'lucide-react'
 import { EditorState } from '@codemirror/state'
 import { EditorView, lineNumbers } from '@codemirror/view'
 import { MergeView } from '@codemirror/merge'
@@ -13,10 +13,11 @@ interface DiffViewProps {
   commitSha: string
   filePath: string
   diffMode: 'side-by-side' | 'inline'
+  diffBase: 'parent' | 'current'
   onDiffModeChange: (mode: 'side-by-side' | 'inline') => void
+  onDiffBaseChange: (base: 'parent' | 'current') => void
   canRestore: boolean
   onRestore: () => void
-  onExitHistory: () => void
   onPopupAlert: (message: string, title?: string) => void
 }
 
@@ -25,17 +26,17 @@ export function DiffView({
   commitSha,
   filePath,
   diffMode,
+  diffBase,
   onDiffModeChange,
+  onDiffBaseChange,
   canRestore,
   onRestore,
-  onExitHistory,
   onPopupAlert,
 }: DiffViewProps) {
   const [diff, setDiff] = useState<FileDiff | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
-  const [diffBase, setDiffBase] = useState<'parent' | 'current'>('parent')
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<MergeView | EditorView | null>(null)
 
@@ -168,13 +169,6 @@ export function DiffView({
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-cz-border px-3 py-1.5">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onExitHistory}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-cz-accent hover:bg-cz-accent-muted"
-          >
-            <ArrowLeft size={12} />
-            Exit diff
-          </button>
           <span className={`text-[10px] font-bold uppercase ${
             diff.changeType === 'added'
               ? 'text-emerald-400'
@@ -190,14 +184,14 @@ export function DiffView({
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-md border border-cz-border bg-cz-bg p-0.5">
             <button
-              onClick={() => setDiffBase('parent')}
+              onClick={() => onDiffBaseChange('parent')}
               className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'parent' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
               title="Compare against preceding commit"
             >
               Preceding
             </button>
             <button
-              onClick={() => setDiffBase('current')}
+              onClick={() => onDiffBaseChange('current')}
               className={`rounded px-2 py-0.5 text-[10px] ${diffBase === 'current' ? 'bg-cz-accent text-white' : 'text-cz-text-muted hover:text-cz-text'}`}
               title="Compare against current version"
             >

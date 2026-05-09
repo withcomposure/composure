@@ -10,6 +10,10 @@ import {
   writeComposureDragPayload,
 } from '@/utils/drag-data'
 import type { WorkspaceTab } from '@/types'
+import {
+  workspaceTabLabel,
+  workspaceTabTitle,
+} from './workspace-tabs'
 
 export interface FileTabsDropPayload {
   paths: string[]
@@ -30,11 +34,6 @@ interface FileTabsProps {
   onDropPaths?: (payload: FileTabsDropPayload) => void
   snippetToolbarVisible?: boolean
   onToggleSnippetToolbar?: () => void
-}
-
-function labelForPath(path: string): string {
-  const segments = path.split('/')
-  return segments[segments.length - 1] || path
 }
 
 function dedupePaths(paths: string[]): string[] {
@@ -239,7 +238,8 @@ export function FileTabs({
       >
         {tabs.map((tab) => {
           const isActive = tab.path === activeFile
-          const tabLabel = labelForPath(tab.path)
+          const tabLabel = workspaceTabLabel(tab)
+          const tabTitle = workspaceTabTitle(tab)
 
           return (
             <div
@@ -284,13 +284,13 @@ export function FileTabs({
               onDoubleClick={() => {
                 onPromote(tab.path)
               }}
-              title={tab.path}
+              title={tabTitle}
               className={`group flex h-7 w-fit min-w-[4rem] max-w-[12rem] shrink-0 grow-0 items-center gap-1 rounded border px-2 text-xs select-none ${isActive
                 ? `${isFocusedPane ? 'border-cz-accent' : 'border-transparent'} bg-cz-accent-muted text-cz-accent`
                 : 'border-transparent text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
               }`}
             >
-              <span className={`min-w-0 flex-1 truncate pr-0.5 ${tab.isEphemeral ? 'italic' : ''}`}>{tabLabel}</span>
+              <span className={`min-w-0 flex-1 truncate pr-0.5 ${tab.kind === 'file' && tab.isEphemeral ? 'italic' : ''}`}>{tabLabel}</span>
               <button
                 type="button"
                 onClick={(event) => {

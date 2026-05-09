@@ -6,7 +6,7 @@ import type { EditorPaneState } from '../src/editor/workspace-state'
 
 function pane(tabs: string[], activePath?: string): EditorPaneState {
   return {
-    tabs: tabs.map((path) => ({ path, isEphemeral: false })),
+    tabs: tabs.map((path) => ({ kind: 'file', path, isEphemeral: false })),
     activePath: activePath ?? tabs[0] ?? '',
     showSnippetToolbar: true,
   }
@@ -59,5 +59,44 @@ describe('tab-drop-state multi-pane regression', () => {
 
     expect(next['pane-x']?.tabs.map((tab) => tab.path)).toEqual(['a.tex'])
     expect(next['pane-y']?.tabs.map((tab) => tab.path)).toEqual(['b.tex', 'a.tex'])
+  })
+
+  it('preserves diff tab metadata when moving from another pane', () => {
+    const diffPath = 'diff:deadbeef:docs/main.tex'
+    const prev = {
+      'pane-x': {
+        tabs: [
+          {
+            kind: 'diff' as const,
+            path: diffPath,
+            filePath: 'docs/main.tex',
+            commitSha: 'deadbeef',
+            diffMode: 'inline' as const,
+            diffBase: 'current' as const,
+          },
+          { kind: 'file' as const, path: 'a.tex', isEphemeral: false },
+        ],
+        activePath: diffPath,
+        showSnippetToolbar: true,
+      },
+      'pane-y': pane(['b.tex'], 'b.tex'),
+    }
+
+    const next = applyDroppedPathsToPaneState(prev, 'pane-y', [diffPath], {
+      fromTabBar: true,
+      sourcePaneId: 'pane-x',
+      targetIndex: 0,
+    })
+
+    expect(next['pane-x']?.tabs.map((tab) => tab.path)).toEqual(['a.tex'])
+    expect(next['pane-y']?.activePath).toBe(diffPath)
+    expect(next['pane-y']?.tabs[0]).toEqual({
+      kind: 'diff',
+      path: diffPath,
+      filePath: 'docs/main.tex',
+      commitSha: 'deadbeef',
+      diffMode: 'inline',
+      diffBase: 'current',
+    })
   })
 })

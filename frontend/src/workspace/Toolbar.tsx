@@ -4,7 +4,7 @@ import { ProfileMenu } from './ProfileMenu'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { IconDropdown, type DropdownOption } from '@/components/IconDropdown'
 import { VersionsDropdown } from './VersionsDropdown'
-import type { HistoryState } from '@/types'
+import type { DiffWorkspaceTab } from '@/types'
 
 export interface ActiveEditor {
   clientId: number
@@ -55,7 +55,7 @@ interface ToolbarProps {
   onTogglePreview: () => void
   projectId: string
   onViewDiff: (sha: string, filePath: string) => void
-  historyState: HistoryState | null
+  activeDiffTab: DiffWorkspaceTab | null
 }
 
 // Maximum number of visible avatars before showing the overflow button
@@ -109,10 +109,10 @@ export function Toolbar({
   onTogglePreview,
   projectId,
   onViewDiff,
-  historyState,
+  activeDiffTab,
 }: ToolbarProps) {
-  const inDiffMode = historyState !== null
-  const displayFileName = historyState?.filePath ?? activeFile
+  const inDiffMode = activeDiffTab !== null
+  const displayFileName = activeDiffTab?.filePath ?? activeFile
   const showCompileButton = projectFormat !== 'markdown' && projectFormat !== 'asciidoc'
   const connectionDotClass = connectionState === 'connected'
     ? 'bg-emerald-500'

@@ -34,8 +34,8 @@ import type {
   AccessPerson,
   ActiveCollaborator,
   ConnectionState,
+  DiffWorkspaceTab,
   EditorMode,
-  HistoryState,
   ProjectComment,
   ProjectAccessResponse,
   ShareRole,
@@ -78,6 +78,17 @@ import {
   applyDroppedPathsToPaneState,
   removeDroppedTabPathsFromSource,
 } from "@/editor/tab-drop-state";
+import {
+  createDiffWorkspaceTab,
+  createFileWorkspaceTab,
+  findWorkspaceTabByPath,
+  isDiffWorkspaceTab,
+  isDiffWorkspaceTabPath,
+  isFileWorkspaceTab,
+  renameWorkspaceTabFilePath,
+  workspaceTabFilePath,
+  workspaceTabReferencesFile,
+} from "@/editor/workspace-tabs";
 import { evaluateUtf8Limit, formatBinarySize } from "@/utils/text-size";
 import {
   buildSplitGeometry,
@@ -170,11 +181,6 @@ export function ProjectWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"files" | "review" | "history">(
     "files",
-  );
-  const [historyState, setHistoryState] = useState<HistoryState | null>(null);
-  const [preHistoryFile, setPreHistoryFile] = useState("");
-  const [diffMode, setDiffMode] = useState<"side-by-side" | "inline">(
-    "side-by-side",
   );
   const [activeFile, setActiveFile] = useState("");
   const [activePaneId, setActivePaneId] = useState(ROOT_PANE_ID);
@@ -330,6 +336,21 @@ export function ProjectWorkspace({
     () => paneStateById[activePaneId]?.tabs ?? [],
     [paneStateById, activePaneId],
   );
+  const activeTab = useMemo(
+    () => findWorkspaceTabByPath(openTabs, activeFile),
+    [openTabs, activeFile],
+  );
+  const activeDiffTab = useMemo<DiffWorkspaceTab | null>(
+    () => (isDiffWorkspaceTab(activeTab) ? activeTab : null),
+    [activeTab],
+  );
+  const activeFilePath = useMemo(() => {
+    if (activeTab) {
+      return workspaceTabFilePath(activeTab);
+    }
+
+    return isDiffWorkspaceTabPath(activeFile) ? "" : activeFile;
+  }, [activeTab, activeFile]);
 
   const setOpenTabs = useCallback(
     (updater: WorkspaceTab[] | ((prev: WorkspaceTab[]) => WorkspaceTab[])) => {
@@ -473,8 +494,8 @@ export function ProjectWorkspace({
   const adoc = useMemo(() => Asciidoctor(), []);
 
   const projectFormat = useMemo<ProjectFormat>(() => {
-    return detectProjectFormatFromFilename(activeFile) ?? "latex";
-  }, [activeFile]);
+    return detectProjectFormatFromFilename(activeFilePath) ?? "latex";
+  }, [activeFilePath]);
 
   useEffect(() => {
     // Fast Refresh can re-run this component while staying on the same route.
@@ -635,11 +656,12 @@ export function ProjectWorkspace({
       const next: Record<string, EditorPaneState> = {};
 
       for (const [paneId, paneState] of Object.entries(prev)) {
-        const filteredTabs = paneState.tabs.filter((tab) =>
-          allFilePaths.has(tab.path),
+        const filteredTabs = paneState.tabs.filter(
+          (tab) => isDiffWorkspaceTab(tab) || allFilePaths.has(tab.path),
         );
         const activePath =
-          paneState.activePath && allFilePaths.has(paneState.activePath)
+          paneState.activePath &&
+          filteredTabs.some((tab) => tab.path === paneState.activePath)
             ? paneState.activePath
             : (filteredTabs[0]?.path ?? "");
 
@@ -729,22 +751,24 @@ export function ProjectWorkspace({
   }, [paneStateById, editorLayout, activePaneId]);
 
   useEffect(() => {
-    if (!activeFile) return;
+    if (!activeFile || !allFilePaths.has(activeFile)) return;
     setOpenTabs((prev) => {
       if (prev.some((tab) => tab.path === activeFile)) {
         return prev;
       }
 
-      const previewIndex = prev.findIndex((tab) => tab.isEphemeral);
+      const previewIndex = prev.findIndex(
+        (tab) => tab.kind === "file" && tab.isEphemeral,
+      );
       if (previewIndex !== -1) {
         const next = [...prev];
-        next[previewIndex] = { path: activeFile, isEphemeral: true };
+        next[previewIndex] = createFileWorkspaceTab(activeFile, true);
         return next;
       }
 
-      return [...prev, { path: activeFile, isEphemeral: true }];
+      return [...prev, createFileWorkspaceTab(activeFile, true)];
     });
-  }, [activeFile, setOpenTabs]);
+  }, [activeFile, allFilePaths, setOpenTabs]);
 
   useEffect(() => {
     const update = () => {
@@ -804,13 +828,15 @@ export function ProjectWorkspace({
   useEffect(() => {
     if (!initialSyncDone) return;
 
-    if (activeFile && allFilePaths.has(activeFile)) {
+    if (activeFile && openTabs.some((tab) => tab.path === activeFile)) {
       return;
     }
 
     if (activeFile) {
       const fallback =
-        openTabs.find((tab) => allFilePaths.has(tab.path))?.path ?? "";
+        openTabs.find(
+          (tab) => tab.kind === "diff" || allFilePaths.has(tab.path),
+        )?.path ?? "";
       setActiveFile(fallback);
     }
   }, [initialSyncDone, activeFile, allFilePaths, openTabs]);
@@ -999,11 +1025,11 @@ export function ProjectWorkspace({
   );
 
   const compileCurrentFile = useMemo(() => {
-    if (activeFile && allFilePaths.has(activeFile)) {
-      return activeFile;
+    if (activeFilePath && allFilePaths.has(activeFilePath)) {
+      return activeFilePath;
     }
     return "";
-  }, [activeFile, allFilePaths]);
+  }, [activeFilePath, allFilePaths]);
 
   const appendCitationToDefaultBibliography = useCallback(
     async (
@@ -1247,34 +1273,16 @@ export function ProjectWorkspace({
     };
   }, [workspaceStateLoaded, persistedWorkspaceState, projectId, shareHeaders]);
 
-  const enterHistoryMode = useCallback(
-    (sha: string, filePath: string) => {
-      if (!historyState) {
-        setPreHistoryFile(activeFile);
-      }
-      setHistoryState({ commitSha: sha, filePath, diffMode });
-    },
-    [historyState, activeFile, diffMode],
-  );
-
-  const exitHistoryMode = useCallback(() => {
-    setHistoryState(null);
-    if (preHistoryFile) {
-      setActiveFile(preHistoryFile);
-    }
-  }, [preHistoryFile]);
-
   const handleRestoreVersion = useCallback(
     async (sha: string) => {
       try {
         await restoreVersion(projectId, sha);
-        exitHistoryMode();
         setHistoryRefreshKey((k) => k + 1);
       } catch (err) {
         onPopupAlert(getErrorMessage(err), "Restore failed");
       }
     },
-    [projectId, exitHistoryMode, onPopupAlert],
+    [projectId, onPopupAlert],
   );
 
   useEffect(() => {
@@ -1507,8 +1515,9 @@ export function ProjectWorkspace({
     };
   }, [commentsSyncMap, loadComments]);
 
-  const activeFileRef = useRef(activeFile);
-  activeFileRef.current = activeFile;
+  const activeFileRef = useRef("");
+  activeFileRef.current =
+    activeTab && isFileWorkspaceTab(activeTab) ? activeTab.path : "";
 
   // Follow renames/moves: when the active file is deleted and a new key is
   // added in the same Yjs transaction (rename/move), switch to the new path
@@ -1587,20 +1596,27 @@ export function ProjectWorkspace({
         let nextTabs = pane.tabs;
 
         if (existingIndex !== -1) {
-          if (mode === "persistent" && pane.tabs[existingIndex].isEphemeral) {
+          const existingTab = pane.tabs[existingIndex];
+          if (
+            mode === "persistent" &&
+            isFileWorkspaceTab(existingTab) &&
+            existingTab.isEphemeral
+          ) {
             nextTabs = [...pane.tabs];
-            nextTabs[existingIndex] = { path, isEphemeral: false };
+            nextTabs[existingIndex] = createFileWorkspaceTab(path, false);
           }
         } else if (mode === "ephemeral") {
-          const previewIndex = pane.tabs.findIndex((tab) => tab.isEphemeral);
+          const previewIndex = pane.tabs.findIndex(
+            (tab) => isFileWorkspaceTab(tab) && tab.isEphemeral,
+          );
           if (previewIndex !== -1) {
             nextTabs = [...pane.tabs];
-            nextTabs[previewIndex] = { path, isEphemeral: true };
+            nextTabs[previewIndex] = createFileWorkspaceTab(path, true);
           } else {
-            nextTabs = [...pane.tabs, { path, isEphemeral: true }];
+            nextTabs = [...pane.tabs, createFileWorkspaceTab(path, true)];
           }
         } else {
-          nextTabs = [...pane.tabs, { path, isEphemeral: false }];
+          nextTabs = [...pane.tabs, createFileWorkspaceTab(path, false)];
         }
 
         if (nextTabs === pane.tabs && pane.activePath === path) {
@@ -1642,7 +1658,11 @@ export function ProjectWorkspace({
       });
 
       if (isFocused) {
-        const focusedPath = paneStateById[paneId]?.activePath ?? "";
+        const focusedTab = findWorkspaceTabByPath(
+          paneStateById[paneId]?.tabs ?? [],
+          paneStateById[paneId]?.activePath ?? "",
+        );
+        const focusedPath = focusedTab ? workspaceTabFilePath(focusedTab) : "";
         if (focusedPath.length > 0) {
           rememberLastFocusedEditorFile(focusedPath);
         }
@@ -1651,9 +1671,54 @@ export function ProjectWorkspace({
     [paneStateById, rememberLastFocusedEditorFile],
   );
 
+  const openDiffTab = useCallback(
+    (sha: string, filePath: string, paneId = activePaneId) => {
+      const currentPane = paneStateById[paneId] ?? {
+        tabs: [],
+        activePath: "",
+        showSnippetToolbar: true,
+      };
+      const existingDiffTab = currentPane.tabs.find(
+        (tab) =>
+          isDiffWorkspaceTab(tab) &&
+          tab.commitSha === sha &&
+          tab.filePath === filePath,
+      );
+      const diffTab =
+        existingDiffTab ??
+        createDiffWorkspaceTab({
+          commitSha: sha,
+          filePath,
+        });
+
+      setPaneStateById((prev) => {
+        const pane = prev[paneId] ?? {
+          tabs: [],
+          activePath: "",
+          showSnippetToolbar: true,
+        };
+        const alreadyOpen = pane.tabs.some((tab) => tab.path === diffTab.path);
+        if (alreadyOpen && pane.activePath === diffTab.path) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [paneId]: {
+            ...pane,
+            tabs: alreadyOpen ? pane.tabs : [...pane.tabs, diffTab],
+            activePath: diffTab.path,
+          },
+        };
+      });
+
+      focusPane(paneId, diffTab.path);
+    },
+    [activePaneId, paneStateById, focusPane],
+  );
+
   const openFileFromTree = useCallback(
     (path: string, mode: "ephemeral" | "persistent") => {
-      setHistoryState(null);
       openFileInPane(activePaneId, path, mode);
       focusPane(activePaneId, path);
     },
@@ -1673,11 +1738,16 @@ export function ProjectWorkspace({
           },
         };
       });
-      setHistoryState(null);
       focusPane(paneId, path);
-      rememberLastFocusedEditorFile(path);
+      const selectedTab = findWorkspaceTabByPath(
+        paneStateById[paneId]?.tabs ?? [],
+        path,
+      );
+      rememberLastFocusedEditorFile(
+        selectedTab ? workspaceTabFilePath(selectedTab) : path,
+      );
     },
-    [focusPane, rememberLastFocusedEditorFile],
+    [focusPane, paneStateById, rememberLastFocusedEditorFile],
   );
 
   const promoteTab = useCallback(
@@ -1686,12 +1756,13 @@ export function ProjectWorkspace({
         const pane = prev[paneId];
         if (!pane) return prev;
         const tabIndex = pane.tabs.findIndex((tab) => tab.path === path);
-        if (tabIndex === -1 || !pane.tabs[tabIndex].isEphemeral) {
+        const tab = tabIndex === -1 ? null : pane.tabs[tabIndex];
+        if (!tab || !isFileWorkspaceTab(tab) || !tab.isEphemeral) {
           return prev;
         }
 
         const nextTabs = [...pane.tabs];
-        nextTabs[tabIndex] = { path, isEphemeral: false };
+        nextTabs[tabIndex] = createFileWorkspaceTab(path, false);
 
         return {
           ...prev,
@@ -1702,7 +1773,6 @@ export function ProjectWorkspace({
           },
         };
       });
-      setHistoryState(null);
       focusPane(paneId, path);
     },
     [focusPane],
@@ -1726,10 +1796,13 @@ export function ProjectWorkspace({
           insertAt -= 1;
         }
         insertAt = Math.max(0, Math.min(insertAt, nextTabs.length));
-        nextTabs.splice(insertAt, 0, {
-          path: moved.path,
-          isEphemeral: false,
-        });
+        nextTabs.splice(
+          insertAt,
+          0,
+          isFileWorkspaceTab(moved)
+            ? createFileWorkspaceTab(moved.path, false)
+            : moved,
+        );
 
         return {
           ...prev,
@@ -1740,7 +1813,6 @@ export function ProjectWorkspace({
           },
         };
       });
-      setHistoryState(null);
       focusPane(paneId, path);
     },
     [focusPane],
@@ -1780,9 +1852,6 @@ export function ProjectWorkspace({
 
       if (nextActivePath !== null && paneId === activePaneId) {
         setActiveFile(nextActivePath);
-        if (nextActivePath) {
-          setHistoryState(null);
-        }
       }
     },
     [activePaneId],
@@ -1805,7 +1874,6 @@ export function ProjectWorkspace({
         });
       });
 
-      setHistoryState(null);
       focusPane(paneId, paths[paths.length - 1]);
     },
     [allFilePaths, focusPane],
@@ -2034,11 +2102,11 @@ export function ProjectWorkspace({
     if (activeEntrypoint) {
       return activeEntrypoint;
     }
-    if (activeFile && allFilePaths.has(activeFile)) {
-      return activeFile;
+    if (activeFilePath && allFilePaths.has(activeFilePath)) {
+      return activeFilePath;
     }
     return "";
-  }, [activeEntrypoint, activeFile, allFilePaths]);
+  }, [activeEntrypoint, activeFilePath, allFilePaths]);
 
   const handleCompile = useCallback(
     async (options?: {
@@ -2051,9 +2119,9 @@ export function ProjectWorkspace({
       // Cancel any pending auto-compile timer by marking the current revision as handled.
       lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
 
-      const isHistory = historyState != null && target === "default";
-      const rootFile = isHistory
-        ? historyState.filePath
+      const isDiffCompile = activeDiffTab != null && target === "default";
+      const rootFile = isDiffCompile
+        ? activeDiffTab.filePath
         : target === "current"
           ? compileCurrentFile
           : compileDefaultRootFile;
@@ -2070,7 +2138,7 @@ export function ProjectWorkspace({
       setCompiling(true);
       setCompileError(null);
       try {
-        if (!isHistory) {
+        if (!isDiffCompile) {
           const shouldSave = autoSaveOnCompile && !isAutoCompile;
           if (shouldSave) {
             await persistSnapshot("compile").catch((err) => {
@@ -2085,8 +2153,8 @@ export function ProjectWorkspace({
           responseMode: "metadata",
         };
 
-        if (isHistory) {
-          compileBody.commitSha = historyState.commitSha;
+        if (isDiffCompile) {
+          compileBody.commitSha = activeDiffTab.commitSha;
         } else {
           compileBody.documentUpdateBase64 = uint8ArrayToBase64(
             Y.encodeStateAsUpdate(ydoc),
@@ -2094,7 +2162,7 @@ export function ProjectWorkspace({
         }
 
         console.info(
-          `[app] compile-request projectId=${projectId} rootFile=${rootFile}${isHistory ? ` commitSha=${historyState.commitSha}` : ""}`,
+          `[app] compile-request projectId=${projectId} rootFile=${rootFile}${isDiffCompile ? ` commitSha=${activeDiffTab.commitSha}` : ""}`,
         );
         const res = await apiFetch("/compile", {
           method: "POST",
@@ -2162,7 +2230,7 @@ export function ProjectWorkspace({
     [
       projectId,
       compileDefaultRootFile,
-      historyState,
+      activeDiffTab,
       ydoc,
       persistSnapshot,
       shareHeaders,
@@ -2183,18 +2251,18 @@ export function ProjectWorkspace({
 
   const handleExport = useCallback(
     async (format: string) => {
-      const rootFile = historyState?.filePath ?? activeFile;
+      const rootFile = activeDiffTab?.filePath ?? activeFilePath;
       if (!rootFile) return;
       setExporting(true);
       try {
-        if (autoSaveOnExport && !historyState && canEdit) {
+        if (autoSaveOnExport && !activeDiffTab && canEdit) {
           await persistSnapshot("compile").catch((err) => {
             console.warn(`[app] export-pre-save-failed ${String(err)}`);
           });
         }
         const exportBody: Record<string, unknown> = { format, rootFile };
-        if (historyState) {
-          exportBody.commitSha = historyState.commitSha;
+        if (activeDiffTab) {
+          exportBody.commitSha = activeDiffTab.commitSha;
         }
         const res = await apiFetch(
           `/export/${encodeURIComponent(projectId)}`,
@@ -2236,8 +2304,8 @@ export function ProjectWorkspace({
     },
     [
       projectId,
-      activeFile,
-      historyState,
+      activeDiffTab,
+      activeFilePath,
       shareHeaders,
       onPopupAlert,
       autoSaveOnExport,
@@ -2311,13 +2379,15 @@ export function ProjectWorkspace({
   useEffect(() => {
     if (
       (projectFormat !== "markdown" && projectFormat !== "asciidoc") ||
-      !activeFile ||
+      !activeFilePath ||
+      !activeTab ||
+      !isFileWorkspaceTab(activeTab) ||
       !initialSyncDone
     )
       return;
 
     const renderPreview = () => {
-      const textKey = `file:${activeFile}`;
+      const textKey = `file:${activeFilePath}`;
       const text = ydoc.getText(textKey).toString();
       if (projectFormat === "markdown") {
         setMarkdownHtml(md.render(text));
@@ -2349,7 +2419,7 @@ export function ProjectWorkspace({
         markdownDebounceTimerRef.current = null;
       }
     };
-  }, [ydoc, activeFile, projectFormat, initialSyncDone, md, adoc]);
+  }, [ydoc, activeFilePath, activeTab, projectFormat, initialSyncDone, md, adoc]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2730,7 +2800,6 @@ export function ProjectWorkspace({
         });
       });
 
-      setHistoryState(null);
       focusPane(paneId, validPaths[validPaths.length - 1]);
     },
     [allFilePaths, focusPane],
@@ -2759,7 +2828,7 @@ export function ProjectWorkspace({
           ? removeDroppedTabPathsFromSource(prev, validPaths, sourcePaneId)
           : { ...prev };
         next[newPaneId] = {
-          tabs: validPaths.map((path) => ({ path, isEphemeral: false })),
+          tabs: validPaths.map((path) => createFileWorkspaceTab(path, false)),
           activePath: validPaths[validPaths.length - 1],
           showSnippetToolbar: true,
         };
@@ -2769,7 +2838,6 @@ export function ProjectWorkspace({
       setEditorLayout((prev) =>
         insertSplitAtPane(prev, targetPaneId, newPaneId, splitId, orientation),
       );
-      setHistoryState(null);
       focusPane(newPaneId, validPaths[validPaths.length - 1]);
     },
     [allFilePaths, createPaneId, createSplitId, focusPane],
@@ -2878,8 +2946,10 @@ export function ProjectWorkspace({
         }, "composure:rename-file");
       }
 
-      if (activeFile === path) {
-        setActiveFile(trimmed);
+      if (activeTab && workspaceTabReferencesFile(activeTab, path)) {
+        setActiveFile(
+          renameWorkspaceTabFilePath(activeTab, path, trimmed).path,
+        );
       }
       if (projectEntrypoint === path) {
         setProjectEntrypoint(trimmed);
@@ -2902,10 +2972,16 @@ export function ProjectWorkspace({
 
         for (const [paneId, paneState] of Object.entries(prev)) {
           const nextTabs = paneState.tabs.map((tab) =>
-            tab.path === path ? { ...tab, path: trimmed } : tab,
+            renameWorkspaceTabFilePath(tab, path, trimmed),
+          );
+          const activeTabInPane = findWorkspaceTabByPath(
+            paneState.tabs,
+            paneState.activePath,
           );
           const nextActivePath =
-            paneState.activePath === path ? trimmed : paneState.activePath;
+            activeTabInPane && workspaceTabReferencesFile(activeTabInPane, path)
+              ? renameWorkspaceTabFilePath(activeTabInPane, path, trimmed).path
+              : paneState.activePath;
           if (
             nextActivePath !== paneState.activePath ||
             nextTabs.some((tab, index) => tab !== paneState.tabs[index])
@@ -2928,7 +3004,7 @@ export function ProjectWorkspace({
     [
       fileMap,
       ydoc,
-      activeFile,
+      activeTab,
       patchProjectMetadata,
       projectDefaultBibliographyFile,
       projectEntrypoint,
@@ -2953,7 +3029,9 @@ export function ProjectWorkspace({
         .map(([candidatePath]) => candidatePath)
         .sort();
 
-      const tabIndex = openTabs.findIndex((tab) => tab.path === path);
+      const tabIndex = openTabs.findIndex((tab) =>
+        workspaceTabReferencesFile(tab, path),
+      );
       const fallbackFromTabs =
         tabIndex === -1
           ? ""
@@ -2979,20 +3057,30 @@ export function ProjectWorkspace({
 
         for (const [paneId, paneState] of Object.entries(prev)) {
           const closeIndex = paneState.tabs.findIndex(
-            (tab) => tab.path === path,
+            (tab) => workspaceTabReferencesFile(tab, path),
           );
           const nextTabs =
             closeIndex === -1
               ? paneState.tabs
-              : paneState.tabs.filter((tab) => tab.path !== path);
+              : paneState.tabs.filter(
+                (tab) => !workspaceTabReferencesFile(tab, path),
+              );
+          const activeTabInPane = findWorkspaceTabByPath(
+            paneState.tabs,
+            paneState.activePath,
+          );
           const nextActivePath =
-            paneState.activePath === path
+            activeTabInPane && workspaceTabReferencesFile(activeTabInPane, path)
               ? (nextTabs[closeIndex]?.path ??
                 nextTabs[closeIndex - 1]?.path ??
                 "")
               : paneState.activePath;
 
-          if (paneId === activePaneId && paneState.activePath === path) {
+          if (
+            paneId === activePaneId &&
+            activeTabInPane &&
+            workspaceTabReferencesFile(activeTabInPane, path)
+          ) {
             nextActiveForCurrentPane = nextActivePath;
           }
 
@@ -3014,7 +3102,7 @@ export function ProjectWorkspace({
         return changed ? next : prev;
       });
 
-      if (activeFile === path) {
+      if (activeTab && workspaceTabReferencesFile(activeTab, path)) {
         setActiveFile(
           nextActiveForCurrentPane ||
             fallbackFromTabs ||
@@ -3040,7 +3128,7 @@ export function ProjectWorkspace({
     [
       fileMap,
       ydoc,
-      activeFile,
+      activeTab,
       openTabs,
       activePaneId,
       patchProjectMetadata,
@@ -3084,6 +3172,64 @@ export function ProjectWorkspace({
     [onPopupAlert],
   );
 
+  const updateActiveDiffTabInPane = useCallback(
+    (
+      paneId: string,
+      updater: (tab: DiffWorkspaceTab) => DiffWorkspaceTab,
+    ) => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane) {
+          return prev;
+        }
+
+        const activeTabInPane = findWorkspaceTabByPath(
+          pane.tabs,
+          pane.activePath,
+        );
+        if (!activeTabInPane || !isDiffWorkspaceTab(activeTabInPane)) {
+          return prev;
+        }
+
+        const nextActiveDiffTab = updater(activeTabInPane);
+        if (nextActiveDiffTab === activeTabInPane) {
+          return prev;
+        }
+
+        const nextTabs = pane.tabs.map((tab) =>
+          tab.path === activeTabInPane.path ? nextActiveDiffTab : tab,
+        );
+
+        return {
+          ...prev,
+          [paneId]: {
+            ...pane,
+            tabs: nextTabs,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const setActiveDiffModeForPane = useCallback(
+    (paneId: string, mode: "side-by-side" | "inline") => {
+      updateActiveDiffTabInPane(paneId, (tab) =>
+        tab.diffMode === mode ? tab : { ...tab, diffMode: mode },
+      );
+    },
+    [updateActiveDiffTabInPane],
+  );
+
+  const setActiveDiffBaseForPane = useCallback(
+    (paneId: string, base: "parent" | "current") => {
+      updateActiveDiffTabInPane(paneId, (tab) =>
+        tab.diffBase === base ? tab : { ...tab, diffBase: base },
+      );
+    },
+    [updateActiveDiffTabInPane],
+  );
+
   const shareUrl = `${window.location.origin}${makeProjectUrl(projectId, linkToken ?? shareToken)}`;
   const hasProjectEntries = fileMap.size > 0;
 
@@ -3093,9 +3239,20 @@ export function ProjectWorkspace({
       activePath: "",
       showSnippetToolbar: true,
     };
+    const paneActiveTab = findWorkspaceTabByPath(
+      paneState.tabs,
+      paneState.activePath,
+    );
+    const paneActiveDiffTab =
+      paneActiveTab && isDiffWorkspaceTab(paneActiveTab)
+        ? paneActiveTab
+        : null;
     const paneActiveFile = paneState.activePath;
     const paneHasActiveTextFile =
-      paneActiveFile.length > 0 && textFilePaths.has(paneActiveFile);
+      paneActiveTab !== null &&
+      isFileWorkspaceTab(paneActiveTab) &&
+      paneActiveFile.length > 0 &&
+      textFilePaths.has(paneActiveFile);
     const paneTextLimitBytes =
       typeof maxTextFileSizeBytes === "number" ? maxTextFileSizeBytes : null;
     const paneTextSizeBytes = paneHasActiveTextFile
@@ -3107,6 +3264,8 @@ export function ProjectWorkspace({
       paneTextSizeBytes !== null &&
       paneTextSizeBytes > paneTextLimitBytes;
     const paneActiveAsset =
+      paneActiveTab !== null &&
+      isFileWorkspaceTab(paneActiveTab) &&
       paneActiveFile.length > 0
         ? (assetInfoByPath[paneActiveFile] ?? null)
         : null;
@@ -3123,13 +3282,11 @@ export function ProjectWorkspace({
         paneDropZone={paneDropZone}
         projectId={projectId}
         shareToken={shareToken}
-        historyState={historyState}
+        activeDiffTab={paneActiveDiffTab}
         canEdit={canEdit}
-        diffMode={diffMode}
-        onDiffModeChange={setDiffMode}
-        onExitHistoryMode={exitHistoryMode}
+        onActiveDiffModeChange={(mode) => setActiveDiffModeForPane(paneId, mode)}
+        onActiveDiffBaseChange={(base) => setActiveDiffBaseForPane(paneId, base)}
         onHistoryRestored={() => {
-          exitHistoryMode();
           setHistoryRefreshKey((k) => k + 1);
         }}
         onPopupAlert={onPopupAlert}
@@ -3261,7 +3418,7 @@ export function ProjectWorkspace({
             ydoc={ydoc}
             projectId={projectId}
             shareHeaders={shareHeaders}
-            activeFile={activeFile}
+            activeFile={activeFilePath}
             isDocumentLoading={!initialSyncDone}
             entrypointPath={activeEntrypoint}
             defaultBibliographyPath={activeDefaultBibliographyFile}
@@ -3280,7 +3437,7 @@ export function ProjectWorkspace({
           <HistoryPanel
             projectId={projectId}
             onViewDiff={(sha, filePath) => {
-              enterHistoryMode(sha, filePath);
+              openDiffTab(sha, filePath);
             }}
             canEdit={canEdit}
             refreshKey={historyRefreshKey}
@@ -3288,7 +3445,7 @@ export function ProjectWorkspace({
           />
         ) : (
           <CommentsPanel
-            activeFile={activeFile}
+            activeFile={activeFilePath}
             comments={comments}
             commentLineNumbersById={commentLineNumbersById}
             canComment={canInteractWithComments}
@@ -3358,7 +3515,7 @@ export function ProjectWorkspace({
           saving={saving}
           connectionState={connectionState}
           compiling={compiling}
-          activeFile={activeFile}
+          activeFile={activeFilePath}
           activeEditors={activeEditors}
           onFocusCollaborator={focusCollaborator}
           onOpenReferenceLookup={() => setShowReferenceLookup(true)}
@@ -3369,9 +3526,9 @@ export function ProjectWorkspace({
           onTogglePreview={() => setPreviewOpen((open) => !open)}
           projectId={projectId}
           onViewDiff={(sha, filePath) => {
-            enterHistoryMode(sha, filePath);
+            openDiffTab(sha, filePath);
           }}
-          historyState={historyState}
+          activeDiffTab={activeDiffTab}
         />
 
         <div ref={layoutRef} className="relative flex flex-1 min-h-0">

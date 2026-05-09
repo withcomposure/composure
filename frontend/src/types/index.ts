@@ -183,11 +183,8 @@ export interface FileDiff {
   isBinary: boolean
 }
 
-export interface HistoryState {
-  commitSha: string
-  filePath: string
-  diffMode: 'side-by-side' | 'inline'
-}
+export type DiffMode = 'side-by-side' | 'inline'
+export type DiffBase = 'parent' | 'current'
 
 export interface ProjectComment {
   id: string
@@ -205,10 +202,23 @@ export interface ProjectComment {
   updatedAt: number
 }
 
-export interface WorkspaceTab {
+export interface FileWorkspaceTab {
+  kind: 'file'
   path: string
   isEphemeral: boolean
 }
+
+export interface DiffWorkspaceTab {
+  kind: 'diff'
+  /** Stable tab key used in pane state and tab activation. */
+  path: string
+  filePath: string
+  commitSha: string
+  diffMode: DiffMode
+  diffBase: DiffBase
+}
+
+export type WorkspaceTab = FileWorkspaceTab | DiffWorkspaceTab
 
 export interface ProjectTemplate {
   id: string

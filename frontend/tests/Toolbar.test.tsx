@@ -42,7 +42,7 @@ const defaults = {
   onTogglePreview: () => {},
   projectId: "test-project",
   onViewDiff: () => {},
-  historyState: null,
+  activeDiffTab: null,
 };
 
 describe("Toolbar", () => {

@@ -1,4 +1,8 @@
 import type { WorkspaceTab } from '@/types'
+import {
+  createDiffWorkspaceTab,
+  createFileWorkspaceTab,
+} from './workspace-tabs'
 
 export type SplitOrientation = 'horizontal' | 'vertical'
 export type SidebarTab = 'files' | 'review' | 'history'
@@ -65,6 +69,14 @@ function normalizeSidebarTab(value: unknown): SidebarTab {
   return value === 'review' || value === 'history' ? value : 'files'
 }
 
+function normalizeDiffMode(value: unknown): 'side-by-side' | 'inline' {
+  return value === 'inline' ? 'inline' : 'side-by-side'
+}
+
+function normalizeDiffBase(value: unknown): 'parent' | 'current' {
+  return value === 'current' ? 'current' : 'parent'
+}
+
 function normalizeTabs(raw: unknown): WorkspaceTab[] {
   if (!Array.isArray(raw)) {
     return []
@@ -78,15 +90,33 @@ function normalizeTabs(raw: unknown): WorkspaceTab[] {
       continue
     }
 
+    if (entry.kind === 'diff') {
+      const path = asNonEmptyString(entry.path)
+      const filePath = asNonEmptyString(entry.filePath)
+      const commitSha = asNonEmptyString(entry.commitSha)
+      if (!path || !filePath || !commitSha || seen.has(path)) {
+        continue
+      }
+
+      tabs.push({
+        ...createDiffWorkspaceTab({
+          filePath,
+          commitSha,
+          diffMode: normalizeDiffMode(entry.diffMode),
+          diffBase: normalizeDiffBase(entry.diffBase),
+        }),
+        path,
+      })
+      seen.add(path)
+      continue
+    }
+
     const path = asNonEmptyString(entry.path)
     if (!path || seen.has(path)) {
       continue
     }
 
-    tabs.push({
-      path,
-      isEphemeral: Boolean(entry.isEphemeral),
-    })
+    tabs.push(createFileWorkspaceTab(path, Boolean(entry.isEphemeral)))
     seen.add(path)
   }
 

@@ -8,6 +8,10 @@ import {
   writeComposureDragPayload,
 } from '../src/utils/drag-data'
 
+function fileTab(path: string, isEphemeral: boolean) {
+  return { kind: 'file' as const, path, isEphemeral }
+}
+
 describe('FileTabs', () => {
   it('renders and handles snippet toolbar toggle button', async () => {
     const user = userEvent.setup()
@@ -42,8 +46,8 @@ describe('FileTabs', () => {
       <FileTabs
         paneId="pane-1"
         tabs={[
-          { path: 'main.tex', isEphemeral: true },
-          { path: 'chapters/intro.tex', isEphemeral: false },
+          fileTab('main.tex', true),
+          fileTab('chapters/intro.tex', false),
         ]}
         activeFile="main.tex"
         onActivate={onActivate}
@@ -58,6 +62,35 @@ describe('FileTabs', () => {
     expect(onActivate).toHaveBeenCalledWith('chapters/intro.tex')
   })
 
+  it('renders diff tabs as "filename @ short-hash"', () => {
+    render(
+      <FileTabs
+        paneId="pane-1"
+        tabs={[
+          {
+            kind: 'diff',
+            path: 'diff:deadbeef:chapters/intro.tex',
+            filePath: 'chapters/intro.tex',
+            commitSha: 'deadbeef',
+            diffMode: 'side-by-side',
+            diffBase: 'parent',
+          },
+        ]}
+        activeFile="diff:deadbeef:chapters/intro.tex"
+        onActivate={() => undefined}
+        onClose={() => undefined}
+        onPromote={() => undefined}
+        onMove={() => undefined}
+      />,
+    )
+
+    expect(screen.getByText('intro.tex @ deadbee')).toBeInTheDocument()
+    expect(screen.getByTestId('file-tab-diff:deadbeef:chapters/intro.tex')).toHaveAttribute(
+      'title',
+      'chapters/intro.tex @ deadbee',
+    )
+  })
+
   it('promotes a preview tab on double-click', async () => {
     const user = userEvent.setup()
     const onPromote = vi.fn<(path: string) => void>()
@@ -65,7 +98,7 @@ describe('FileTabs', () => {
     render(
       <FileTabs
         paneId="pane-1"
-        tabs={[{ path: 'main.tex', isEphemeral: true }]}
+        tabs={[fileTab('main.tex', true)]}
         activeFile="main.tex"
         onActivate={() => undefined}
         onClose={() => undefined}
@@ -86,7 +119,7 @@ describe('FileTabs', () => {
     render(
       <FileTabs
         paneId="pane-1"
-        tabs={[{ path: 'main.tex', isEphemeral: true }]}
+        tabs={[fileTab('main.tex', true)]}
         activeFile="main.tex"
         onActivate={() => undefined}
         onClose={onClose}
@@ -108,7 +141,7 @@ describe('FileTabs', () => {
     render(
       <FileTabs
         paneId="pane-1"
-        tabs={[{ path: 'main.tex', isEphemeral: true }]}
+        tabs={[fileTab('main.tex', true)]}
         activeFile="main.tex"
         onActivate={onActivate}
         onClose={onClose}
@@ -133,8 +166,8 @@ describe('FileTabs', () => {
       <FileTabs
         paneId="pane-1"
         tabs={[
-          { path: 'main.tex', isEphemeral: true },
-          { path: 'chapters/intro.tex', isEphemeral: false },
+          fileTab('main.tex', true),
+          fileTab('chapters/intro.tex', false),
         ]}
         activeFile="main.tex"
         onActivate={() => undefined}
@@ -204,9 +237,9 @@ describe('FileTabs', () => {
       <FileTabs
         paneId="pane-1"
         tabs={[
-          { path: 'main.tex', isEphemeral: true },
-          { path: 'chapters/intro.tex', isEphemeral: false },
-          { path: 'chapters/methods.tex', isEphemeral: false },
+          fileTab('main.tex', true),
+          fileTab('chapters/intro.tex', false),
+          fileTab('chapters/methods.tex', false),
         ]}
         activeFile="main.tex"
         onActivate={() => undefined}
@@ -238,8 +271,8 @@ describe('FileTabs', () => {
       <FileTabs
         paneId="pane-1"
         tabs={[
-          { path: 'a.tex', isEphemeral: true },
-          { path: 'chapters/intro.tex', isEphemeral: false },
+          fileTab('a.tex', true),
+          fileTab('chapters/intro.tex', false),
         ]}
         activeFile="a.tex"
         onActivate={() => undefined}
@@ -266,7 +299,7 @@ describe('FileTabs', () => {
     render(
       <FileTabs
         paneId="pane-2"
-        tabs={[{ path: 'main.tex', isEphemeral: true }]}
+        tabs={[fileTab('main.tex', true)]}
         activeFile="main.tex"
         onActivate={() => undefined}
         onClose={() => undefined}
@@ -347,7 +380,7 @@ describe('FileTabs', () => {
     render(
       <FileTabs
         paneId="pane-2"
-        tabs={[{ path: 'main.tex', isEphemeral: true }]}
+        tabs={[fileTab('main.tex', true)]}
         activeFile="main.tex"
         onActivate={() => undefined}
         onClose={() => undefined}
@@ -445,7 +478,7 @@ describe('FileTabs', () => {
       <>
         <FileTabs
           paneId="pane-1"
-          tabs={[{ path: 'a.tex', isEphemeral: false }]}
+          tabs={[fileTab('a.tex', false)]}
           activeFile="a.tex"
           onActivate={() => undefined}
           onClose={() => undefined}
@@ -454,7 +487,7 @@ describe('FileTabs', () => {
         />
         <FileTabs
           paneId="pane-2"
-          tabs={[{ path: 'b.tex', isEphemeral: false }]}
+          tabs={[fileTab('b.tex', false)]}
           activeFile="b.tex"
           onActivate={() => undefined}
           onClose={() => undefined}

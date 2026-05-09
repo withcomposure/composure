@@ -43,7 +43,7 @@ describe('workspace-state parsing', () => {
     expect(parsed?.previewWidth).toBe(300)
     expect(parsed?.activePaneId).toBe('pane-2')
     expect(parsed?.paneStateById['pane-2']?.tabs).toEqual([
-      { path: 'docs/main.tex', isEphemeral: false },
+      { kind: 'file', path: 'docs/main.tex', isEphemeral: false },
     ])
     expect(parsed?.paneStateById['pane-2']?.activePath).toBe('docs/main.tex')
     expect(parsed?.paneStateById['pane-2']?.showSnippetToolbar).toBe(true)
@@ -68,6 +68,43 @@ describe('workspace-state parsing', () => {
     expect(parsed?.paneStateById[ROOT_PANE_ID]).toEqual({ tabs: [], activePath: '', showSnippetToolbar: true })
   })
 
+  it('preserves diff tabs and their settings when parsing', () => {
+    const diffTabPath = 'diff:deadbeef:docs/main.tex'
+    const parsed = parsePersistedWorkspaceState({
+      activePaneId: 'pane-1',
+      activeFile: diffTabPath,
+      paneStateById: {
+        'pane-1': {
+          tabs: [
+            {
+              kind: 'diff',
+              path: diffTabPath,
+              filePath: 'docs/main.tex',
+              commitSha: 'deadbeef',
+              diffMode: 'inline',
+              diffBase: 'current',
+            },
+          ],
+          activePath: diffTabPath,
+        },
+      },
+      editorLayout: { kind: 'pane', paneId: 'pane-1' },
+    })
+
+    expect(parsed).not.toBeNull()
+    expect(parsed?.activeFile).toBe(diffTabPath)
+    expect(parsed?.paneStateById['pane-1']?.tabs).toEqual([
+      {
+        kind: 'diff',
+        path: diffTabPath,
+        filePath: 'docs/main.tex',
+        commitSha: 'deadbeef',
+        diffMode: 'inline',
+        diffBase: 'current',
+      },
+    ])
+  })
+
   it('builds a canonical state payload', () => {
     const built = buildPersistedWorkspaceState({
       sidebarOpen: true,
@@ -79,7 +116,7 @@ describe('workspace-state parsing', () => {
       activeFile: 'src/chapter.tex',
       paneStateById: {
         'pane-3': {
-          tabs: [{ path: 'src/chapter.tex', isEphemeral: true }],
+          tabs: [{ kind: 'file', path: 'src/chapter.tex', isEphemeral: true }],
           activePath: 'src/chapter.tex',
           showSnippetToolbar: false,
         },
