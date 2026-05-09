@@ -59,7 +59,7 @@ export function PreviewToolbar({
   }
 
   const btnClass =
-    'inline-flex h-6 w-6 items-center justify-center rounded text-[11px] text-cz-text-muted transition-colors hover:bg-cz-surface-hover'
+    'inline-flex h-6 items-center justify-center rounded text-[11px] text-cz-text-muted transition-colors hover:bg-cz-surface-hover'
   const fitBtnBaseClass =
     'inline-flex h-6 items-center justify-center rounded px-2 text-[11px] transition-colors'
   const fitBtnClass = isFit
@@ -79,61 +79,65 @@ export function PreviewToolbar({
             <label className="sr-only" htmlFor={pageInputId}>
               Current page
             </label>
-            <input
-              id={pageInputId}
-              type="text"
-              inputMode="numeric"
-              value={pageDraft}
-              onChange={(event) => {
-                const next = event.target.value
-                if (/^\d*$/.test(next)) {
-                  setPageDraft(next)
-                }
-              }}
-              onBlur={commitPageDraft}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  commitPageDraft()
-                  return
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  setPageDraft(String(pageIndicator.currentPage))
-                }
-              }}
-              className="h-6 w-10 rounded border border-cz-border bg-cz-bg px-1 text-center text-[11px] text-cz-text outline-none tabular-nums focus:border-cz-accent"
-              aria-label="Current page"
-            />
-            <span className="pr-1 text-[11px] text-cz-text-muted tabular-nums">/ {pageIndicator.totalPages}</span>
-            <div className="mx-0.5 h-3 w-px bg-cz-border" />
+            <span className="inline-flex shrink-0 flex-row-reverse items-center">
+              <span className="pr-1 text-[11px] text-cz-text-muted tabular-nums">/ {pageIndicator.totalPages}</span>
+              <input
+                id={pageInputId}
+                type="text"
+                inputMode="numeric"
+                size={Math.max(1, pageDraft.length)}
+                value={pageDraft}
+                onChange={(event) => {
+                  const next = event.target.value
+                  if (/^\d*$/.test(next)) {
+                    setPageDraft(next)
+                  }
+                }}
+                onFocus={(event) => event.target.select()}
+                onBlur={commitPageDraft}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    commitPageDraft()
+                    return
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    setPageDraft(String(pageIndicator.currentPage))
+                  }
+                }}
+                className="box-content mr-1 h-6 w-auto shrink-0 min-w-[1ch] max-w-[6ch] rounded border border-cz-border bg-cz-bg px-1 text-right text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
+                aria-label="Current page"
+              />
+            </span>
+            <div className="mx-1 h-3 w-px bg-cz-border" />
           </>
         )}
 
         {showFitButton && (
           <button onClick={onFit} className={fitBtnClass} title="Fit to width">Fit</button>
         )}
-        <button onClick={onZoomOut} className={btnClass} title="Zoom out">-</button>
-        <span className="w-12 text-center text-[11px] text-cz-text-muted tabular-nums">
+        <button onClick={onZoomOut} className={`${btnClass} w-5`} title="Zoom out">-</button>
+        <span className="w-8 text-center text-[11px] text-cz-text-muted tabular-nums">
           {Math.round(scale * 100)}%
         </span>
-        <button onClick={onZoomIn} className={btnClass} title="Zoom in">+</button>
+        <button onClick={onZoomIn} className={`${btnClass} w-5`} title="Zoom in">+</button>
 
         {extra && (
           <>
-            <div className="mx-0.5 h-3 w-px bg-cz-border" />
+            <div className="mx-1 h-3 w-px bg-cz-border" />
             {extra}
           </>
         )}
 
         {url && (
           <>
-            <div className="mx-0.5 h-3 w-px bg-cz-border" />
+            <div className="mx-1 h-3 w-px bg-cz-border" />
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className={btnClass}
+              className={`${btnClass} w-6`}
               title="Open in new tab"
             >
               <ExternalLink size={12} />
