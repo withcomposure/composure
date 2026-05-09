@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react'
+
 interface SegmentedControlOption<T extends string> {
   value: T
-  label: string
+  label: ReactNode
 }
 
 interface SegmentedControlProps<T extends string> {

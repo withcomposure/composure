@@ -5,6 +5,7 @@ import {
   Crown,
   Eye,
   EyeOff,
+  Infinity as InfinityIcon,
   KeyRound,
   Lock,
   Mail,
@@ -153,6 +154,13 @@ const adminSectionItems: Array<{ id: AdminSectionId; label: string; icon: typeof
   { id: 'login-providers', label: 'Login Providers', icon: KeyRound },
   { id: 'monitoring', label: 'Monitoring', icon: Monitor },
 ]
+
+const unlimitedOptionLabel = (
+  <span className="inline-flex items-center justify-center" title="Unlimited">
+    <InfinityIcon size={16} strokeWidth={2} className="block translate-y-0.5" aria-hidden="true" />
+    <span className="sr-only">Unlimited</span>
+  </span>
+)
 
 function validatePassword(password: string): string | null {
   if (password.trim().length < 8) {
@@ -1182,7 +1190,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   )}
                   <SegmentedControl
                     value={defaultProjectLimitMode}
-                    options={['on', 'unlimited'] as const}
+                    options={[
+                      { value: 'on', label: 'On' },
+                      { value: 'unlimited', label: unlimitedOptionLabel },
+                    ] as const}
                     onChange={setDefaultProjectLimitMode}
                     ariaLabel="Default project limit mode"
                   />
@@ -1232,13 +1243,17 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                       min={1}
                       max={500}
                       suffix=" MB"
+                      widthClass="w-24"
                       ariaLabel="Maximum upload file size MB"
                       onChange={setMaxUploadValue}
                     />
                   )}
                   <SegmentedControl
                     value={maxUploadMode}
-                    options={['on', 'unlimited'] as const}
+                    options={[
+                      { value: 'on', label: 'On' },
+                      { value: 'unlimited', label: unlimitedOptionLabel },
+                    ] as const}
                     onChange={setMaxUploadMode}
                     ariaLabel="Upload file size limit mode"
                   />
@@ -1257,13 +1272,17 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                       min={1}
                       max={100}
                       suffix=" MB"
+                      widthClass="w-24"
                       ariaLabel="Maximum text file size MB"
                       onChange={setMaxTextValue}
                     />
                   )}
                   <SegmentedControl
                     value={maxTextMode}
-                    options={['on', 'unlimited'] as const}
+                    options={[
+                      { value: 'on', label: 'On' },
+                      { value: 'unlimited', label: unlimitedOptionLabel },
+                    ] as const}
                     onChange={setMaxTextMode}
                     ariaLabel="Text file size limit mode"
                   />
@@ -1287,7 +1306,10 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   )}
                   <SegmentedControl
                     value={maxFilesMode}
-                    options={['on', 'unlimited'] as const}
+                    options={[
+                      { value: 'on', label: 'On' },
+                      { value: 'unlimited', label: unlimitedOptionLabel },
+                    ] as const}
                     onChange={setMaxFilesMode}
                     ariaLabel="Files per project limit mode"
                   />
@@ -1337,14 +1359,18 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                       value={chatHistoryRetentionValue}
                       min={1}
                       max={3650}
-                      suffix=" days"
+                      suffix="d"
                       ariaLabel="Chat history retention days"
                       onChange={setChatHistoryRetentionValue}
                     />
                   )}
                   <SegmentedControl
                     value={chatHistoryRetentionMode}
-                    options={['on', 'off', 'unlimited'] as const}
+                    options={[
+                      { value: 'on', label: 'On' },
+                      { value: 'off', label: 'Off' },
+                      { value: 'unlimited', label: unlimitedOptionLabel },
+                    ] as const}
                     onChange={setChatHistoryRetentionMode}
                     ariaLabel="Chat history retention mode"
                   />

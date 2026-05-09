@@ -602,7 +602,7 @@ export function ChatPanel({
 				)}
 			</div>
 
-			<div className="px-3 pb-3 pt-0">
+			<div className="px-3 pb-2 pt-0">
 				{typingText && (
 					<div className="mb-1 text-[11px] text-cz-text-muted">
 						{typingText}
@@ -618,10 +618,10 @@ export function ChatPanel({
 						placeholder={canSend ? 'Write a message...' : 'Chat is read-only for your role.'}
 						disabled={!canSend}
 						maxLength={maxChatMessageChars}
-						rows={5}
-						className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-xs text-cz-text outline-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+						rows={4}
+						className="block w-full resize-none border-0 bg-transparent px-3 py-2 text-xs text-cz-text outline-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					/>
-					<div className="flex items-center justify-between px-2 py-1.5">
+					<div className="flex items-center justify-between px-2 py-1">
 						<div className="text-[11px] text-cz-text-muted/80 tabular-nums">
 							{messageCharacterCount} / {maxChatMessageChars}
 						</div>
@@ -629,12 +629,12 @@ export function ChatPanel({
 							type="button"
 							onClick={submitMessage}
 							disabled={sendDisabled}
-							className="inline-flex h-8 items-center gap-1 rounded-md border border-cz-border bg-cz-bg px-2.5 text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
+							className="inline-flex h-7 items-center gap-1 rounded-md border border-cz-border bg-cz-bg px-2 text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
 							aria-label="Send message"
 							title="Send"
 						>
-							<Send size={13} />
-							<span className="text-xs font-medium">Send</span>
+							<Send size={12} />
+							<span className="text-[11px] font-medium">Send</span>
 						</button>
 					</div>
 				</div>
