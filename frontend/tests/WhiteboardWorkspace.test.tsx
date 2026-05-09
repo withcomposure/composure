@@ -78,6 +78,7 @@ describe('WhiteboardWorkspace layout', () => {
           currentRole: 'owner',
           maxTextFileSizeBytes: 5 * 1024 * 1024,
           largeFileThresholdChars: 500000,
+          chatHistoryRetentionDays: 'unlimited',
         })
       }
 

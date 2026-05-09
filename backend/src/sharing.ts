@@ -7,6 +7,7 @@ import {
   getProjectCommentById,
   getProjectRoleForPrincipal,
   findProjectById,
+  getChatHistoryRetentionDays,
   getLargeFileThresholdChars,
   getLinkSharingState,
   getMaxTextFileSize,
@@ -145,6 +146,7 @@ export async function getProjectAccessRoute(
     currentRole,
     maxTextFileSizeBytes: await getMaxTextFileSize(),
     largeFileThresholdChars: await getLargeFileThresholdChars(),
+    chatHistoryRetentionDays: await getChatHistoryRetentionDays(),
   })
 }
 

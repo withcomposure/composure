@@ -10,6 +10,7 @@ export interface ServerSettings {
   maxFilesPerProject: number | "unlimited";
   trashRetentionDays: number;
   largeFileThresholdChars: number;
+  chatHistoryRetentionDays: number | "unlimited";
 }
 
 export interface ServerSettingsFormState {
@@ -28,6 +29,8 @@ export interface ServerSettingsFormState {
   maxFilesValue: number;
   trashRetentionDays: number;
   largeFileThreshold: number;
+  chatHistoryRetentionMode: "on" | "unlimited";
+  chatHistoryRetentionValue: number;
 }
 
 export const DEFAULT_SERVER_SETTINGS_FORM_STATE: ServerSettingsFormState = {
@@ -46,6 +49,8 @@ export const DEFAULT_SERVER_SETTINGS_FORM_STATE: ServerSettingsFormState = {
   maxFilesValue: 200,
   trashRetentionDays: 30,
   largeFileThreshold: 500,
+  chatHistoryRetentionMode: "unlimited",
+  chatHistoryRetentionValue: 30,
 };
 
 export function toServerSettingsFormState(
@@ -79,6 +84,13 @@ export function toServerSettingsFormState(
       ? response.maxFilesPerProject
       : 200;
 
+  const chatHistoryRetentionMode =
+    response.chatHistoryRetentionDays === "unlimited" ? "unlimited" : "on";
+  const chatHistoryRetentionValue =
+    typeof response.chatHistoryRetentionDays === "number"
+      ? response.chatHistoryRetentionDays
+      : 30;
+
   return {
     signupMode: response.signupMode,
     guestSignupsEnabled: response.guestSignupsEnabled,
@@ -97,6 +109,8 @@ export function toServerSettingsFormState(
     largeFileThreshold: Math.round(
       (response.largeFileThresholdChars ?? 500_000) / 1000,
     ),
+    chatHistoryRetentionMode,
+    chatHistoryRetentionValue,
   };
 }
 
@@ -127,5 +141,9 @@ export function toServerSettingsPayload(
         : state.maxFilesValue,
     trashRetentionDays: state.trashRetentionDays,
     largeFileThresholdChars: state.largeFileThreshold * 1000,
+    chatHistoryRetentionDays:
+      state.chatHistoryRetentionMode === "unlimited"
+        ? "unlimited"
+        : state.chatHistoryRetentionValue,
   };
 }

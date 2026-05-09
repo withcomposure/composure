@@ -133,6 +133,27 @@ describe('workspace-state parsing', () => {
     expect(built.sidebarTab).toBe('review')
     expect(built.activePaneId).toBe('pane-3')
   })
+
+  it('preserves chat tab in persisted state parsing', () => {
+    const parsed = parsePersistedWorkspaceState({
+      sidebarOpen: true,
+      sidebarTab: 'chat',
+      paneStateById: {
+        [ROOT_PANE_ID]: {
+          tabs: [],
+          activePath: '',
+          showSnippetToolbar: true,
+        },
+      },
+      editorLayout: {
+        kind: 'pane',
+        paneId: ROOT_PANE_ID,
+      },
+    })
+
+    expect(parsed).not.toBeNull()
+    expect(parsed?.sidebarTab).toBe('chat')
+  })
 })
 
 describe('workspace-state counters', () => {

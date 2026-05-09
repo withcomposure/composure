@@ -9,6 +9,7 @@ import {
   canAccessProjectWithRole,
   findProjectById,
   findUserById,
+  getChatHistoryRetentionDays,
   getMaxConcurrentJobs,
   getMaxTextFileSize,
   redeemShareTokenForUser,
@@ -73,6 +74,104 @@ function getShareTokenFromUrl(rawUrl: string | undefined): string | undefined {
   }
 }
 
+const chatDocumentSuffix = ':chat'
+
+type CollaborationDocumentKind = 'project' | 'chat'
+
+interface CollaborationDocumentRef {
+  documentName: string
+  projectId: string
+  kind: CollaborationDocumentKind
+}
+
+function parseCollaborationDocumentName(documentName: string): CollaborationDocumentRef | null {
+  if (isValidProjectId(documentName)) {
+    return {
+      documentName,
+      projectId: documentName,
+      kind: 'project',
+    }
+  }
+
+  if (!documentName.endsWith(chatDocumentSuffix)) {
+    return null
+  }
+
+  const projectId = documentName.slice(0, -chatDocumentSuffix.length)
+  if (!isValidProjectId(projectId)) {
+    return null
+  }
+
+  return {
+    documentName,
+    projectId,
+    kind: 'chat',
+  }
+}
+
+function readChatMessageCreatedAt(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+
+  const fromRecord = (raw as Record<string, unknown>).createdAt
+  if (typeof fromRecord === 'number' && Number.isFinite(fromRecord)) {
+    return fromRecord > 9_999_999_999 ? Math.floor(fromRecord / 1000) : Math.floor(fromRecord)
+  }
+
+  if (typeof fromRecord === 'string') {
+    const parsed = Number.parseInt(fromRecord, 10)
+    return Number.isFinite(parsed)
+      ? (parsed > 9_999_999_999 ? Math.floor(parsed / 1000) : parsed)
+      : null
+  }
+
+  if (raw instanceof Y.Map) {
+    const value = raw.get('createdAt')
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value > 9_999_999_999 ? Math.floor(value / 1000) : Math.floor(value)
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10)
+      return Number.isFinite(parsed)
+        ? (parsed > 9_999_999_999 ? Math.floor(parsed / 1000) : parsed)
+        : null
+    }
+  }
+
+  return null
+}
+
+function pruneExpiredChatMessages(doc: Y.Doc, retentionDays: number | 'unlimited'): number {
+  if (retentionDays === 'unlimited') {
+    return 0
+  }
+
+  const cutoffEpochSeconds = Math.floor(Date.now() / 1000) - (retentionDays * 24 * 60 * 60)
+  const messages = doc.getArray<unknown>('messages')
+  const values = messages.toArray()
+  const indicesToDelete: number[] = []
+
+  for (let index = 0; index < values.length; index += 1) {
+    const createdAt = readChatMessageCreatedAt(values[index])
+    if (createdAt != null && createdAt < cutoffEpochSeconds) {
+      indicesToDelete.push(index)
+    }
+  }
+
+  if (indicesToDelete.length === 0) {
+    return 0
+  }
+
+  doc.transact(() => {
+    for (let cursor = indicesToDelete.length - 1; cursor >= 0; cursor -= 1) {
+      messages.delete(indicesToDelete[cursor], 1)
+    }
+  }, 'composure:chat-retention-prune')
+
+  return indicesToDelete.length
+}
+
 async function resolveHocuspocusPrincipal(data: {
   request: { headers: { cookie?: string | string[] | undefined } }
   connection?: { request?: { headers?: { cookie?: string | string[] | undefined } } }
@@ -93,6 +192,8 @@ interface HocuspocusAuthContext {
   principal: Principal
   userRole: RequestUserRole
   documentName: string
+  projectId: string
+  documentKind: CollaborationDocumentKind
   shareToken?: string
 }
 
@@ -144,8 +245,12 @@ function isIncomingYjsWriteSyncMessage(payload: Uint8Array): boolean {
   return syncType.value === 1 || syncType.value === 2
 }
 
-async function assertHocuspocusContextAccess(documentName: string, context: unknown): Promise<Principal> {
-  if (!isValidProjectId(documentName)) {
+async function assertHocuspocusContextAccess(
+  documentName: string,
+  context: unknown,
+): Promise<{ principal: Principal; documentRef: CollaborationDocumentRef }> {
+  const documentRef = parseCollaborationDocumentName(documentName)
+  if (!documentRef) {
     throw new Error('Invalid project ID')
   }
 
@@ -157,7 +262,7 @@ async function assertHocuspocusContextAccess(documentName: string, context: unkn
 
   await runWithHocuspocusIdentity(context, async () => {
     const shareToken = authContext?.shareToken
-    const access = await canAccessProjectWithRole(documentName, principal, 'view', shareToken)
+    const access = await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken)
     if (!access.ok) {
       console.warn(
         `[hocuspocus] denied document=${documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'}`,
@@ -165,9 +270,9 @@ async function assertHocuspocusContextAccess(documentName: string, context: unkn
       throw new Error('Forbidden')
     }
 
-    await touchProjectActivity(documentName)
+    await touchProjectActivity(documentRef.projectId)
   })
-  return principal
+  return { principal, documentRef }
 }
 
 // Hocuspocus (Yjs WebSocket server)
@@ -177,7 +282,8 @@ const hocuspocus = new Hocuspocus({
   debounce: 400,
   maxDebounce: 1500,
   async onAuthenticate(data) {
-    if (!isValidProjectId(data.documentName)) {
+    const documentRef = parseCollaborationDocumentName(data.documentName)
+    if (!documentRef) {
       console.warn(`[hocuspocus] auth-rejected document=${data.documentName} reason=invalid-project-id`)
       throw new Error('Invalid project ID')
     }
@@ -200,7 +306,7 @@ const hocuspocus = new Hocuspocus({
     const access = await runWithIdentityContext(
       principal.userId,
       userRole,
-      async () => await canAccessProjectWithRole(data.documentName, principal, 'view', shareToken),
+      async () => await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken),
     )
     if (!access.ok) {
       console.warn(
@@ -209,9 +315,16 @@ const hocuspocus = new Hocuspocus({
       throw new Error('Forbidden')
     }
 
-    await runWithIdentityContext(principal.userId, userRole, async () => await touchProjectActivity(data.documentName))
+    await runWithIdentityContext(principal.userId, userRole, async () => await touchProjectActivity(documentRef.projectId))
     console.info(`[hocuspocus] auth-ok document=${data.documentName} role=${access.role ?? 'none'}`)
-    return { principal, userRole, documentName: data.documentName, shareToken }
+    return {
+      principal,
+      userRole,
+      documentName: data.documentName,
+      projectId: documentRef.projectId,
+      documentKind: documentRef.kind,
+      shareToken,
+    }
   },
   async onConnect(data) {
     console.info(
@@ -229,9 +342,15 @@ const hocuspocus = new Hocuspocus({
     )
   },
   async beforeHandleMessage(data) {
-    const authContext = data.context as HocuspocusAuthContext | undefined
+    let authContext: HocuspocusAuthContext | undefined
+    let documentRef: CollaborationDocumentRef
+    let principal: Principal
+
     try {
-      await assertHocuspocusContextAccess(data.documentName, data.context)
+      const accessCheck = await assertHocuspocusContextAccess(data.documentName, data.context)
+      authContext = data.context as HocuspocusAuthContext | undefined
+      principal = accessCheck.principal
+      documentRef = accessCheck.documentRef
     } catch (err) {
       console.error(
         `[hocuspocus] before-handle-DENIED document=${data.documentName} socket=${data.socketId} error=${String(err)} context=${JSON.stringify(data.context)}`,
@@ -239,16 +358,16 @@ const hocuspocus = new Hocuspocus({
       throw err
     }
 
-    const principal = authContext?.principal
     const shareToken = authContext?.shareToken
-    const canEdit = principal
+    const requiredWriteRole = documentRef.kind === 'chat' ? 'comment' : 'edit'
+    const canWrite = principal
       ? (await runWithHocuspocusIdentity(
         data.context,
-        async () => await canAccessProjectWithRole(data.documentName, principal, 'edit', shareToken),
+        async () => await canAccessProjectWithRole(documentRef.projectId, principal, requiredWriteRole, shareToken),
       )).ok
       : false
 
-    if (!canEdit && isIncomingYjsWriteSyncMessage(data.update)) {
+    if (!canWrite && isIncomingYjsWriteSyncMessage(data.update)) {
       console.warn(
         `[hocuspocus] write-denied document=${data.documentName} socket=${data.socketId} reason=insufficient-role`,
       )
@@ -256,7 +375,7 @@ const hocuspocus = new Hocuspocus({
     }
 
     // Enforce text file size limit on incoming write messages
-    if (canEdit && isIncomingYjsWriteSyncMessage(data.update)) {
+    if (documentRef.kind === 'project' && canWrite && isIncomingYjsWriteSyncMessage(data.update)) {
       const maxTextSize = await getMaxTextFileSize()
       if (maxTextSize !== 'unlimited') {
         const cloneDoc = new Y.Doc()
@@ -293,9 +412,25 @@ const hocuspocus = new Hocuspocus({
   },
   async onLoadDocument(data) {
     console.info(`[hocuspocus] load document=${data.documentName}`)
+    const documentRef = parseCollaborationDocumentName(data.documentName)
+    if (!documentRef) {
+      throw new Error('Invalid project ID')
+    }
+
     const stored = await runWithHocuspocusIdentity(data.context, async () => await loadDocument(data.documentName))
     if (stored) {
       Y.applyUpdate(data.document, new Uint8Array(stored))
+
+      if (documentRef.kind === 'chat') {
+        const retentionDays = await getChatHistoryRetentionDays()
+        const removedCount = pruneExpiredChatMessages(data.document, retentionDays)
+        if (removedCount > 0) {
+          console.info(
+            `[hocuspocus] chat-pruned-on-load document=${data.documentName} removed=${removedCount} retentionDays=${String(retentionDays)}`,
+          )
+        }
+      }
+
       const summary = summarizeDocState(data.document)
       console.info(
         `[hocuspocus] load-hit document=${data.documentName} bytes=${stored.length} sharedTypes=${data.document.share.size} filesMap=${summary.filesMapCount} fileTexts=${summary.fileTextCount}`,
@@ -306,23 +441,47 @@ const hocuspocus = new Hocuspocus({
     return data.document
   },
   async onChange(data) {
-    await runWithHocuspocusIdentity(data.context, async () => await touchProjectActivity(data.documentName))
+    const documentRef = parseCollaborationDocumentName(data.documentName)
+    if (!documentRef) {
+      throw new Error('Invalid project ID')
+    }
+
+    await runWithHocuspocusIdentity(data.context, async () => await touchProjectActivity(documentRef.projectId))
     console.info(
       `[hocuspocus] change document=${data.documentName} updateBytes=${data.update.length} sharedTypes=${data.document.share.size} connections=${data.document.getConnectionsCount()}`,
     )
   },
   async onStoreDocument(data) {
+    const documentRef = parseCollaborationDocumentName(data.documentName)
+    if (!documentRef) {
+      throw new Error('Invalid project ID')
+    }
+
+    if (documentRef.kind === 'chat') {
+      const retentionDays = await getChatHistoryRetentionDays()
+      const removedCount = pruneExpiredChatMessages(data.document, retentionDays)
+      if (removedCount > 0) {
+        console.info(
+          `[hocuspocus] chat-pruned-on-store document=${data.documentName} removed=${removedCount} retentionDays=${String(retentionDays)}`,
+        )
+      }
+    }
+
     const update = Y.encodeStateAsUpdate(data.document)
     await runWithHocuspocusIdentity(data.context, async () => {
       await storeDocument(data.documentName, Buffer.from(update))
-      await touchProjectActivity(data.documentName)
+      await touchProjectActivity(documentRef.projectId)
     })
     console.info(
       `[hocuspocus] store document=${data.documentName} bytes=${update.length} sharedTypes=${data.document.share.size}`,
     )
 
+    if (documentRef.kind !== 'project') {
+      return
+    }
+
     // Auto-commit to git history based on the project owner's interval setting
-    const projectId = data.documentName
+    const projectId = documentRef.projectId
     const project = await runWithHocuspocusIdentity(data.context, async () => await findProjectById(projectId))
     if (project?.engine === 'excalidraw') {
       console.info(`[history] auto-commit-skipped projectId=${projectId} engine=excalidraw`)

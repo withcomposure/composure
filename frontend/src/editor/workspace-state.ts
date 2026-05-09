@@ -5,7 +5,7 @@ import {
 } from './workspace-tabs'
 
 export type SplitOrientation = 'horizontal' | 'vertical'
-export type SidebarTab = 'files' | 'review' | 'history'
+export type SidebarTab = 'files' | 'review' | 'chat' | 'history'
 
 export interface EditorPaneState {
   tabs: WorkspaceTab[]
@@ -66,7 +66,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function normalizeSidebarTab(value: unknown): SidebarTab {
-  return value === 'review' || value === 'history' ? value : 'files'
+  return value === 'review' || value === 'chat' || value === 'history' ? value : 'files'
 }
 
 function normalizeDiffMode(value: unknown): 'side-by-side' | 'inline' {

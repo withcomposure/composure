@@ -15,6 +15,7 @@ import {
   getHealthStatus,
   getInviteExpiryHours,
   getJobQueueSummary,
+  getChatHistoryRetentionDays,
   getLargeFileThresholdChars,
   getMaxConcurrentJobs,
   getMaxFilesPerProject,
@@ -33,6 +34,7 @@ import {
   listUsersForAdmin,
   revokeInviteToken,
   setInviteExpiryHours,
+  setChatHistoryRetentionDays,
   setLargeFileThresholdChars,
   setMaxConcurrentJobs,
   setMaxFilesPerProject,
@@ -359,6 +361,7 @@ export async function getAdminServerSettingsRoute(req: FastifyRequest, reply: Fa
     maxFilesPerProject: await getMaxFilesPerProject(),
     trashRetentionDays: await getTrashRetentionDays(),
     largeFileThresholdChars: await getLargeFileThresholdChars(),
+    chatHistoryRetentionDays: await getChatHistoryRetentionDays(),
   })
 }
 
@@ -374,6 +377,7 @@ interface UpdateAdminServerSettingsBody {
   maxFilesPerProject?: number | 'unlimited'
   trashRetentionDays?: number
   largeFileThresholdChars?: number
+  chatHistoryRetentionDays?: number | 'unlimited'
 }
 
 export async function updateAdminServerSettingsRoute(
@@ -472,6 +476,15 @@ export async function updateAdminServerSettingsRoute(
     await setLargeFileThresholdChars(raw)
   }
 
+  if (req.body?.chatHistoryRetentionDays != null) {
+    const raw = req.body.chatHistoryRetentionDays
+    if (raw !== 'unlimited' && (!Number.isFinite(Number(raw)) || Number(raw) < 1)) {
+      reply.status(400).send({ error: 'chatHistoryRetentionDays must be a positive number or "unlimited".' })
+      return
+    }
+    await setChatHistoryRetentionDays(raw === 'unlimited' ? 'unlimited' : Number(raw))
+  }
+
   const seconds = await getPasswordResetExpirySeconds()
   reply.send({
     passwordResetExpiryHours: Math.round((seconds / 3600) * 100) / 100,
@@ -485,6 +498,7 @@ export async function updateAdminServerSettingsRoute(
     maxFilesPerProject: await getMaxFilesPerProject(),
     trashRetentionDays: await getTrashRetentionDays(),
     largeFileThresholdChars: await getLargeFileThresholdChars(),
+    chatHistoryRetentionDays: await getChatHistoryRetentionDays(),
   })
 }
 

@@ -98,6 +98,38 @@ beforeEach(async () => {
 })
 
 describe('row level security', () => {
+  it('allows comment-role members to store chat documents under RLS', async () => {
+    const owner = await createTestUser({ email: 'owner-chat-doc@test.com' })
+    const projectId = await createTestProject(owner.id)
+    const commenter = await createTestUser({ email: 'commenter-chat-doc@test.com' })
+    const outsider = await createTestUser({ email: 'outsider-chat-doc@test.com' })
+    const chatDocumentName = `${projectId}:chat`
+
+    await sql`
+      INSERT INTO project_members (project_id, user_id, role, status, created_at, updated_at)
+      VALUES (${projectId}, ${commenter.id}, 'comment', 'accepted', extract(epoch from now())::integer, extract(epoch from now())::integer)
+    `
+
+    await expect(asRlsRole(outsider.id, 'user', async (tx) => await tx`
+      INSERT INTO documents (name, state, updated_at)
+      VALUES (${chatDocumentName}, ${Buffer.from('outsider-chat-state')}, extract(epoch from now())::integer)
+      ON CONFLICT(name) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at
+    `)).rejects.toThrow()
+
+    await expect(asRlsRole(commenter.id, 'user', async (tx) => await tx`
+      INSERT INTO documents (name, state, updated_at)
+      VALUES (${chatDocumentName}, ${Buffer.from('commenter-chat-state')}, extract(epoch from now())::integer)
+      ON CONFLICT(name) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at
+    `)).resolves.toBeDefined()
+
+    const [stored] = await sql<[{ name: string }?]>`
+      SELECT name
+      FROM documents
+      WHERE name = ${chatDocumentName}
+    `
+    expect(stored?.name).toBe(chatDocumentName)
+  })
+
   it('allows project members to be selected without recursive project_members policies', async () => {
     const owner = await createTestUser({ email: 'owner@test.com' })
     const projectId = await createTestProject(owner.id)

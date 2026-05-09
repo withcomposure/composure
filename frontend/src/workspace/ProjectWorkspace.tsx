@@ -8,13 +8,14 @@ import {
 } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { FolderTree, History as HistoryIcon, MessageSquare, X } from "lucide-react";
+import { Eye, FolderTree, History as HistoryIcon, MessageSquare, X } from "lucide-react";
 import MarkdownIt from "markdown-it";
 import Asciidoctor from "@asciidoctor/core";
 import {
   CommentsPanel,
   type CommentLineNumbers,
 } from "@/sidebar/CommentsPanel";
+import { ChatPanel } from "@/sidebar/ChatPanel";
 import { FileTree } from "@/sidebar/FileTree";
 import { type FileTabsDropPayload } from "@/editor/FileTabs";
 
@@ -150,6 +151,10 @@ function pdfPreviewStorageKey(projectId: string): string {
   return `composure:pdfUrl:${projectId}`;
 }
 
+function chatDocumentName(projectId: string): string {
+  return `${projectId}:chat`;
+}
+
 export function ProjectWorkspace({
   projectId,
   session,
@@ -182,7 +187,7 @@ export function ProjectWorkspace({
   } = session;
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<"files" | "review" | "history">(
+  const [sidebarTab, setSidebarTab] = useState<"files" | "review" | "chat" | "history">(
     "files",
   );
   const [activeFile, setActiveFile] = useState("");
@@ -227,6 +232,8 @@ export function ProjectWorkspace({
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connecting");
+  const [chatConnectionState, setChatConnectionState] =
+    useState<ConnectionState>("connecting");
   const [saving, setSaving] = useState(false);
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -255,6 +262,9 @@ export function ProjectWorkspace({
   >(5 * 1024 * 1024);
   const [largeFileThresholdChars, setLargeFileThresholdChars] =
     useState(500_000);
+  const [chatHistoryRetentionDays, setChatHistoryRetentionDays] = useState<
+    number | "unlimited"
+  >("unlimited");
   const [accessRole, setAccessRole] = useState<ShareRole | "owner" | null>(
     null,
   );
@@ -294,6 +304,7 @@ export function ProjectWorkspace({
   const splitIdCounterRef = useRef(1);
   const previousProjectIdRef = useRef(projectId);
   const ydocProjectIdRef = useRef(projectId);
+  const chatYdocProjectIdRef = useRef(projectId);
   const markdownDebounceTimerRef = useRef<number | null>(null);
   const duplicateCitationDecisionResolverRef = useRef<
     ((allowDuplicate: boolean) => void) | null
@@ -304,6 +315,7 @@ export function ProjectWorkspace({
   const [workspaceStateLoaded, setWorkspaceStateLoaded] = useState(false);
   const lastPersistedWorkspaceStateRef = useRef<string | null>(null);
   const [ydoc, setYdoc] = useState(() => new Y.Doc());
+  const [chatYdoc, setChatYdoc] = useState(() => new Y.Doc());
 
   useEffect(() => {
     setProjectEntrypoint(entrypoint.trim() || null);
@@ -516,6 +528,20 @@ export function ProjectWorkspace({
   }, [projectId]);
 
   useEffect(() => {
+    if (
+      !shouldResetWorkspaceForProjectChange(
+        chatYdocProjectIdRef.current,
+        projectId,
+      )
+    ) {
+      return;
+    }
+
+    chatYdocProjectIdRef.current = projectId;
+    setChatYdoc(() => new Y.Doc());
+  }, [projectId]);
+
+  useEffect(() => {
     setPaneStateById((prev) => {
       const pane = prev[activePaneId];
       if (!pane || pane.activePath === activeFile) {
@@ -558,6 +584,7 @@ export function ProjectWorkspace({
     sidebarWidthRef.current = defaults.sidebarWidth;
     setPreviewOpen(defaults.previewOpen);
     setPreviewWidth(defaults.previewWidth);
+    setChatHistoryRetentionDays("unlimited");
     setRightPreviewPinnedFilePath(null);
     setPaneDropHint(null);
     paneIdCounterRef.current = 2;
@@ -1254,8 +1281,10 @@ export function ProjectWorkspace({
   const canComment =
     accessRole === "owner" || accessRole === "edit" || accessRole === "comment";
   const canEdit = accessRole === "owner" || accessRole === "edit";
+  const canChat = canComment;
   const canCommentLive = canComment && connectionState === "connected";
   const canEditLive = canEdit && connectionState === "connected";
+  const canChatLive = canChat && chatConnectionState === "connected";
   const canManageAccess = accessRole === "owner" && Boolean(sessionUser?.id);
   const effectiveMode: EditorMode =
     editorMode === "edit" && !canEditLive
@@ -1405,6 +1434,9 @@ export function ProjectWorkspace({
   }, []);
 
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
+  const [chatProvider, setChatProvider] = useState<HocuspocusProvider | null>(
+    null,
+  );
 
   useEffect(() => {
     const wsUrl = collaborationWsUrl(shareToken);
@@ -1498,10 +1530,62 @@ export function ProjectWorkspace({
   }, [projectId, shareToken, ydoc]);
 
   useEffect(() => {
+    const wsUrl = collaborationWsUrl(shareToken);
+    const documentName = chatDocumentName(projectId);
+
+    setChatConnectionState("connecting");
+    console.info(
+      `[chat] creating provider projectId=${projectId} document=${documentName} wsUrl=${wsUrl}`,
+    );
+
+    const prov = new HocuspocusProvider({
+      url: wsUrl,
+      name: documentName,
+      document: chatYdoc,
+      onConnect: () => {
+        console.info(`[chat] provider-connected projectId=${projectId}`);
+        setChatConnectionState("connected");
+      },
+      onDisconnect: () => {
+        console.info(`[chat] provider-disconnected projectId=${projectId}`);
+        setChatConnectionState("disconnected");
+      },
+      onAuthenticationFailed: ({ reason }: { reason: string }) => {
+        console.error(
+          `[chat] provider-auth-FAILED projectId=${projectId} reason=${reason}`,
+        );
+        setChatConnectionState("disconnected");
+      },
+      onStatus: ({ status }) => {
+        if (
+          status === "connected" ||
+          status === "connecting" ||
+          status === "disconnected"
+        ) {
+          setChatConnectionState(status);
+        }
+      },
+    });
+
+    setChatProvider(prov);
+
+    return () => {
+      setChatConnectionState("connecting");
+      prov.destroy();
+    };
+  }, [chatYdoc, projectId, shareToken]);
+
+  useEffect(() => {
     return () => {
       ydoc.destroy();
     };
   }, [ydoc]);
+
+  useEffect(() => {
+    return () => {
+      chatYdoc.destroy();
+    };
+  }, [chatYdoc]);
 
   const loadAccess = useCallback(async () => {
     try {
@@ -1521,6 +1605,7 @@ export function ProjectWorkspace({
       setAccessRole(body.currentRole);
       setMaxTextFileSizeBytes(body.maxTextFileSizeBytes);
       setLargeFileThresholdChars(body.largeFileThresholdChars);
+      setChatHistoryRetentionDays(body.chatHistoryRetentionDays);
     } catch (err) {
       console.warn(`[app] load-access-failed ${String(err)}`);
     }
@@ -3581,7 +3666,7 @@ export function ProjectWorkspace({
           </button>
         </div>
         <div
-          className="grid grid-cols-3 border-b border-cz-border"
+          className="grid grid-cols-4 border-b border-cz-border"
           style={{ height: "var(--sub-toolbar-height)" }}
         >
           <button
@@ -3599,8 +3684,17 @@ export function ProjectWorkspace({
             aria-label="Review"
             title="Review"
           >
-            <MessageSquare size={14} />
+            <Eye size={14} />
             <span className="sr-only">Review</span>
+          </button>
+          <button
+            onClick={() => setSidebarTab("chat")}
+            className={`inline-flex h-full items-center justify-center ${sidebarTab === "chat" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            aria-label="Chat"
+            title="Chat"
+          >
+            <MessageSquare size={14} />
+            <span className="sr-only">Chat</span>
           </button>
           <button
             onClick={() => setSidebarTab("history")}
@@ -3634,17 +3728,7 @@ export function ProjectWorkspace({
             onRename={renameFile}
             onDelete={deleteFile}
           />
-        ) : sidebarTab === "history" ? (
-          <HistoryPanel
-            projectId={projectId}
-            onViewDiff={(sha, filePath, mode) => {
-              openDiffTab(sha, filePath, mode ?? "ephemeral");
-            }}
-            canEdit={canEdit}
-            refreshKey={historyRefreshKey}
-            onRestoreVersion={(sha) => void handleRestoreVersion(sha)}
-          />
-        ) : (
+        ) : sidebarTab === "review" ? (
           <CommentsPanel
             activeFile={activeFilePath}
             comments={comments}
@@ -3667,6 +3751,29 @@ export function ProjectWorkspace({
             onReplyComment={createComment}
             onEditComment={updateComment}
             onDeleteComment={removeComment}
+          />
+        ) : sidebarTab === "chat" ? (
+          <ChatPanel
+            ydoc={chatYdoc}
+            provider={chatProvider}
+            canSend={canChatLive}
+            localUser={{
+              name: accountLabel,
+              userId: principal.userId,
+              guestId: principal.guestId,
+              profileImageUrl: sessionUser?.profileImageUrl ?? null,
+            }}
+            historyRetentionDays={chatHistoryRetentionDays}
+          />
+        ) : (
+          <HistoryPanel
+            projectId={projectId}
+            onViewDiff={(sha, filePath, mode) => {
+              openDiffTab(sha, filePath, mode ?? "ephemeral");
+            }}
+            canEdit={canEdit}
+            refreshKey={historyRefreshKey}
+            onRestoreVersion={(sha) => void handleRestoreVersion(sha)}
           />
         )}
       </aside>

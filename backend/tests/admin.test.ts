@@ -117,6 +117,7 @@ describe('admin — server settings', () => {
     const body = res.json()
     expect(body.signupMode).toBeDefined()
     expect(body.guestSignupsEnabled).toBe(true)
+    expect(body.chatHistoryRetentionDays).toBeDefined()
   })
 
   it('updates server settings', async () => {
@@ -127,10 +128,13 @@ describe('admin — server settings', () => {
       method: 'PATCH',
       url: '/api/v1/admin/server-settings',
       headers: { cookie: sessionCookie(sessionId) },
-      payload: { signupMode: 'invite-only' },
+      payload: { signupMode: 'invite-only', chatHistoryRetentionDays: 14 },
     })
 
     expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.signupMode).toBe('invite-only')
+    expect(body.chatHistoryRetentionDays).toBe(14)
   })
 
   it('toggles guest signups off and on', async () => {

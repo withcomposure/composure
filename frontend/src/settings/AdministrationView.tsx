@@ -184,6 +184,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [maxFilesValue, setMaxFilesValue] = useState(200)
   const [trashRetentionDays, setTrashRetentionDays] = useState(30)
   const [largeFileThreshold, setLargeFileThreshold] = useState(500)  // in thousands of chars
+  const [chatHistoryRetentionMode, setChatHistoryRetentionMode] = useState<'on' | 'unlimited'>('unlimited')
+  const [chatHistoryRetentionValue, setChatHistoryRetentionValue] = useState(30)
   const [serverSettingsSaved, setServerSettingsSaved] = useState<ServerSettingsFormState>(
     DEFAULT_SERVER_SETTINGS_FORM_STATE,
   )
@@ -310,6 +312,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     setMaxFilesValue(next.maxFilesValue)
     setTrashRetentionDays(next.trashRetentionDays)
     setLargeFileThreshold(next.largeFileThreshold)
+    setChatHistoryRetentionMode(next.chatHistoryRetentionMode)
+    setChatHistoryRetentionValue(next.chatHistoryRetentionValue)
   }, [])
 
   const loadServerSettings = useCallback(async () => {
@@ -769,6 +773,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
         maxFilesValue,
         trashRetentionDays,
         largeFileThreshold,
+        chatHistoryRetentionMode,
+        chatHistoryRetentionValue,
       })
       const response = await fetchJson<ServerSettings>('/admin/server-settings', {
         method: 'PATCH',
@@ -800,6 +806,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     maxFilesValue,
     trashRetentionDays,
     largeFileThreshold,
+    chatHistoryRetentionMode,
+    chatHistoryRetentionValue,
   ])
 
   const createNewInvite = useCallback(async () => {
@@ -900,7 +908,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
 
   const enabledLoginProviderCount = loginProviders.filter((p) => p.enabled).length
 
-  const serverSettingsDirty = signupMode !== serverSettingsSaved.signupMode || guestSignupsEnabled !== serverSettingsSaved.guestSignupsEnabled || inviteExpiryHours !== serverSettingsSaved.inviteExpiryHours || passwordResetExpiryHours !== serverSettingsSaved.passwordResetExpiryHours || maxConcurrentJobs !== serverSettingsSaved.maxConcurrentJobs || defaultProjectLimitMode !== serverSettingsSaved.defaultProjectLimitMode || (defaultProjectLimitMode === 'on' && defaultProjectLimitValue !== serverSettingsSaved.defaultProjectLimitValue) || maxUploadMode !== serverSettingsSaved.maxUploadMode || (maxUploadMode === 'on' && maxUploadValue !== serverSettingsSaved.maxUploadValue) || maxTextMode !== serverSettingsSaved.maxTextMode || (maxTextMode === 'on' && maxTextValue !== serverSettingsSaved.maxTextValue) || maxFilesMode !== serverSettingsSaved.maxFilesMode || (maxFilesMode === 'on' && maxFilesValue !== serverSettingsSaved.maxFilesValue) || trashRetentionDays !== serverSettingsSaved.trashRetentionDays || largeFileThreshold !== serverSettingsSaved.largeFileThreshold
+  const serverSettingsDirty = signupMode !== serverSettingsSaved.signupMode || guestSignupsEnabled !== serverSettingsSaved.guestSignupsEnabled || inviteExpiryHours !== serverSettingsSaved.inviteExpiryHours || passwordResetExpiryHours !== serverSettingsSaved.passwordResetExpiryHours || maxConcurrentJobs !== serverSettingsSaved.maxConcurrentJobs || defaultProjectLimitMode !== serverSettingsSaved.defaultProjectLimitMode || (defaultProjectLimitMode === 'on' && defaultProjectLimitValue !== serverSettingsSaved.defaultProjectLimitValue) || maxUploadMode !== serverSettingsSaved.maxUploadMode || (maxUploadMode === 'on' && maxUploadValue !== serverSettingsSaved.maxUploadValue) || maxTextMode !== serverSettingsSaved.maxTextMode || (maxTextMode === 'on' && maxTextValue !== serverSettingsSaved.maxTextValue) || maxFilesMode !== serverSettingsSaved.maxFilesMode || (maxFilesMode === 'on' && maxFilesValue !== serverSettingsSaved.maxFilesValue) || trashRetentionDays !== serverSettingsSaved.trashRetentionDays || largeFileThreshold !== serverSettingsSaved.largeFileThreshold || chatHistoryRetentionMode !== serverSettingsSaved.chatHistoryRetentionMode || (chatHistoryRetentionMode === 'on' && chatHistoryRetentionValue !== serverSettingsSaved.chatHistoryRetentionValue)
 
   const isSelfEditing = editingUser?.id === currentUserId
 
@@ -1314,6 +1322,31 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                     suffix="K"
                     ariaLabel="Large file mode threshold in thousands of characters"
                     onChange={setLargeFileThreshold}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-cz-text">Chat history retention (days)</div>
+                  <div className="text-xs text-cz-text-muted">Controls how long project chat messages are kept. Choose unlimited to retain all chat history.</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {chatHistoryRetentionMode === 'on' && (
+                    <NumberStepper
+                      value={chatHistoryRetentionValue}
+                      min={1}
+                      max={3650}
+                      suffix=" days"
+                      ariaLabel="Chat history retention days"
+                      onChange={setChatHistoryRetentionValue}
+                    />
+                  )}
+                  <SegmentedControl
+                    value={chatHistoryRetentionMode}
+                    options={['on', 'unlimited'] as const}
+                    onChange={setChatHistoryRetentionMode}
+                    ariaLabel="Chat history retention mode"
                   />
                 </div>
               </div>

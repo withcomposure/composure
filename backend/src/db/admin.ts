@@ -220,6 +220,7 @@ export const MAX_TEXT_FILE_SIZE_KEY = 'max_text_file_size_bytes'
 export const MAX_FILES_PER_PROJECT_KEY = 'max_files_per_project'
 export const TRASH_RETENTION_DAYS_KEY = 'trash_retention_days'
 export const LARGE_FILE_THRESHOLD_CHARS_KEY = 'large_file_threshold_chars'
+export const CHAT_HISTORY_RETENTION_DAYS_KEY = 'chat_history_retention_days'
 
 export async function getTrashRetentionDays(): Promise<number> {
   const stored = await getServerSettingValue(TRASH_RETENTION_DAYS_KEY)
@@ -391,6 +392,43 @@ export async function getLargeFileThresholdChars(): Promise<number> {
 export async function setLargeFileThresholdChars(value: number): Promise<number> {
   const clamped = Math.max(minLargeFileThreshold, Math.min(maxLargeFileThreshold, Math.round(value)))
   await setServerSettingValue(LARGE_FILE_THRESHOLD_CHARS_KEY, String(clamped))
+  return clamped
+}
+
+const defaultChatHistoryRetentionDays: number | 'unlimited' = 'unlimited'
+const minChatHistoryRetentionDays = 1
+const maxChatHistoryRetentionDays = 3650
+
+export async function getChatHistoryRetentionDays(): Promise<number | 'unlimited'> {
+  const stored = await getServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY)
+  if (!stored || stored === 'unlimited') {
+    return defaultChatHistoryRetentionDays
+  }
+
+  const parsed = Number.parseInt(stored, 10)
+  if (!Number.isFinite(parsed) || parsed < minChatHistoryRetentionDays) {
+    return defaultChatHistoryRetentionDays
+  }
+
+  return Math.min(maxChatHistoryRetentionDays, parsed)
+}
+
+export async function setChatHistoryRetentionDays(
+  value: number | 'unlimited',
+): Promise<number | 'unlimited'> {
+  if (value === 'unlimited') {
+    await setServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY, 'unlimited')
+    return 'unlimited'
+  }
+
+  const parsed = Number.isFinite(value) ? value : Number.parseInt(String(value), 10)
+  if (!Number.isFinite(parsed) || parsed < minChatHistoryRetentionDays) {
+    await setServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY, 'unlimited')
+    return 'unlimited'
+  }
+
+  const clamped = Math.max(minChatHistoryRetentionDays, Math.min(maxChatHistoryRetentionDays, Math.round(parsed)))
+  await setServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY, String(clamped))
   return clamped
 }
 
