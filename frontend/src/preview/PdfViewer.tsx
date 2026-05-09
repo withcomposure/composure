@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { FileText } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import {
@@ -38,7 +38,6 @@ function usePdfRenderer(
   url: string | null,
   renderScale: number,
   displayScale: number,
-  onRendered?: () => void,
   onIntrinsicWidth?: (width: number | null) => void,
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -91,11 +90,11 @@ function usePdfRenderer(
         pageCount: pdf.numPages,
         renderError: null,
       })
-      container.innerHTML = ''
 
       const firstPage = pdf.numPages > 0 ? await pdf.getPage(1) : null
       const intrinsicWidth = firstPage?.getViewport({ scale: 1 }).width ?? null
       onIntrinsicWidth?.(intrinsicWidth)
+      const renderedPages: HTMLDivElement[] = []
 
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = i === 1 && firstPage ? firstPage : await pdf.getPage(i)
@@ -151,10 +150,11 @@ function usePdfRenderer(
 
         page.cleanup()
         pageLayer.append(canvas, textLayerContainer)
-        container.appendChild(pageLayer)
+        renderedPages.push(pageLayer)
       }
 
-      onRendered?.()
+      if (cancelled) return
+      container.replaceChildren(...renderedPages)
     }
 
     render().catch((err) => {
@@ -181,9 +181,9 @@ function usePdfRenderer(
       loadedPdf?.cleanup()
       loadedPdf?.destroy()
     }
-  }, [url, renderScale, onRendered, onIntrinsicWidth])
+  }, [url, renderScale, onIntrinsicWidth])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current
     if (!container) return
 
@@ -291,18 +291,12 @@ export function PdfViewer({
   const renderScale = useDebouncedNumber(scale, 120)
   const dragEnabled = scale > 1
   const { isDragging, dragHandlers } = useDragToPan(scrollRef, dragEnabled)
-
-  const centerHorizontally = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
-  }, [])
+  const previousScaleRef = useRef(scale)
 
   const { containerRef, pageCount, renderError } = usePdfRenderer(
     url,
     renderScale,
     scale,
-    centerHorizontally,
     setIntrinsicWidth,
   )
 
@@ -314,6 +308,31 @@ export function PdfViewer({
     content: <p className="text-sm text-cz-text-muted">No PDF to display</p>,
   }
   const resolvedPlaceholder = placeholder ?? defaultPlaceholder
+
+  useEffect(() => {
+    previousScaleRef.current = scale
+  }, [url, scale])
+
+  useLayoutEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || showPlaceholder) {
+      previousScaleRef.current = scale
+      return
+    }
+
+    const previousScale = previousScaleRef.current
+    if (previousScale <= 0 || previousScale === scale) {
+      previousScaleRef.current = scale
+      return
+    }
+
+    const zoomRatio = scale / previousScale
+    const centerX = scrollElement.scrollLeft + (scrollElement.clientWidth / 2)
+    const centerY = scrollElement.scrollTop + (scrollElement.clientHeight / 2)
+    scrollElement.scrollLeft = Math.max(0, centerX * zoomRatio - (scrollElement.clientWidth / 2))
+    scrollElement.scrollTop = Math.max(0, centerY * zoomRatio - (scrollElement.clientHeight / 2))
+    previousScaleRef.current = scale
+  }, [scale, showPlaceholder])
 
   const syncCurrentPage = useCallback(() => {
     const scrollElement = scrollRef.current
