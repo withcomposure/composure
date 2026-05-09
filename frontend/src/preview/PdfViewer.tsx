@@ -289,7 +289,7 @@ export function PdfViewer({
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentWidth = useElementContentWidth(scrollRef)
   const fitScale = intrinsicWidth && contentWidth > 0 ? contentWidth / intrinsicWidth : null
-  const { scale, isFit, zoomIn, zoomOut, fitToWidth } = usePreviewZoom(fitScale, url)
+  const { scale, isFit, zoomIn, zoomOut, fitToWidth, setScale } = usePreviewZoom(fitScale, url)
   const renderScale = useDebouncedNumber(scale, 120)
   const dragEnabled = scale > 1
   const { isDragging, dragHandlers } = useDragToPan(scrollRef, dragEnabled)
@@ -407,6 +407,7 @@ export function PdfViewer({
           onFit={fitToWidth}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
+          onSetScale={setScale}
           pageIndicator={pageCount > 1 ? {
             currentPage,
             totalPages: pageCount,

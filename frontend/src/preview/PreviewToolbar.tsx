@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, ExternalLink, Moon, Pin, Sun } from 'lucide-react'
 
 interface PreviewPageIndicator {
@@ -15,6 +15,7 @@ interface PreviewToolbarProps {
   showFitButton?: boolean
   onZoomIn: () => void
   onZoomOut: () => void
+  onSetScale: (scale: number) => void
   url?: string | null
   extra?: ReactNode
   pageIndicator?: PreviewPageIndicator | null
@@ -28,12 +29,18 @@ export function PreviewToolbar({
   showFitButton = true,
   onZoomIn,
   onZoomOut,
+  onSetScale,
   url,
   extra,
   pageIndicator,
 }: PreviewToolbarProps) {
   const pageInputId = useId()
+  const zoomInputId = useId()
+  const zoomInputRef = useRef<HTMLInputElement>(null)
+  const zoomHadFocusRef = useRef(false)
   const [pageDraft, setPageDraft] = useState('')
+  const [zoomDraft, setZoomDraft] = useState('')
+  const [zoomFocused, setZoomFocused] = useState(false)
 
   useEffect(() => {
     if (!pageIndicator) {
@@ -42,6 +49,29 @@ export function PreviewToolbar({
     }
     setPageDraft(String(pageIndicator.currentPage))
   }, [pageIndicator?.currentPage, pageIndicator?.totalPages])
+
+  const roundedZoomPercent = Math.round(scale * 100)
+
+  useEffect(() => {
+    if (!zoomFocused) {
+      setZoomDraft(String(roundedZoomPercent))
+    }
+  }, [roundedZoomPercent, zoomFocused])
+
+  useLayoutEffect(() => {
+    const gainedFocus = zoomFocused && !zoomHadFocusRef.current
+    zoomHadFocusRef.current = zoomFocused
+    if (gainedFocus) {
+      zoomInputRef.current?.select()
+    }
+  }, [zoomFocused])
+
+  const commitZoomDraft = () => {
+    const parsed = Number.parseInt(zoomDraft, 10)
+    const fallbackPct = roundedZoomPercent
+    const pct = Number.isFinite(parsed) ? parsed : fallbackPct
+    onSetScale(pct / 100)
+  }
 
   const commitPageDraft = () => {
     if (!pageIndicator) {
@@ -117,11 +147,49 @@ export function PreviewToolbar({
         {showFitButton && (
           <button onClick={onFit} className={fitBtnClass} title="Fit to width">Fit</button>
         )}
-        <button onClick={onZoomOut} className={`${btnClass} w-5`} title="Zoom out">-</button>
-        <span className="w-8 text-center text-[11px] text-cz-text-muted tabular-nums">
-          {Math.round(scale * 100)}%
-        </span>
-        <button onClick={onZoomIn} className={`${btnClass} w-5`} title="Zoom in">+</button>
+        <div className="-mx-px flex items-center gap-px">
+          <button onClick={onZoomOut} className={`${btnClass} w-5`} title="Zoom out">-</button>
+          <label className="sr-only" htmlFor={zoomInputId}>
+            Zoom percentage
+          </label>
+          <input
+            ref={zoomInputRef}
+            id={zoomInputId}
+            type="text"
+            inputMode="numeric"
+            value={zoomFocused ? zoomDraft : `${roundedZoomPercent}%`}
+            onChange={(event) => {
+              const next = event.target.value.replace(/%/g, '')
+              if (/^\d{0,3}$/.test(next)) {
+                setZoomDraft(next)
+              }
+            }}
+            onFocus={() => {
+              setZoomFocused(true)
+              setZoomDraft(String(roundedZoomPercent))
+            }}
+            onBlur={() => {
+              setZoomFocused(false)
+              commitZoomDraft()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitZoomDraft()
+                ;(event.target as HTMLInputElement).blur()
+                return
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setZoomDraft(String(roundedZoomPercent))
+                ;(event.target as HTMLInputElement).blur()
+              }
+            }}
+            className="box-content h-6 w-[4.5ch] shrink-0 rounded border border-cz-border bg-cz-bg px-1 text-center text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
+            aria-label="Zoom percentage"
+          />
+          <button onClick={onZoomIn} className={`${btnClass} w-5`} title="Zoom in">+</button>
+        </div>
 
         {extra && (
           <>

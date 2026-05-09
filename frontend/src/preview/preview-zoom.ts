@@ -47,5 +47,13 @@ export function usePreviewZoom(
     }))
   }
 
-  return { scale, isFit, zoomIn, zoomOut, fitToWidth }
+  const setScale = (nextScale: number) => {
+    setZoomState({
+      token: resetToken,
+      isFit: false,
+      manualScale: clampPreviewScale(nextScale, min, max),
+    })
+  }
+
+  return { scale, isFit, zoomIn, zoomOut, fitToWidth, setScale }
 }

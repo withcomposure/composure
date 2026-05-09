@@ -25,7 +25,7 @@ export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewe
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentWidth = useElementContentWidth(scrollRef)
   const fitScale = intrinsicWidth && contentWidth > 0 ? contentWidth / intrinsicWidth : null
-  const { scale, isFit, zoomIn, zoomOut, fitToWidth } = usePreviewZoom(fitScale, url)
+  const { scale, isFit, zoomIn, zoomOut, fitToWidth, setScale } = usePreviewZoom(fitScale, url)
   const relativeScale = fitScale && fitScale > 0 ? scale / fitScale : scale
   const displayWidth = intrinsicWidth != null ? intrinsicWidth * scale : null
   const dragEnabled = !isFit && relativeScale > 1
@@ -62,6 +62,7 @@ export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewe
           onFit={fitToWidth}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
+          onSetScale={setScale}
           url={url}
           extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
         />

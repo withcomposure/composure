@@ -24,7 +24,7 @@ export function HtmlPreview({ html, error, pinControl = null }: HtmlPreviewProps
   const [darkMode, setDarkMode] = useState(getPreviewDarkModeDefault)
   const scrollTopRef = useRef(0)
   const scrollLeftRef = useRef(0)
-  const { scale, isFit, zoomIn, zoomOut, fitToWidth } = usePreviewZoom(1, null, {
+  const { scale, isFit, zoomIn, zoomOut, fitToWidth, setScale } = usePreviewZoom(1, null, {
     initial: 1,
     min: 0.5,
     max: 3,
@@ -180,6 +180,7 @@ export function HtmlPreview({ html, error, pinControl = null }: HtmlPreviewProps
           showFitButton={false}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
+          onSetScale={setScale}
           url={openUrl}
           extra={(
             <div className="flex items-center gap-0.5">
