@@ -70,6 +70,7 @@ describe('FileTabs', () => {
           {
             kind: 'diff',
             path: 'diff:deadbeef:chapters/intro.tex',
+            isEphemeral: false,
             filePath: 'chapters/intro.tex',
             commitSha: 'deadbeef',
             diffMode: 'side-by-side',
@@ -89,6 +90,32 @@ describe('FileTabs', () => {
       'title',
       'chapters/intro.tex @ deadbee',
     )
+  })
+
+  it('renders ephemeral diff tabs in italic', () => {
+    render(
+      <FileTabs
+        paneId="pane-1"
+        tabs={[
+          {
+            kind: 'diff',
+            path: 'diff:deadbeef:chapters/intro.tex',
+            isEphemeral: true,
+            filePath: 'chapters/intro.tex',
+            commitSha: 'deadbeef',
+            diffMode: 'side-by-side',
+            diffBase: 'parent',
+          },
+        ]}
+        activeFile="diff:deadbeef:chapters/intro.tex"
+        onActivate={() => undefined}
+        onClose={() => undefined}
+        onPromote={() => undefined}
+        onMove={() => undefined}
+      />,
+    )
+
+    expect(screen.getByText('intro.tex @ deadbee').className).toContain('italic')
   })
 
   it('promotes a preview tab on double-click', async () => {

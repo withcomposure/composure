@@ -14,7 +14,7 @@ interface HistoryPanelProps {
   projectId: string
   canEdit: boolean
   refreshKey: number
-  onViewDiff: (sha: string, filePath: string) => void
+  onViewDiff: (sha: string, filePath: string, mode?: 'ephemeral' | 'persistent') => void
   onRestoreVersion: (sha: string) => void
 }
 
@@ -106,7 +106,7 @@ function CommitFiles({
 }: {
   projectId: string
   sha: string
-  onViewDiff: (sha: string, filePath: string) => void
+  onViewDiff: (sha: string, filePath: string, mode?: 'ephemeral' | 'persistent') => void
   cache: React.RefObject<Map<string, ChangedFile[]>>
   filesIndentClassName?: string
   messageIndentClassName?: string
@@ -155,7 +155,8 @@ function CommitFiles({
       {files.map((file) => (
         <button
           key={file.path}
-          onClick={() => onViewDiff(sha, file.path)}
+          onClick={() => onViewDiff(sha, file.path, 'ephemeral')}
+          onDoubleClick={() => onViewDiff(sha, file.path, 'persistent')}
           className="mb-0.5 flex w-full items-center gap-2 rounded-sm border border-transparent px-2.5 py-1.5 text-left text-[11px] hover:border-cz-border hover:bg-cz-surface-hover last:mb-0"
         >
           <span className={`shrink-0 text-[9px] font-bold uppercase ${

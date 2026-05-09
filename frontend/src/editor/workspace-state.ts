@@ -91,23 +91,25 @@ function normalizeTabs(raw: unknown): WorkspaceTab[] {
     }
 
     if (entry.kind === 'diff') {
-      const path = asNonEmptyString(entry.path)
       const filePath = asNonEmptyString(entry.filePath)
       const commitSha = asNonEmptyString(entry.commitSha)
-      if (!path || !filePath || !commitSha || seen.has(path)) {
+      if (!filePath || !commitSha) {
         continue
       }
 
-      tabs.push({
-        ...createDiffWorkspaceTab({
-          filePath,
-          commitSha,
-          diffMode: normalizeDiffMode(entry.diffMode),
-          diffBase: normalizeDiffBase(entry.diffBase),
-        }),
-        path,
+      const diffTab = createDiffWorkspaceTab({
+        filePath,
+        commitSha,
+        diffMode: normalizeDiffMode(entry.diffMode),
+        diffBase: normalizeDiffBase(entry.diffBase),
+        isEphemeral: Boolean(entry.isEphemeral),
       })
-      seen.add(path)
+      if (seen.has(diffTab.path)) {
+        continue
+      }
+
+      tabs.push(diffTab)
+      seen.add(diffTab.path)
       continue
     }
 

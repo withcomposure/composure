@@ -79,6 +79,7 @@ describe('workspace-state parsing', () => {
             {
               kind: 'diff',
               path: diffTabPath,
+              isEphemeral: true,
               filePath: 'docs/main.tex',
               commitSha: 'deadbeef',
               diffMode: 'inline',
@@ -97,6 +98,7 @@ describe('workspace-state parsing', () => {
       {
         kind: 'diff',
         path: diffTabPath,
+        isEphemeral: true,
         filePath: 'docs/main.tex',
         commitSha: 'deadbeef',
         diffMode: 'inline',

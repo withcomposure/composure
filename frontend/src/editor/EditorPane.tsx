@@ -29,7 +29,7 @@ interface EditorPaneProps {
   canEdit: boolean;
   onActiveDiffModeChange: (mode: "side-by-side" | "inline") => void;
   onActiveDiffBaseChange: (base: "parent" | "current") => void;
-  onHistoryRestored: () => void;
+  onHistoryRestored: (filePath: string) => void;
   onPopupAlert: (message: string, title?: string) => void;
   paneActiveFile: string;
   paneHasActiveTextFile: boolean;
@@ -185,7 +185,7 @@ export function EditorPane({
             onDiffModeChange={onActiveDiffModeChange}
             onDiffBaseChange={onActiveDiffBaseChange}
             canRestore={canEdit}
-            onRestore={onHistoryRestored}
+            onRestore={(restoredFilePath) => onHistoryRestored(restoredFilePath)}
             onPopupAlert={onPopupAlert}
           />
         ) : paneTextOverLimit ? (

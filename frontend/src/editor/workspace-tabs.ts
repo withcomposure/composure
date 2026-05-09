@@ -40,10 +40,12 @@ export function createDiffWorkspaceTab(input: {
   commitSha: string
   diffMode?: DiffMode
   diffBase?: DiffBase
+  isEphemeral?: boolean
 }): DiffWorkspaceTab {
   return {
     kind: 'diff',
     path: buildDiffWorkspaceTabPath(input.commitSha, input.filePath),
+    isEphemeral: input.isEphemeral ?? false,
     filePath: input.filePath,
     commitSha: input.commitSha,
     diffMode: input.diffMode ?? 'side-by-side',
@@ -102,6 +104,28 @@ export function workspaceTabReferencesFile(
   return workspaceTabFilePath(tab) === filePath
 }
 
+export function workspaceTabIsEphemeral(tab: WorkspaceTab): boolean {
+  return tab.isEphemeral
+}
+
+export function promoteWorkspaceTab(tab: WorkspaceTab): WorkspaceTab {
+  if (!tab.isEphemeral) {
+    return tab
+  }
+
+  if (tab.kind === 'diff') {
+    return createDiffWorkspaceTab({
+      filePath: tab.filePath,
+      commitSha: tab.commitSha,
+      diffMode: tab.diffMode,
+      diffBase: tab.diffBase,
+      isEphemeral: false,
+    })
+  }
+
+  return createFileWorkspaceTab(tab.path, false)
+}
+
 export function renameWorkspaceTabFilePath(
   tab: WorkspaceTab,
   oldPath: string,
@@ -117,6 +141,7 @@ export function renameWorkspaceTabFilePath(
       commitSha: tab.commitSha,
       diffMode: tab.diffMode,
       diffBase: tab.diffBase,
+      isEphemeral: tab.isEphemeral,
     })
   }
 

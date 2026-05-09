@@ -17,7 +17,7 @@ interface DiffViewProps {
   onDiffModeChange: (mode: 'side-by-side' | 'inline') => void
   onDiffBaseChange: (base: 'parent' | 'current') => void
   canRestore: boolean
-  onRestore: () => void
+  onRestore: (filePath: string) => void
   onPopupAlert: (message: string, title?: string) => void
 }
 
@@ -65,33 +65,26 @@ export function DiffView({
 
     const oldText = diff.oldContent ?? ''
     const newText = diff.newContent ?? ''
+    const readOnlyDiffEditorExtensions = [
+      EditorState.readOnly.of(true),
+      EditorView.editable.of(false),
+      lineNumbers(),
+      EditorView.theme({
+        '&': { height: '100%', minHeight: '0' },
+        '.cm-scroller': { overflow: 'auto' },
+      }),
+    ]
 
     if (diffMode === 'side-by-side') {
       const mv = new MergeView({
         parent: containerRef.current,
         a: {
           doc: oldText,
-          extensions: [
-            EditorState.readOnly.of(true),
-            EditorView.editable.of(false),
-            lineNumbers(),
-            EditorView.theme({
-              '&': { height: '100%' },
-              '.cm-scroller': { overflow: 'auto' },
-            }),
-          ],
+          extensions: readOnlyDiffEditorExtensions,
         },
         b: {
           doc: newText,
-          extensions: [
-            EditorState.readOnly.of(true),
-            EditorView.editable.of(false),
-            lineNumbers(),
-            EditorView.theme({
-              '&': { height: '100%' },
-              '.cm-scroller': { overflow: 'auto' },
-            }),
-          ],
+          extensions: readOnlyDiffEditorExtensions,
         },
       })
       viewRef.current = mv
@@ -101,14 +94,8 @@ export function DiffView({
         state: EditorState.create({
           doc: newText,
           extensions: [
-            EditorState.readOnly.of(true),
-            EditorView.editable.of(false),
-            lineNumbers(),
+            ...readOnlyDiffEditorExtensions,
             unifiedMergeView({ original: oldText, mergeControls: false }),
-            EditorView.theme({
-              '&': { height: '100%' },
-              '.cm-scroller': { overflow: 'auto' },
-            }),
           ],
         }),
       })
@@ -127,7 +114,7 @@ export function DiffView({
     setRestoring(true)
     try {
       await restoreFile(projectId, commitSha, filePath)
-      onRestore()
+      onRestore(filePath)
     } catch (err) {
       onPopupAlert(getErrorMessage(err), 'Restore failed')
     } finally {
@@ -232,7 +219,7 @@ export function DiffView({
           </div>
         </div>
       ) : (
-        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
+        <div ref={containerRef} className="cz-diff-view-container flex-1 min-h-0 overflow-hidden" />
       )}
     </div>
   )

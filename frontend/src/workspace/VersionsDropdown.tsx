@@ -11,7 +11,7 @@ import { fmtRelativeTime } from '@/utils/format-time'
 interface VersionsDropdownProps {
   projectId: string
   activeFile: string
-  onViewDiff: (sha: string, filePath: string) => void
+  onViewDiff: (sha: string, filePath: string, mode?: 'ephemeral' | 'persistent') => void
 }
 
 export function VersionsDropdown({ projectId, activeFile, onViewDiff }: VersionsDropdownProps) {
@@ -57,7 +57,7 @@ export function VersionsDropdown({ projectId, activeFile, onViewDiff }: Versions
 
   const handleSelect = useCallback((sha: string) => {
     closeDropdown()
-    onViewDiff(sha, activeFile)
+    onViewDiff(sha, activeFile, 'ephemeral')
   }, [activeFile, closeDropdown, onViewDiff])
 
   if (!activeFile) return null

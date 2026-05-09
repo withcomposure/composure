@@ -212,6 +212,7 @@ export interface DiffWorkspaceTab {
   kind: 'diff'
   /** Stable tab key used in pane state and tab activation. */
   path: string
+  isEphemeral: boolean
   filePath: string
   commitSha: string
   diffMode: DiffMode

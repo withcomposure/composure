@@ -198,9 +198,7 @@ export function readDraggedFilePayload(
 ): DraggedFilePayload | null {
   const tabPath = readComposureDragData(dataTransfer, TAB_SINGLE_PATH_MIME);
   if (tabPath) {
-    const nextPaths = dedupePaths([tabPath]).filter((path) =>
-      allFilePaths.has(path),
-    );
+    const nextPaths = dedupePaths([tabPath]);
     if (nextPaths.length > 0) {
       return {
         paths: nextPaths,

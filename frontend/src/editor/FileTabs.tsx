@@ -11,6 +11,7 @@ import {
 } from '@/utils/drag-data'
 import type { WorkspaceTab } from '@/types'
 import {
+  workspaceTabIsEphemeral,
   workspaceTabLabel,
   workspaceTabTitle,
 } from './workspace-tabs'
@@ -290,7 +291,7 @@ export function FileTabs({
                 : 'border-transparent text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
               }`}
             >
-              <span className={`min-w-0 flex-1 truncate pr-0.5 ${tab.kind === 'file' && tab.isEphemeral ? 'italic' : ''}`}>{tabLabel}</span>
+              <span className={`min-w-0 flex-1 truncate pr-0.5 ${workspaceTabIsEphemeral(tab) ? 'italic' : ''}`}>{tabLabel}</span>
               <button
                 type="button"
                 onClick={(event) => {

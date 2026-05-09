@@ -76,16 +76,18 @@ import { WorkspaceProjectTitle } from "@/components/WorkspaceProjectTitle";
 import { makeProjectUrl, navigateToProjects, navigateToSettings } from "@/utils/route";
 import {
   applyDroppedPathsToPaneState,
-  removeDroppedTabPathsFromSource,
 } from "@/editor/tab-drop-state";
 import {
+  buildDiffWorkspaceTabPath,
   createDiffWorkspaceTab,
   createFileWorkspaceTab,
   findWorkspaceTabByPath,
   isDiffWorkspaceTab,
   isDiffWorkspaceTabPath,
   isFileWorkspaceTab,
+  promoteWorkspaceTab,
   renameWorkspaceTabFilePath,
+  workspaceTabIsEphemeral,
   workspaceTabFilePath,
   workspaceTabReferencesFile,
 } from "@/editor/workspace-tabs";
@@ -758,7 +760,7 @@ export function ProjectWorkspace({
       }
 
       const previewIndex = prev.findIndex(
-        (tab) => tab.kind === "file" && tab.isEphemeral,
+        (tab) => workspaceTabIsEphemeral(tab),
       );
       if (previewIndex !== -1) {
         const next = [...prev];
@@ -1607,7 +1609,7 @@ export function ProjectWorkspace({
           }
         } else if (mode === "ephemeral") {
           const previewIndex = pane.tabs.findIndex(
-            (tab) => isFileWorkspaceTab(tab) && tab.isEphemeral,
+            (tab) => workspaceTabIsEphemeral(tab),
           );
           if (previewIndex !== -1) {
             nextTabs = [...pane.tabs];
@@ -1672,33 +1674,61 @@ export function ProjectWorkspace({
   );
 
   const openDiffTab = useCallback(
-    (sha: string, filePath: string, paneId = activePaneId) => {
-      const currentPane = paneStateById[paneId] ?? {
-        tabs: [],
-        activePath: "",
-        showSnippetToolbar: true,
-      };
-      const existingDiffTab = currentPane.tabs.find(
-        (tab) =>
-          isDiffWorkspaceTab(tab) &&
-          tab.commitSha === sha &&
-          tab.filePath === filePath,
-      );
-      const diffTab =
-        existingDiffTab ??
-        createDiffWorkspaceTab({
-          commitSha: sha,
-          filePath,
-        });
-
+    (
+      sha: string,
+      filePath: string,
+      mode: "ephemeral" | "persistent" = "ephemeral",
+      paneId = activePaneId,
+    ) => {
       setPaneStateById((prev) => {
         const pane = prev[paneId] ?? {
           tabs: [],
           activePath: "",
           showSnippetToolbar: true,
         };
-        const alreadyOpen = pane.tabs.some((tab) => tab.path === diffTab.path);
-        if (alreadyOpen && pane.activePath === diffTab.path) {
+
+        const existingIndex = pane.tabs.findIndex(
+          (tab) =>
+            isDiffWorkspaceTab(tab) &&
+            tab.commitSha === sha &&
+            tab.filePath === filePath,
+        );
+
+        let nextTabs = pane.tabs;
+        let nextActivePath = "";
+
+        if (existingIndex !== -1) {
+          const existingTab = pane.tabs[existingIndex];
+          nextActivePath = existingTab.path;
+
+          if (mode === "persistent" && existingTab.isEphemeral) {
+            nextTabs = [...pane.tabs];
+            nextTabs[existingIndex] = promoteWorkspaceTab(existingTab);
+          }
+        } else {
+          const nextDiffTab = createDiffWorkspaceTab({
+            commitSha: sha,
+            filePath,
+            isEphemeral: mode === "ephemeral",
+          });
+          nextActivePath = nextDiffTab.path;
+
+          if (mode === "ephemeral") {
+            const previewIndex = pane.tabs.findIndex((tab) =>
+              workspaceTabIsEphemeral(tab),
+            );
+            if (previewIndex !== -1) {
+              nextTabs = [...pane.tabs];
+              nextTabs[previewIndex] = nextDiffTab;
+            } else {
+              nextTabs = [...pane.tabs, nextDiffTab];
+            }
+          } else {
+            nextTabs = [...pane.tabs, nextDiffTab];
+          }
+        }
+
+        if (nextTabs === pane.tabs && pane.activePath === nextActivePath) {
           return prev;
         }
 
@@ -1706,15 +1736,15 @@ export function ProjectWorkspace({
           ...prev,
           [paneId]: {
             ...pane,
-            tabs: alreadyOpen ? pane.tabs : [...pane.tabs, diffTab],
-            activePath: diffTab.path,
+            tabs: nextTabs,
+            activePath: nextActivePath,
           },
         };
       });
 
-      focusPane(paneId, diffTab.path);
+      focusPane(paneId, buildDiffWorkspaceTabPath(sha, filePath));
     },
-    [activePaneId, paneStateById, focusPane],
+    [activePaneId, focusPane],
   );
 
   const openFileFromTree = useCallback(
@@ -1757,12 +1787,12 @@ export function ProjectWorkspace({
         if (!pane) return prev;
         const tabIndex = pane.tabs.findIndex((tab) => tab.path === path);
         const tab = tabIndex === -1 ? null : pane.tabs[tabIndex];
-        if (!tab || !isFileWorkspaceTab(tab) || !tab.isEphemeral) {
+        if (!tab || !workspaceTabIsEphemeral(tab)) {
           return prev;
         }
 
         const nextTabs = [...pane.tabs];
-        nextTabs[tabIndex] = createFileWorkspaceTab(path, false);
+        nextTabs[tabIndex] = promoteWorkspaceTab(tab);
 
         return {
           ...prev,
@@ -1799,9 +1829,7 @@ export function ProjectWorkspace({
         nextTabs.splice(
           insertAt,
           0,
-          isFileWorkspaceTab(moved)
-            ? createFileWorkspaceTab(moved.path, false)
-            : moved,
+          promoteWorkspaceTab(moved),
         );
 
         return {
@@ -1816,6 +1844,34 @@ export function ProjectWorkspace({
       focusPane(paneId, path);
     },
     [focusPane],
+  );
+
+  const replaceDiffTabWithLiveFile = useCallback(
+    (paneId: string, diffTabPath: string, filePath: string) => {
+      setPaneStateById((prev) => {
+        const pane = prev[paneId];
+        if (!pane || !pane.tabs.some((tab) => tab.path === diffTabPath)) {
+          return prev;
+        }
+
+        const nextTabs = pane.tabs.filter((tab) => tab.path !== diffTabPath);
+        const nextActivePath =
+          pane.activePath === diffTabPath ? (nextTabs[0]?.path ?? "") : pane.activePath;
+
+        return {
+          ...prev,
+          [paneId]: {
+            ...pane,
+            tabs: nextTabs,
+            activePath: nextActivePath,
+          },
+        };
+      });
+
+      openFileInPane(paneId, filePath, "persistent");
+      focusPane(paneId, filePath);
+    },
+    [focusPane, openFileInPane],
   );
 
   const closeTab = useCallback(
@@ -1857,10 +1913,38 @@ export function ProjectWorkspace({
     [activePaneId],
   );
 
+  const normalizeDroppedPaths = useCallback(
+    (
+      paths: string[],
+      fromTabBar: boolean,
+      sourcePaneId: string | null,
+    ): string[] => {
+      const uniquePaths = dedupePaths(paths);
+      if (uniquePaths.length === 0) {
+        return [];
+      }
+
+      if (!fromTabBar) {
+        return uniquePaths.filter((path) => allFilePaths.has(path));
+      }
+
+      const sourcePane = sourcePaneId ? paneStateById[sourcePaneId] : null;
+      if (sourcePane) {
+        const sourcePaths = new Set(sourcePane.tabs.map((tab) => tab.path));
+        return uniquePaths.filter((path) => sourcePaths.has(path));
+      }
+
+      return uniquePaths.filter((path) => allFilePaths.has(path));
+    },
+    [allFilePaths, paneStateById],
+  );
+
   const handleDropPathsOnTabs = useCallback(
     (paneId: string, payload: FileTabsDropPayload) => {
-      const paths = dedupePaths(payload.paths).filter((path) =>
-        allFilePaths.has(path),
+      const paths = normalizeDroppedPaths(
+        payload.paths,
+        payload.fromTabBar,
+        payload.sourcePaneId,
       );
       if (paths.length === 0) {
         return;
@@ -1876,7 +1960,7 @@ export function ProjectWorkspace({
 
       focusPane(paneId, paths[paths.length - 1]);
     },
-    [allFilePaths, focusPane],
+    [focusPane, normalizeDroppedPaths],
   );
 
   const togglePaneSnippetToolbar = useCallback((paneId: string) => {
@@ -2786,8 +2870,10 @@ export function ProjectWorkspace({
       fromTabBar: boolean,
       sourcePaneId: string | null,
     ) => {
-      const validPaths = dedupePaths(paths).filter((path) =>
-        allFilePaths.has(path),
+      const validPaths = normalizeDroppedPaths(
+        paths,
+        fromTabBar,
+        sourcePaneId,
       );
       if (validPaths.length === 0) {
         return;
@@ -2802,7 +2888,7 @@ export function ProjectWorkspace({
 
       focusPane(paneId, validPaths[validPaths.length - 1]);
     },
-    [allFilePaths, focusPane],
+    [focusPane, normalizeDroppedPaths],
   );
 
   const splitPaneWithDroppedPaths = useCallback(
@@ -2813,8 +2899,10 @@ export function ProjectWorkspace({
       fromTabBar: boolean,
       sourcePaneId: string | null,
     ) => {
-      const validPaths = dedupePaths(paths).filter((path) =>
-        allFilePaths.has(path),
+      const validPaths = normalizeDroppedPaths(
+        paths,
+        fromTabBar,
+        sourcePaneId,
       );
       if (validPaths.length === 0) {
         return;
@@ -2824,15 +2912,19 @@ export function ProjectWorkspace({
       const splitId = createSplitId();
 
       setPaneStateById((prev) => {
-        const next = fromTabBar
-          ? removeDroppedTabPathsFromSource(prev, validPaths, sourcePaneId)
-          : { ...prev };
-        next[newPaneId] = {
-          tabs: validPaths.map((path) => createFileWorkspaceTab(path, false)),
-          activePath: validPaths[validPaths.length - 1],
-          showSnippetToolbar: true,
+        const next = {
+          ...prev,
+          [newPaneId]: {
+            tabs: [],
+            activePath: "",
+            showSnippetToolbar: true,
+          },
         };
-        return next;
+
+        return applyDroppedPathsToPaneState(next, newPaneId, validPaths, {
+          fromTabBar,
+          sourcePaneId,
+        });
       });
 
       setEditorLayout((prev) =>
@@ -2840,7 +2932,7 @@ export function ProjectWorkspace({
       );
       focusPane(newPaneId, validPaths[validPaths.length - 1]);
     },
-    [allFilePaths, createPaneId, createSplitId, focusPane],
+    [createPaneId, createSplitId, focusPane, normalizeDroppedPaths],
   );
 
   const handlePaneDragOver = useCallback(
@@ -3286,8 +3378,20 @@ export function ProjectWorkspace({
         canEdit={canEdit}
         onActiveDiffModeChange={(mode) => setActiveDiffModeForPane(paneId, mode)}
         onActiveDiffBaseChange={(base) => setActiveDiffBaseForPane(paneId, base)}
-        onHistoryRestored={() => {
+        onHistoryRestored={(restoredFilePath) => {
           setHistoryRefreshKey((k) => k + 1);
+
+          if (paneActiveDiffTab) {
+            replaceDiffTabWithLiveFile(
+              paneId,
+              paneActiveDiffTab.path,
+              restoredFilePath,
+            );
+            return;
+          }
+
+          openFileInPane(paneId, restoredFilePath, "persistent");
+          focusPane(paneId, restoredFilePath);
         }}
         onPopupAlert={onPopupAlert}
         paneActiveFile={paneActiveFile}
@@ -3436,8 +3540,8 @@ export function ProjectWorkspace({
         ) : sidebarTab === "history" ? (
           <HistoryPanel
             projectId={projectId}
-            onViewDiff={(sha, filePath) => {
-              openDiffTab(sha, filePath);
+            onViewDiff={(sha, filePath, mode) => {
+              openDiffTab(sha, filePath, mode ?? "ephemeral");
             }}
             canEdit={canEdit}
             refreshKey={historyRefreshKey}
@@ -3525,8 +3629,8 @@ export function ProjectWorkspace({
           previewOpen={previewOpen}
           onTogglePreview={() => setPreviewOpen((open) => !open)}
           projectId={projectId}
-          onViewDiff={(sha, filePath) => {
-            openDiffTab(sha, filePath);
+          onViewDiff={(sha, filePath, mode) => {
+            openDiffTab(sha, filePath, mode ?? "ephemeral");
           }}
           activeDiffTab={activeDiffTab}
         />

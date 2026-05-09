@@ -61,7 +61,7 @@ describe('tab-drop-state multi-pane regression', () => {
     expect(next['pane-y']?.tabs.map((tab) => tab.path)).toEqual(['b.tex', 'a.tex'])
   })
 
-  it('preserves diff tab metadata when moving from another pane', () => {
+  it('preserves diff tab metadata and promotes ephemeral tabs when moved', () => {
     const diffPath = 'diff:deadbeef:docs/main.tex'
     const prev = {
       'pane-x': {
@@ -69,6 +69,7 @@ describe('tab-drop-state multi-pane regression', () => {
           {
             kind: 'diff' as const,
             path: diffPath,
+            isEphemeral: true,
             filePath: 'docs/main.tex',
             commitSha: 'deadbeef',
             diffMode: 'inline' as const,
@@ -93,6 +94,7 @@ describe('tab-drop-state multi-pane regression', () => {
     expect(next['pane-y']?.tabs[0]).toEqual({
       kind: 'diff',
       path: diffPath,
+      isEphemeral: false,
       filePath: 'docs/main.tex',
       commitSha: 'deadbeef',
       diffMode: 'inline',

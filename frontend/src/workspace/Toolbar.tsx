@@ -54,7 +54,7 @@ interface ToolbarProps {
   previewOpen: boolean
   onTogglePreview: () => void
   projectId: string
-  onViewDiff: (sha: string, filePath: string) => void
+  onViewDiff: (sha: string, filePath: string, mode?: 'ephemeral' | 'persistent') => void
   activeDiffTab: DiffWorkspaceTab | null
 }
 

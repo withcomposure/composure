@@ -2,7 +2,7 @@ import type { EditorPaneState } from './workspace-state'
 import type { WorkspaceTab } from '@/types'
 import {
   createFileWorkspaceTab,
-  isFileWorkspaceTab,
+  promoteWorkspaceTab,
 } from './workspace-tabs'
 
 interface ApplyDroppedPathsOptions {
@@ -41,11 +41,7 @@ export function removeDroppedTabPathsFromSource(
 }
 
 function normalizeMovedTab(tab: WorkspaceTab): WorkspaceTab {
-  if (isFileWorkspaceTab(tab)) {
-    return tab.isEphemeral ? createFileWorkspaceTab(tab.path, false) : tab
-  }
-
-  return tab
+  return promoteWorkspaceTab(tab)
 }
 
 function resolveTabsForDrop(
