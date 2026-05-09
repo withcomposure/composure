@@ -129,9 +129,12 @@ export function Toolbar({
   const compileCurrentFileName = compileCurrentFilePath
     ? compileCurrentFilePath.split('/').pop() ?? compileCurrentFilePath
     : ''
-  const compileCurrentFileTitle = canCompileCurrentFile
+  const compileCurrentFileLabel = canCompileCurrentFile
     ? `Compile "${compileCurrentFileName}"`
-    : 'Focus an editor tab to enable'
+    : 'Compile This File'
+  const compileCurrentFileTitle = canCompileCurrentFile
+    ? compileCurrentFileLabel
+    : 'Open or select a file to enable'
   const clearCompileOutputTitle = hasCompiledOutput ? 'Clear compile output' : 'No compile output to clear'
 
   const compileMenuOptions: Array<DropdownOption<CompileDropdownValue>> = [
@@ -149,11 +152,11 @@ export function Toolbar({
       type: 'action',
       id: 'compile-current-file',
       icon: Play,
-      label: `Compile "${compileCurrentFileName}"`,
+      label: compileCurrentFileLabel,
       disabled: !canCompileCurrentFile || compiling,
       onSelect: onCompileCurrentFile,
       title: compileCurrentFileTitle,
-      ariaLabel: compileCurrentFileTitle,
+      ariaLabel: compileCurrentFileLabel,
     },
     {
       type: 'action',
@@ -248,6 +251,7 @@ export function Toolbar({
             <IconDropdown<CompileDropdownValue>
               disabled={compiling}
               options={compileMenuOptions}
+              unstyledButton
               fallbackWidth={256}
               menuRole="menu"
               menuClassName="w-64 p-1.5"
@@ -259,8 +263,8 @@ export function Toolbar({
                 ariaLabel: 'Compile options',
                 className: `rounded-r-md rounded-l-none border-l border-white/20 px-2 text-xs transition-all ${
                   compiling
-                    ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
-                    : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
+                    ? 'border-0 bg-cz-accent/40 text-cz-accent cursor-wait disabled:opacity-100'
+                    : 'border-0 bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20 disabled:opacity-100'
                 }`,
               }}
             />

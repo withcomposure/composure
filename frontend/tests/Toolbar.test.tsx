@@ -107,4 +107,19 @@ describe("Toolbar", () => {
 
     expect(onCompileCurrentFile).toHaveBeenCalledTimes(1)
   })
+
+  it('shows "Compile This File" when no active file is available', () => {
+    render(
+      <Toolbar
+        {...defaults}
+        canCompileCurrentFile={false}
+        compileCurrentFilePath=""
+      />,
+    )
+
+    fireEvent.click(screen.getByLabelText('Compile options'))
+
+    const compileThisFile = screen.getByRole('menuitem', { name: 'Compile This File' })
+    expect(compileThisFile).toBeDisabled()
+  })
 });

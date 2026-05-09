@@ -64,6 +64,7 @@ interface IconDropdownProps<T extends string> {
   className?: string
   menuClassName?: string
   buttonClassName?: string
+  unstyledButton?: boolean
   trigger?: IconDropdownTrigger
   fallbackWidth?: number
   menuRole?: 'listbox' | 'menu'
@@ -105,6 +106,7 @@ export function IconDropdown<T extends string>({
   className = '',
   menuClassName = '',
   buttonClassName = '',
+  unstyledButton = false,
   trigger,
   fallbackWidth = 176,
   menuRole,
@@ -159,6 +161,11 @@ export function IconDropdown<T extends string>({
   useClickOutside([rootRef, menuRef], closeMenu, open)
   useEscapeKey(closeMenu, open)
 
+  const buttonBaseClass = 'flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50'
+  const buttonSkinClass = unstyledButton
+    ? ''
+    : 'border border-cz-border bg-cz-surface text-cz-text hover:bg-cz-surface-hover'
+
   return (
     <div ref={rootRef} className={`relative ${className}`.trim()}>
       <button
@@ -171,7 +178,7 @@ export function IconDropdown<T extends string>({
           }
           setOpen((prev) => !prev)
         }}
-        className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border border-cz-border bg-cz-surface px-2 text-xs text-cz-text outline-none hover:bg-cz-surface-hover disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName} ${triggerConfig.className ?? ''}`.trim()}
+        className={`${buttonBaseClass} ${buttonSkinClass} ${buttonClassName} ${triggerConfig.className ?? ''}`.trim()}
         aria-haspopup={resolvedMenuRole}
         aria-expanded={open}
         aria-label={buttonAriaLabel}
@@ -182,12 +189,12 @@ export function IconDropdown<T extends string>({
         ) : (
           <TriggerIcon
             size={12}
-            className="shrink-0 text-cz-text"
+            className="shrink-0"
             style={triggerConfig.iconColor ? { color: triggerConfig.iconColor } : undefined}
           />
         )}
         {showButtonLabel && <span>{triggerConfig.label ?? selected?.label}</span>}
-        {showChevron && !triggerConfig.loading && <ChevronDown size={12} className="shrink-0 text-cz-text" />}
+        {showChevron && !triggerConfig.loading && <ChevronDown size={12} className="shrink-0" />}
       </button>
 
       {open &&

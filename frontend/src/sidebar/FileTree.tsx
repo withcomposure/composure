@@ -1556,7 +1556,7 @@ export function FileTree({
     return [
       {
         icon: Play,
-        name: isEntrypoint ? 'Clear Entrypoint' : 'Set as Entrypoint',
+        name: isEntrypoint ? 'Unset Entrypoint' : 'Set as Entrypoint',
         action: () => {
           void onSetEntrypoint(isEntrypoint ? null : path).catch((err) => {
             openAlert(String(err instanceof Error ? err.message : err), 'Could not update entrypoint')
@@ -1566,7 +1566,7 @@ export function FileTree({
       ...(isBibliographyCandidate ? [
         {
           icon: BookMarked,
-          name: isDefaultBibliography ? 'Clear Default Bibliography' : 'Set as Default Bibliography',
+          name: isDefaultBibliography ? 'Unset Default Bibliography' : 'Set as Default Bibliography',
           action: () => {
             void onSetDefaultBibliography(isDefaultBibliography ? null : path).catch((err) => {
               openAlert(String(err instanceof Error ? err.message : err), 'Could not update default bibliography')

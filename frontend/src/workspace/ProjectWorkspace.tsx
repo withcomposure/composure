@@ -998,25 +998,12 @@ export function ProjectWorkspace({
     [escapeRegExp, extractCitationKey],
   );
 
-  const currentCompileFile = useMemo(() => {
-    const focusedPanePath = focusedEditorPaneId
-      ? paneStateById[focusedEditorPaneId]?.activePath ?? ""
-      : "";
-    if (focusedPanePath && allFilePaths.has(focusedPanePath)) {
-      return focusedPanePath;
+  const compileCurrentFile = useMemo(() => {
+    if (activeFile && allFilePaths.has(activeFile)) {
+      return activeFile;
     }
-
-    const lastFocusedPath = lastFocusedEditorFileRef.current;
-    if (lastFocusedPath && allFilePaths.has(lastFocusedPath)) {
-      return lastFocusedPath;
-    }
-
     return "";
-  }, [allFilePaths, focusedEditorPaneId, paneStateById]);
-
-  const resolveCurrentCompileFile = useCallback((): string => {
-    return currentCompileFile;
-  }, [currentCompileFile]);
+  }, [activeFile, allFilePaths]);
 
   const appendCitationToDefaultBibliography = useCallback(
     async (
@@ -2068,13 +2055,13 @@ export function ProjectWorkspace({
       const rootFile = isHistory
         ? historyState.filePath
         : target === "current"
-          ? resolveCurrentCompileFile()
+          ? compileCurrentFile
           : compileDefaultRootFile;
 
       if (!rootFile) {
         setCompileError(
           target === "current"
-            ? "Focus a file editor tab before compiling the current file."
+            ? "Open or select a file before compiling."
             : "Create or select a file before compiling.",
         );
         return;
@@ -2181,7 +2168,7 @@ export function ProjectWorkspace({
       shareHeaders,
       shareToken,
       autoSaveOnCompile,
-      resolveCurrentCompileFile,
+      compileCurrentFile,
     ],
   );
 
@@ -2190,8 +2177,8 @@ export function ProjectWorkspace({
   }, [handleCompile]);
 
   const canCompileCurrentFile = useMemo(
-    () => currentCompileFile.length > 0,
-    [currentCompileFile],
+    () => compileCurrentFile.length > 0,
+    [compileCurrentFile],
   );
 
   const handleExport = useCallback(
@@ -3358,7 +3345,7 @@ export function ProjectWorkspace({
           }}
           onCompileCurrentFile={handleCompileCurrentFile}
           canCompileCurrentFile={canCompileCurrentFile}
-          compileCurrentFilePath={currentCompileFile}
+          compileCurrentFilePath={compileCurrentFile}
           onClearCompileOutput={() => {
             void handleClearCompileOutput();
           }}
