@@ -78,7 +78,7 @@ function usePdfRenderer(
     const currentUrl = url
 
     async function render() {
-      // Keep page count while zooming to avoid a toolbar label flash.
+      // Keep page count while re-rendering to avoid page-indicator flicker.
       loadingTask = pdfjsLib.getDocument({
         url: url!,
         withCredentials: true,
@@ -256,11 +256,6 @@ function scrollPdfPageIntoView(
   return page
 }
 
-function pdfStatusLabel(documentName: string, pageCount: number): string {
-  if (pageCount <= 0) return `${documentName} (Preview)`
-  return `${documentName} (${pageCount} page${pageCount > 1 ? 's' : ''})`
-}
-
 export interface PdfViewerPlaceholder {
   icon?: ReactNode
   content: ReactNode
@@ -406,7 +401,7 @@ export function PdfViewer({
     <PreviewPane
       toolbar={(
         <PreviewToolbar
-          statusLabel={pdfStatusLabel(documentName, pageCount)}
+          statusLabel={documentName}
           scale={scale}
           isFit={isFit}
           onFit={fitToWidth}
