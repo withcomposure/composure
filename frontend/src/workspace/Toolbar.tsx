@@ -35,6 +35,7 @@ interface ToolbarProps {
   onCompile: () => void
   onCompileCurrentFile: () => void
   canCompileCurrentFile: boolean
+  compileCurrentFilePath: string
   onClearCompileOutput: () => void
   hasCompiledOutput: boolean
   clearingCompileOutput: boolean
@@ -86,6 +87,7 @@ export function Toolbar({
   onCompile,
   onCompileCurrentFile,
   canCompileCurrentFile,
+  compileCurrentFilePath,
   onClearCompileOutput,
   hasCompiledOutput,
   clearingCompileOutput,
@@ -126,6 +128,12 @@ export function Toolbar({
       : 'Connecting'
   const showConnectionLabel = connectionState !== 'connected'
   const canClearCompileOutput = canEdit && hasCompiledOutput && !compiling && !clearingCompileOutput
+  const compileCurrentFileName = compileCurrentFilePath
+    ? compileCurrentFilePath.split('/').pop() ?? compileCurrentFilePath
+    : ''
+  const compileCurrentFileTitle = canCompileCurrentFile
+    ? `Compile "${compileCurrentFileName}"`
+    : 'Focus an editor tab to enable'
 
   useEffect(() => {
     if (!showCompileMenu) return
@@ -257,12 +265,12 @@ export function Toolbar({
                 }}
                 disabled={!canCompileCurrentFile || compiling}
                 className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canCompileCurrentFile && !compiling ? 'text-cz-text hover:bg-cz-surface-hover' : 'cursor-not-allowed text-cz-text-muted opacity-60'}`}
-                title={canCompileCurrentFile ? 'Compile from the last editor tab that had cursor focus' : 'Focus an editor tab to enable compile-current-file'}
-                aria-label="Compile current file"
+                title={compileCurrentFileTitle}
+                aria-label={compileCurrentFileTitle}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Play size={14} className={'text-cz-text-muted'} />
-                  <span>Compile Current File</span>
+                  <span>Compile "{compileCurrentFileName}"</span>
                 </span>
               </button>
 

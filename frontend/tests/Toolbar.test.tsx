@@ -102,7 +102,7 @@ describe("Toolbar", () => {
     )
 
     fireEvent.click(screen.getByLabelText('Compile options'))
-    fireEvent.click(screen.getByRole('button', { name: 'Compile current file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compile this file' }))
 
     expect(onCompileCurrentFile).toHaveBeenCalledTimes(1)
   })

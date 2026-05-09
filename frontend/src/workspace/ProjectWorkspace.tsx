@@ -229,7 +229,8 @@ export function ProjectWorkspace({
     useState<string | null>(defaultBibliographyFile);
   const [projectReferenceLookupFormat, setProjectReferenceLookupFormat] =
     useState<"bibtex" | "biblatex">(referenceLookupFormat ?? "bibtex");
-  const [lastCursorFile, setLastCursorFile] = useState<string>("");
+  const [lastFocusedEditorFile, setLastFocusedEditorFile] =
+    useState<string>("");
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<ShareRole>("view");
@@ -277,7 +278,7 @@ export function ProjectWorkspace({
   const lastTextLimitPopupAtRef = useRef(0);
   const lastAutoCompiledRevisionRef = useRef(0);
   const autoCompileRevisionRef = useRef(0);
-  const lastCursorFileRef = useRef<string>("");
+  const lastFocusedEditorFileRef = useRef<string>("");
   const paneIdCounterRef = useRef(2);
   const splitIdCounterRef = useRef(1);
   const previousProjectIdRef = useRef(projectId);
@@ -297,13 +298,13 @@ export function ProjectWorkspace({
     setProjectEntrypoint(entrypoint.trim() || null);
     setProjectDefaultBibliographyFile(defaultBibliographyFile);
     setProjectReferenceLookupFormat(referenceLookupFormat ?? "bibtex");
-    setLastCursorFile("");
-    lastCursorFileRef.current = "";
+    setLastFocusedEditorFile("");
+    lastFocusedEditorFileRef.current = "";
   }, [projectId, entrypoint, defaultBibliographyFile, referenceLookupFormat]);
 
   useEffect(() => {
-    lastCursorFileRef.current = lastCursorFile;
-  }, [lastCursorFile]);
+    lastFocusedEditorFileRef.current = lastFocusedEditorFile;
+  }, [lastFocusedEditorFile]);
 
   useEffect(() => {
     return () => {
@@ -313,6 +314,18 @@ export function ProjectWorkspace({
   }, []);
 
   const activeCommentId = hoveredCommentId ?? selectedCommentId;
+
+  const rememberLastFocusedEditorFile = useCallback((path: string) => {
+    if (!path) {
+      return;
+    }
+    if (lastFocusedEditorFileRef.current === path) {
+      return;
+    }
+    lastFocusedEditorFileRef.current = path;
+    setLastFocusedEditorFile(path);
+  }, []);
+
   const openTabs = useMemo(
     () => paneStateById[activePaneId]?.tabs ?? [],
     [paneStateById, activePaneId],
@@ -985,13 +998,25 @@ export function ProjectWorkspace({
     [escapeRegExp, extractCitationKey],
   );
 
-  const resolveCurrentCompileFile = useCallback((): string => {
-    const lastFocusedPath = lastCursorFileRef.current;
+  const currentCompileFile = useMemo(() => {
+    const focusedPanePath = focusedEditorPaneId
+      ? paneStateById[focusedEditorPaneId]?.activePath ?? ""
+      : "";
+    if (focusedPanePath && allFilePaths.has(focusedPanePath)) {
+      return focusedPanePath;
+    }
+
+    const lastFocusedPath = lastFocusedEditorFileRef.current;
     if (lastFocusedPath && allFilePaths.has(lastFocusedPath)) {
       return lastFocusedPath;
     }
+
     return "";
-  }, [allFilePaths]);
+  }, [allFilePaths, focusedEditorPaneId, paneStateById]);
+
+  const resolveCurrentCompileFile = useCallback((): string => {
+    return currentCompileFile;
+  }, [currentCompileFile]);
 
   const appendCitationToDefaultBibliography = useCallback(
     async (
@@ -1632,11 +1657,11 @@ export function ProjectWorkspace({
       if (isFocused) {
         const focusedPath = paneStateById[paneId]?.activePath ?? "";
         if (focusedPath.length > 0) {
-          setLastCursorFile(focusedPath);
+          rememberLastFocusedEditorFile(focusedPath);
         }
       }
     },
-    [paneStateById],
+    [paneStateById, rememberLastFocusedEditorFile],
   );
 
   const openFileFromTree = useCallback(
@@ -1663,9 +1688,9 @@ export function ProjectWorkspace({
       });
       setHistoryState(null);
       focusPane(paneId, path);
-      setLastCursorFile(path);
+      rememberLastFocusedEditorFile(path);
     },
-    [focusPane],
+    [focusPane, rememberLastFocusedEditorFile],
   );
 
   const promoteTab = useCallback(
@@ -2165,8 +2190,8 @@ export function ProjectWorkspace({
   }, [handleCompile]);
 
   const canCompileCurrentFile = useMemo(
-    () => resolveCurrentCompileFile().length > 0,
-    [resolveCurrentCompileFile],
+    () => currentCompileFile.length > 0,
+    [currentCompileFile],
   );
 
   const handleExport = useCallback(
@@ -2881,8 +2906,8 @@ export function ProjectWorkspace({
           /* best-effort sync */
         });
       }
-      if (lastCursorFileRef.current === path) {
-        setLastCursorFile(trimmed);
+      if (lastFocusedEditorFileRef.current === path) {
+        rememberLastFocusedEditorFile(trimmed);
       }
       setPaneStateById((prev) => {
         let changed = false;
@@ -2920,6 +2945,7 @@ export function ProjectWorkspace({
       patchProjectMetadata,
       projectDefaultBibliographyFile,
       projectEntrypoint,
+      rememberLastFocusedEditorFile,
     ],
   );
 
@@ -3018,8 +3044,9 @@ export function ProjectWorkspace({
           /* best-effort sync */
         });
       }
-      if (lastCursorFileRef.current === path) {
-        setLastCursorFile("");
+      if (lastFocusedEditorFileRef.current === path) {
+        lastFocusedEditorFileRef.current = "";
+        setLastFocusedEditorFile("");
       }
       return true;
     },
@@ -3331,6 +3358,7 @@ export function ProjectWorkspace({
           }}
           onCompileCurrentFile={handleCompileCurrentFile}
           canCompileCurrentFile={canCompileCurrentFile}
+          compileCurrentFilePath={currentCompileFile}
           onClearCompileOutput={() => {
             void handleClearCompileOutput();
           }}
