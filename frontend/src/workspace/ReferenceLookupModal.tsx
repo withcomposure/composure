@@ -77,6 +77,7 @@ async function copyToClipboard(value: string): Promise<void> {
   textarea.style.left = '-9999px'
   document.body.appendChild(textarea)
   textarea.select()
+  // TODO: pull this out into utility that uses clipboard API with execCommand fallback
   document.execCommand('copy')
   document.body.removeChild(textarea)
 }
@@ -92,6 +93,7 @@ export function ReferenceLookupModal({
 }: ReferenceLookupModalProps) {
   const [source, setSource] = useState<ReferenceSource>('arxiv')
   const [field, setField] = useState<ReferenceField>('all')
+  const [lastUserSetField, setLastUserSetField] = useState<ReferenceField>('all')
   const [term, setTerm] = useState('')
   const [sortBy, setSortBy] = useState<ReferenceSort>('relevance')
   const [results, setResults] = useState<ReferenceSearchResult[]>([])
@@ -224,15 +226,12 @@ export function ReferenceLookupModal({
             options={referenceSourceOptions}
             onChange={(nextSource) => {
               setSource(nextSource)
-              setField((current) => {
-                if (nextSource === 'crossref') {
-                  return 'doi'
-                }
-                if (nextSource === 'arxiv' && current === 'doi') {
-                  return 'all'
-                }
-                return current
-              })
+              if (nextSource === 'crossref') {
+                setLastUserSetField(field)
+                setField('doi')
+              } else {
+                setField(lastUserSetField)
+              }
             }}
           />
           <button
