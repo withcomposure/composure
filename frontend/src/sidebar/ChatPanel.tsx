@@ -33,9 +33,36 @@ interface TypingUser {
 	name: string
 }
 
+interface ChatMessageGroup {
+	key: string
+	authorKey: string
+	authorDisplayName: string
+	authorUserId: string | null
+	authorProfileImageUrl: string | null
+	createdAt: number
+	messages: ChatMessage[]
+}
+
+type ChatRenderItem =
+	| {
+			type: 'date-separator'
+			key: string
+			label: string
+	  }
+	| {
+			type: 'message-group'
+			key: string
+			group: ChatMessageGroup
+	  }
+
 const bottomThresholdPx = 20
 const typingStateStaleAfterSeconds = 5
 const typingClearDelayMs = 1400
+const daySeparatorDateFormatter = new Intl.DateTimeFormat(undefined, {
+	month: 'short',
+	day: 'numeric',
+	year: 'numeric',
+})
 
 function readField(raw: unknown, key: string): unknown {
 	if (!raw || typeof raw !== 'object') {
@@ -122,7 +149,7 @@ function formatHistoryBeginningText(historyRetentionDays: number | 'unlimited'):
 		return "You've reached the beginning."
 	}
 
-	return `You've reached the beginning. (up to ${historyRetentionDays} days of history).`
+	return `You're at the beginning (${historyRetentionDays} days max).`
 }
 
 function createMessageId(): string {
@@ -130,6 +157,31 @@ function createMessageId(): string {
 		return crypto.randomUUID()
 	}
 	return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function dayKeyFromTimestamp(createdAt: number): string {
+	const date = new Date(createdAt * 1000)
+	return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function formatDaySeparatorLabel(createdAt: number): string {
+	const date = new Date(createdAt * 1000)
+	const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+	const now = new Date()
+	const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+	const diffDays = Math.round((todayStart.getTime() - dateStart.getTime()) / 86_400_000)
+
+	if (diffDays === 0) {
+		return 'Today'
+	}
+	if (diffDays === 1) {
+		return 'Yesterday'
+	}
+	if (diffDays === -1) {
+		return 'Tomorrow'
+	}
+
+	return daySeparatorDateFormatter.format(dateStart)
 }
 
 export function ChatPanel({
@@ -350,6 +402,53 @@ export function ChatPanel({
 		})
 	}, [messages, normalizedQuery])
 
+	const renderItems = useMemo<ChatRenderItem[]>(() => {
+		const items: ChatRenderItem[] = []
+		let lastDayKey: string | null = null
+		let currentGroup: ChatMessageGroup | null = null
+
+		for (const message of visibleMessages) {
+			const messageDayKey = dayKeyFromTimestamp(message.createdAt)
+
+			if (messageDayKey !== lastDayKey) {
+				lastDayKey = messageDayKey
+				currentGroup = null
+				items.push({
+					type: 'date-separator',
+					key: `date-${messageDayKey}-${message.id}`,
+					label: formatDaySeparatorLabel(message.createdAt),
+				})
+			}
+
+			const authorKey = identityKeyForMessageAuthor(message)
+			if (currentGroup && currentGroup.authorKey === authorKey) {
+				currentGroup.messages.push(message)
+				continue
+			}
+
+			const nextGroup: ChatMessageGroup = {
+				key: `group-${message.id}`,
+				authorKey,
+				authorDisplayName: message.authorDisplayName,
+				authorUserId: message.authorUserId,
+				authorProfileImageUrl: message.authorProfileImageUrl,
+				createdAt: message.createdAt,
+				messages: [message],
+			}
+
+			items.push({
+				type: 'message-group',
+				key: nextGroup.key,
+				group: nextGroup,
+			})
+			currentGroup = nextGroup
+		}
+
+		return items
+	}, [visibleMessages])
+
+	const localIdentityKey = localUser.userId ?? localUser.guestId ?? localUser.name.toLowerCase()
+
 	const submitMessage = useCallback(() => {
 		if (!canSend) {
 			return
@@ -424,27 +523,44 @@ export function ChatPanel({
 							{normalizedQuery ? 'No messages match your search.' : 'No messages yet. Start the conversation.'}
 						</div>
 					) : (
-						<div className="space-y-2.5">
-							{visibleMessages.map((message) => {
-								const isOwnMessage = identityKeyForMessageAuthor(message) === (localUser.userId ?? localUser.guestId ?? localUser.name.toLowerCase())
+						<div className="space-y-2">
+							{renderItems.map((item) => {
+								if (item.type === 'date-separator') {
+									return (
+										<div key={item.key} className="flex items-center gap-2 py-1 text-[10px] font-medium uppercase tracking-wide text-cz-text-muted/80">
+											<div className="h-px flex-1 bg-cz-border-subtle" />
+											<span>{item.label}</span>
+											<div className="h-px flex-1 bg-cz-border-subtle" />
+										</div>
+									)
+								}
+
+								const { group } = item
+								const isOwnMessageGroup = group.authorKey === localIdentityKey
+
 								return (
-									<div
-										key={message.id}
-										className={`rounded-md border px-2.5 py-2 ${isOwnMessage ? 'border-cz-accent/40 bg-cz-accent-muted/30' : 'border-cz-border-subtle bg-cz-bg/65'}`}
-									>
-										<div className="mb-1.5 flex items-center gap-2">
-											<Avatar
-												name={message.authorDisplayName}
-												imageUrl={message.authorProfileImageUrl}
-												isGuest={!message.authorUserId}
-												size={20}
-											/>
-											<div className="min-w-0 flex-1">
-												<div className="truncate text-[11px] font-medium text-cz-text">{message.authorDisplayName}</div>
-												<div className="text-[10px] text-cz-text-muted">{fmtTime(message.createdAt)}</div>
+									<div key={item.key} className="flex items-start gap-2">
+										<Avatar
+											name={group.authorDisplayName}
+											imageUrl={group.authorProfileImageUrl}
+											isGuest={!group.authorUserId}
+											size={24}
+										/>
+										<div className="min-w-0 flex-1">
+											<div className="flex items-baseline gap-2">
+												<div className={`truncate text-[11px] font-semibold ${isOwnMessageGroup ? 'text-cz-accent' : 'text-cz-text'}`}>
+													{group.authorDisplayName}
+												</div>
+												<div className="text-[10px] text-cz-text-muted">{fmtTime(group.createdAt)}</div>
+											</div>
+											<div className="mt-0.5 space-y-0.5">
+												{group.messages.map((message) => (
+													<p key={message.id} className="whitespace-pre-wrap break-words text-xs text-cz-text">
+														{message.body}
+													</p>
+												))}
 											</div>
 										</div>
-										<p className="whitespace-pre-wrap break-words text-xs text-cz-text">{message.body}</p>
 									</div>
 								)
 							})}
@@ -465,12 +581,12 @@ export function ChatPanel({
 				)}
 			</div>
 
-			<div className="border-t border-cz-border px-3 py-2">
+			<div className="px-3 py-2">
 				<div className="mb-1.5 min-h-[1rem] text-[11px] text-cz-text-muted">
 					{formatTypingText(typingUsers)}
 				</div>
 
-				<div className="flex items-end gap-2">
+				<div className="w-full overflow-hidden rounded-lg border border-cz-border bg-cz-bg">
 					<textarea
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
@@ -478,19 +594,21 @@ export function ChatPanel({
 						onBlur={() => provider?.awareness?.setLocalStateField('chatTyping', null)}
 						placeholder={canSend ? 'Write a message...' : 'Chat is read-only for your role.'}
 						disabled={!canSend}
-						rows={2}
-						className="min-h-12 flex-1 resize-none rounded-md border border-cz-border bg-cz-bg px-2 py-1.5 text-xs text-cz-text outline-none focus:border-cz-accent disabled:cursor-not-allowed disabled:opacity-60"
+						rows={5}
+						className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-xs text-cz-text outline-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					/>
-					<button
-						type="button"
-						onClick={submitMessage}
-						disabled={!canSend || draft.trim().length === 0}
-						className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-cz-border bg-cz-bg text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
-						aria-label="Send message"
-						title="Send"
-					>
-						<Send size={14} />
-					</button>
+					<div className="flex justify-end border-t border-cz-border px-2 py-1.5">
+						<button
+							type="button"
+							onClick={submitMessage}
+							disabled={!canSend || draft.trim().length === 0}
+							className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-cz-border bg-cz-bg text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
+							aria-label="Send message"
+							title="Send"
+						>
+							<Send size={13} />
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
