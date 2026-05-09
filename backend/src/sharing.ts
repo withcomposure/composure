@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import {
   addProjectComment,
   canPrincipalModifyComment,
+  canAccessProjectChat,
   canAccessProjectWithRole,
   deleteProjectComment,
   getProjectCommentById,
@@ -126,6 +127,7 @@ export async function getProjectAccessRoute(
   }
 
   const currentRole = await getProjectRoleForPrincipal(projectId, req.principal, shareToken)
+  const canViewChat = (await canAccessProjectChat(projectId, req.principal, shareToken)).ok
   const requestingIdentityId = req.principal.userId ?? req.principal.guestId
   if (!requestingIdentityId) {
     reply.status(401).send({ error: 'Sign in to view project access details' })
@@ -144,6 +146,7 @@ export async function getProjectAccessRoute(
     people,
     linkSharing,
     currentRole,
+    canViewChat,
     maxTextFileSizeBytes: await getMaxTextFileSize(),
     largeFileThresholdChars: await getLargeFileThresholdChars(),
     chatHistoryRetentionDays: await getChatHistoryRetentionDays(),

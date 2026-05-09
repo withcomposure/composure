@@ -6,6 +6,7 @@ import {
   loadDocument,
   storeDocument,
   touchProjectActivity,
+  canAccessProjectChat,
   canAccessProjectWithRole,
   findProjectById,
   findUserById,
@@ -262,7 +263,9 @@ async function assertHocuspocusContextAccess(
 
   await runWithHocuspocusIdentity(context, async () => {
     const shareToken = authContext?.shareToken
-    const access = await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken)
+    const access = documentRef.kind === 'chat'
+      ? await canAccessProjectChat(documentRef.projectId, principal, shareToken)
+      : await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken)
     if (!access.ok) {
       console.warn(
         `[hocuspocus] denied document=${documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'}`,
@@ -306,7 +309,9 @@ const hocuspocus = new Hocuspocus({
     const access = await runWithIdentityContext(
       principal.userId,
       userRole,
-      async () => await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken),
+      async () => documentRef.kind === 'chat'
+        ? await canAccessProjectChat(documentRef.projectId, principal, shareToken)
+        : await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken),
     )
     if (!access.ok) {
       console.warn(

@@ -747,9 +747,143 @@ describe('project access info', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.currentRole).toBe('owner')
+    expect(body.canViewChat).toBe(true)
     expect(body.people).toBeDefined()
     expect(body.people.filter((person: { userId: string | null }) => person.userId === owner.id)).toHaveLength(1)
     expect(body.linkSharing).toBeDefined()
+  })
+
+  it('allows invited viewers to see chat in access info', async () => {
+    const owner = await createTestUser({ email: 'owner-chat-visible@test.com' })
+    const ownerSession = await createTestSession(owner.id)
+    const viewer = await createTestUser({ email: 'invited-chat-visible@test.com' })
+    const viewerSession = await createTestSession(viewer.id)
+    const projectId = await createTestProject(owner.id)
+
+    const inviteRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { email: viewer.email, role: 'view' },
+    })
+    expect(inviteRes.statusCode).toBe(201)
+
+    const accessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: { cookie: sessionCookie(viewerSession) },
+    })
+
+    expect(accessRes.statusCode).toBe(200)
+    const body = accessRes.json() as { currentRole: string | null; canViewChat: boolean }
+    expect(body.currentRole).toBe('view')
+    expect(body.canViewChat).toBe(true)
+  })
+
+  it('hides chat for link-only viewers in access info', async () => {
+    const owner = await createTestUser({ email: 'owner-link-view@test.com' })
+    const ownerSession = await createTestSession(owner.id)
+    const linkViewer = await createTestUser({ email: 'link-viewer-chat-hidden@test.com' })
+    const linkViewerSession = await createTestSession(linkViewer.id)
+    const projectId = await createTestProject(owner.id)
+
+    const linkRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/link-sharing`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { enabled: true, role: 'view' },
+    })
+    expect(linkRes.statusCode).toBe(200)
+    const token = (linkRes.json() as { token: string }).token
+
+    const accessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: {
+        cookie: sessionCookie(linkViewerSession),
+        'x-share-token': token,
+      },
+    })
+
+    expect(accessRes.statusCode).toBe(200)
+    const body = accessRes.json() as { currentRole: string | null; canViewChat: boolean }
+    expect(body.currentRole).toBe('view')
+    expect(body.canViewChat).toBe(false)
+  })
+
+  it('shows chat for link-only commenters in access info', async () => {
+    const owner = await createTestUser({ email: 'owner-link-comment@test.com' })
+    const ownerSession = await createTestSession(owner.id)
+    const linkCommenter = await createTestUser({ email: 'link-commenter-chat-visible@test.com' })
+    const linkCommenterSession = await createTestSession(linkCommenter.id)
+    const projectId = await createTestProject(owner.id)
+
+    const linkRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/link-sharing`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { enabled: true, role: 'comment' },
+    })
+    expect(linkRes.statusCode).toBe(200)
+    const token = (linkRes.json() as { token: string }).token
+
+    const accessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: {
+        cookie: sessionCookie(linkCommenterSession),
+        'x-share-token': token,
+      },
+    })
+
+    expect(accessRes.statusCode).toBe(200)
+    const body = accessRes.json() as { currentRole: string | null; canViewChat: boolean }
+    expect(body.currentRole).toBe('comment')
+    expect(body.canViewChat).toBe(true)
+  })
+
+  it('treats link-only viewers as invited after an explicit invite', async () => {
+    const owner = await createTestUser({ email: 'owner-link-to-invite@test.com' })
+    const ownerSession = await createTestSession(owner.id)
+    const member = await createTestUser({ email: 'link-then-invited@test.com' })
+    const memberSession = await createTestSession(member.id)
+    const projectId = await createTestProject(owner.id)
+
+    const linkRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/projects/${projectId}/link-sharing`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { enabled: true, role: 'view' },
+    })
+    expect(linkRes.statusCode).toBe(200)
+    const token = (linkRes.json() as { token: string }).token
+
+    const linkAccessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: {
+        cookie: sessionCookie(memberSession),
+        'x-share-token': token,
+      },
+    })
+    expect(linkAccessRes.statusCode).toBe(200)
+    expect((linkAccessRes.json() as { canViewChat: boolean }).canViewChat).toBe(false)
+
+    const inviteRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${projectId}/members`,
+      headers: { cookie: sessionCookie(ownerSession) },
+      payload: { email: member.email, role: 'view' },
+    })
+    expect(inviteRes.statusCode).toBe(201)
+
+    const invitedAccessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/access`,
+      headers: { cookie: sessionCookie(memberSession) },
+    })
+    expect(invitedAccessRes.statusCode).toBe(200)
+    expect((invitedAccessRes.json() as { canViewChat: boolean }).canViewChat).toBe(true)
   })
 
   it('uses owner_user_id as an access fallback if the owner membership row is missing', async () => {

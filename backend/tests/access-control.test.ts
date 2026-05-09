@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { sql } from '../src/db/connection.js'
 import { runWithIdentityContext } from '../src/db/request-context.js'
-import { canAccessProjectWithRole, getProjectRoleForPrincipal, ensureProjectAccess } from '../src/db/access.js'
+import { canAccessProjectChat, canAccessProjectWithRole, getProjectRoleForPrincipal, ensureProjectAccess } from '../src/db/access.js'
 import { setLinkSharingState } from '../src/db/sharing.js'
 import type { Principal } from '../src/db/types.js'
 import { createTestUser, createTestProject, resetTestDatabase } from './helpers/setup.js'
@@ -135,6 +135,56 @@ describe('getProjectRoleForPrincipal', () => {
 
     const role = await getProjectRoleForPrincipal(projectId, { userId: member.id, guestId: null })
     expect(role).toBeNull()
+  })
+})
+
+describe('canAccessProjectChat', () => {
+  it('allows invited viewers to view project chat', async () => {
+    const owner = await createTestUser({ email: 'owner-chat-invite@test.com' })
+    const projectId = await createTestProject(owner.id)
+    const invitedViewer = await createTestUser({ email: 'invited-viewer-chat@test.com' })
+
+    await sql`
+      INSERT INTO project_members (project_id, user_id, role, status, invited_by_user_id, created_at, updated_at)
+      VALUES (${projectId}, ${invitedViewer.id}, 'view', 'accepted', ${owner.id}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    `
+
+    const principal: Principal = { userId: invitedViewer.id, guestId: null }
+    const access = await canAccessProjectChat(projectId, principal)
+    expect(access.ok).toBe(true)
+    expect(access.role).toBe('view')
+  })
+
+  it('denies link-only viewers from project chat', async () => {
+    const owner = await createTestUser({ email: 'owner-chat-link@test.com' })
+    const projectId = await createTestProject(owner.id)
+    const linkViewer = await createTestUser({ email: 'link-viewer-chat@test.com' })
+
+    await sql`
+      INSERT INTO project_members (project_id, user_id, role, status, invited_by_user_id, created_at, updated_at)
+      VALUES (${projectId}, ${linkViewer.id}, 'view', 'accepted', ${null}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    `
+
+    const principal: Principal = { userId: linkViewer.id, guestId: null }
+    const access = await canAccessProjectChat(projectId, principal)
+    expect(access.ok).toBe(false)
+    expect(access.role).toBe('view')
+  })
+
+  it('allows link-only commenters to view project chat', async () => {
+    const owner = await createTestUser({ email: 'owner-chat-commenter@test.com' })
+    const projectId = await createTestProject(owner.id)
+    const linkCommenter = await createTestUser({ email: 'link-commenter-chat@test.com' })
+
+    await sql`
+      INSERT INTO project_members (project_id, user_id, role, status, invited_by_user_id, created_at, updated_at)
+      VALUES (${projectId}, ${linkCommenter.id}, 'comment', 'accepted', ${null}, extract(epoch from now())::integer, extract(epoch from now())::integer)
+    `
+
+    const principal: Principal = { userId: linkCommenter.id, guestId: null }
+    const access = await canAccessProjectChat(projectId, principal)
+    expect(access.ok).toBe(true)
+    expect(access.role).toBe('comment')
   })
 })
 

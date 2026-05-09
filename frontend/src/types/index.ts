@@ -120,6 +120,7 @@ export interface ProjectAccessResponse {
     token: string | null
   }
   currentRole: ShareRole | 'owner' | null
+  canViewChat: boolean
   maxTextFileSizeBytes: number | 'unlimited'
   largeFileThresholdChars: number
   chatHistoryRetentionDays: number | 'unlimited' | 'off'

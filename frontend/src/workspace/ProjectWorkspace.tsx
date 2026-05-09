@@ -268,6 +268,7 @@ export function ProjectWorkspace({
   const [accessRole, setAccessRole] = useState<ShareRole | "owner" | null>(
     null,
   );
+  const [canViewChat, setCanViewChat] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("view");
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(
     null,
@@ -584,6 +585,7 @@ export function ProjectWorkspace({
     sidebarWidthRef.current = defaults.sidebarWidth;
     setPreviewOpen(defaults.previewOpen);
     setPreviewWidth(defaults.previewWidth);
+    setCanViewChat(false);
     setChatHistoryRetentionDays("unlimited");
     setRightPreviewPinnedFilePath(null);
     setPaneDropHint(null);
@@ -1281,10 +1283,11 @@ export function ProjectWorkspace({
   const canComment =
     accessRole === "owner" || accessRole === "edit" || accessRole === "comment";
   const canEdit = accessRole === "owner" || accessRole === "edit";
+  const canOpenChat = canViewChat;
   const canChat = canComment;
   const canCommentLive = canComment && connectionState === "connected";
   const canEditLive = canEdit && connectionState === "connected";
-  const canChatLive = canChat && chatConnectionState === "connected";
+  const canChatLive = canChat && canOpenChat && chatConnectionState === "connected";
   const canManageAccess = accessRole === "owner" && Boolean(sessionUser?.id);
   const effectiveMode: EditorMode =
     editorMode === "edit" && !canEditLive
@@ -1530,6 +1533,12 @@ export function ProjectWorkspace({
   }, [projectId, shareToken, ydoc]);
 
   useEffect(() => {
+    if (!canOpenChat) {
+      setChatProvider(null);
+      setChatConnectionState("disconnected");
+      return;
+    }
+
     const wsUrl = collaborationWsUrl(shareToken);
     const documentName = chatDocumentName(projectId);
 
@@ -1570,10 +1579,11 @@ export function ProjectWorkspace({
     setChatProvider(prov);
 
     return () => {
+      setChatProvider(null);
       setChatConnectionState("connecting");
       prov.destroy();
     };
-  }, [chatYdoc, projectId, shareToken]);
+  }, [canOpenChat, chatYdoc, projectId, shareToken]);
 
   useEffect(() => {
     return () => {
@@ -1603,6 +1613,7 @@ export function ProjectWorkspace({
       setLinkRole(body.linkSharing.role ?? "view");
       setLinkToken(body.linkSharing.token);
       setAccessRole(body.currentRole);
+      setCanViewChat(body.canViewChat);
       setMaxTextFileSizeBytes(body.maxTextFileSizeBytes);
       setLargeFileThresholdChars(body.largeFileThresholdChars);
       setChatHistoryRetentionDays(body.chatHistoryRetentionDays);
@@ -1649,6 +1660,12 @@ export function ProjectWorkspace({
     void loadAccess();
     void loadComments();
   }, [loadAccess, loadComments]);
+
+  useEffect(() => {
+    if (!canOpenChat && sidebarTab === "chat") {
+      setSidebarTab("files");
+    }
+  }, [canOpenChat, sidebarTab]);
 
   useEffect(() => {
     const handleCommentsSync = () => {
@@ -3666,7 +3683,7 @@ export function ProjectWorkspace({
           </button>
         </div>
         <div
-          className="grid grid-cols-4 border-b border-cz-border"
+          className={`grid ${canOpenChat ? "grid-cols-4" : "grid-cols-3"} border-b border-cz-border`}
           style={{ height: "var(--sub-toolbar-height)" }}
         >
           <button
@@ -3687,15 +3704,17 @@ export function ProjectWorkspace({
             <Eye size={14} />
             <span className="sr-only">Review</span>
           </button>
-          <button
-            onClick={() => setSidebarTab("chat")}
-            className={`inline-flex h-full items-center justify-center ${sidebarTab === "chat" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
-            aria-label="Chat"
-            title="Chat"
-          >
-            <MessageSquare size={14} />
-            <span className="sr-only">Chat</span>
-          </button>
+          {canOpenChat ? (
+            <button
+              onClick={() => setSidebarTab("chat")}
+              className={`inline-flex h-full items-center justify-center ${sidebarTab === "chat" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+              aria-label="Chat"
+              title="Chat"
+            >
+              <MessageSquare size={14} />
+              <span className="sr-only">Chat</span>
+            </button>
+          ) : null}
           <button
             onClick={() => setSidebarTab("history")}
             className={`inline-flex h-full items-center justify-center ${sidebarTab === "history" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
@@ -3752,7 +3771,7 @@ export function ProjectWorkspace({
             onEditComment={updateComment}
             onDeleteComment={removeComment}
           />
-        ) : sidebarTab === "chat" ? (
+        ) : sidebarTab === "chat" && canOpenChat ? (
           <ChatPanel
             ydoc={chatYdoc}
             provider={chatProvider}

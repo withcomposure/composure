@@ -36,6 +36,47 @@ function roleAtLeast(role: ProjectRole, minimumRole: ProjectRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minimumRole]
 }
 
+interface PrincipalProjectRoleResolution {
+  role: ProjectRole | null
+  isInvitedMember: boolean
+}
+
+async function resolveProjectRoleForPrincipal(
+  projectId: string,
+  principal: Principal,
+): Promise<PrincipalProjectRoleResolution> {
+  if (!principal.userId) {
+    return { role: null, isInvitedMember: false }
+  }
+
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
+    return { role: null, isInvitedMember: false }
+  }
+
+  if (project.owner_user_id === principal.userId) {
+    return { role: 'owner', isInvitedMember: true }
+  }
+
+  const [member] = await sql`
+    SELECT role, invited_by_user_id
+    FROM project_members
+    WHERE project_id = ${projectId}
+      AND user_id = ${principal.userId}
+      AND status = 'accepted'
+    LIMIT 1
+  `
+
+  if (!member) {
+    return { role: null, isInvitedMember: false }
+  }
+
+  return {
+    role: member.role as ProjectRole,
+    isInvitedMember: (member.invited_by_user_id as string | null) != null,
+  }
+}
+
 function requireRequestingIdentityId(requestingIdentityId: string | null | undefined): string {
   const normalized = requestingIdentityId?.trim()
   if (!normalized) {
@@ -70,34 +111,22 @@ export async function updatePendingInvitesForUser(userId: string, email: string)
 
 export async function getProjectRoleForPrincipal(projectId: string, principal: Principal, shareToken?: string): Promise<ProjectRole | null> {
   void shareToken
+  const resolved = await resolveProjectRoleForPrincipal(projectId, principal)
+  return resolved.role
+}
 
-  if (!principal.userId) {
-    return null
+export async function canAccessProjectChat(projectId: string, principal: Principal, shareToken?: string): Promise<{
+  ok: boolean
+  role: ProjectRole | null
+}> {
+  void shareToken
+  const resolved = await resolveProjectRoleForPrincipal(projectId, principal)
+  if (!resolved.role) {
+    return { ok: false, role: null }
   }
 
-  const project = await findProjectById(projectId)
-  if (!project || project.deleted_at != null) {
-    return null
-  }
-
-  if (project.owner_user_id === principal.userId) {
-    return 'owner'
-  }
-
-  const [member] = await sql`
-    SELECT role
-    FROM project_members
-    WHERE project_id = ${projectId}
-      AND user_id = ${principal.userId}
-      AND status = 'accepted'
-    LIMIT 1
-  `
-
-  if (member) {
-    return member.role as ProjectRole
-  }
-
-  return null
+  const canViewChat = resolved.isInvitedMember || roleAtLeast(resolved.role, 'comment')
+  return { ok: canViewChat, role: resolved.role }
 }
 
 export async function canAccessProjectWithRole(projectId: string, principal: Principal, requiredRole: ProjectRole, shareToken?: string): Promise<{
@@ -282,7 +311,12 @@ export async function upsertProjectMemberInvite(input: {
         project_id, user_id, invited_email, role, status, invited_by_user_id, created_at, updated_at
       ) VALUES (${input.projectId}, ${targetUser.id}, NULL, ${input.role}, 'accepted', ${input.invitedByUserId}, extract(epoch from now())::integer, extract(epoch from now())::integer)
       ON CONFLICT(project_id, user_id) WHERE user_id IS NOT NULL
-      DO UPDATE SET role = excluded.role, status = 'accepted', updated_at = excluded.updated_at
+      DO UPDATE SET
+        role = excluded.role,
+        status = 'accepted',
+        invited_email = NULL,
+        invited_by_user_id = excluded.invited_by_user_id,
+        updated_at = excluded.updated_at
     `
 
     await sql`
