@@ -130,20 +130,19 @@ export function PreviewToolbar({
           </>
         )}
 
-        {url && (
-          <>
-            <div className="mx-1 h-3 w-px bg-cz-border" />
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${btnClass} w-6`}
-              title="Open in new tab"
-            >
-              <ExternalLink size={12} />
-            </a>
-          </>
-        )}
+        <button
+          type="button"
+          disabled={!url}
+          onClick={() => {
+            if (!url) return
+            const win = window.open(url, '_blank')
+            if (win) win.opener = null
+          }}
+          className={`${btnClass} w-6 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent`}
+          title={url ? 'Open in new tab' : 'Nothing to open in a new tab'}
+        >
+          <ExternalLink size={12} aria-hidden />
+        </button>
       </div>
     </div>
   )
@@ -152,11 +151,11 @@ export function PreviewToolbar({
 export function PreviewDarkModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
-      className={`inline-flex h-6 w-6 items-center justify-center rounded text-[11px] transition-colors ${
-        enabled ? 'bg-cz-accent-muted text-cz-accent' : 'text-cz-text-muted hover:bg-cz-surface-hover'
-      }`}
+      className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] text-cz-text-muted transition-colors hover:bg-cz-surface-hover"
       title={enabled ? 'Switch to light background' : 'Switch to dark background'}
+      aria-pressed={enabled}
     >
       {enabled ? <Moon size={12} /> : <Sun size={12} />}
     </button>
