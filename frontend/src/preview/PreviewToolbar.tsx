@@ -42,6 +42,7 @@ export function PreviewToolbar({
   const zoomHadFocusRef = useRef(false)
   const [pageDraft, setPageDraft] = useState('')
   const [zoomDraft, setZoomDraft] = useState('')
+  const [pageFocused, setPageFocused] = useState(false)
   const [zoomFocused, setZoomFocused] = useState(false)
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function PreviewToolbar({
       return
     }
     setPageDraft(String(pageIndicator.currentPage))
-  }, [pageIndicator?.currentPage, pageIndicator?.totalPages])
+  }, [pageIndicator?.currentPage, pageIndicator?.totalPages, pageFocused])
 
   const roundedZoomPercent = Math.round(scale * 100)
 
@@ -123,8 +124,14 @@ export function PreviewToolbar({
                     setPageDraft(next)
                   }
                 }}
-                onFocus={(event) => event.target.select()}
-                onBlur={commitPageDraft}
+                onFocus={(event) => {
+                  setPageFocused(true)
+                  event.target.select()
+                }}
+                onBlur={() => {
+                  setPageFocused(false)
+                  commitPageDraft()
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault()
@@ -135,6 +142,15 @@ export function PreviewToolbar({
                     event.preventDefault()
                     setPageDraft(String(pageIndicator.currentPage))
                   }
+                }}
+                onWheel={(event) => {
+                  const direction = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0
+                  if (direction === 0) return
+                  event.preventDefault()
+                  const parsed = Number.parseInt(pageDraft, 10)
+                  const basePage = Number.isFinite(parsed) ? parsed : pageIndicator.currentPage
+                  const nextPage = Math.max(1, Math.min(pageIndicator.totalPages, basePage + direction))
+                  pageIndicator.onGoToPage(nextPage)
                 }}
                 className="box-content mr-1 h-6 w-auto shrink-0 min-w-[1ch] max-w-[6ch] rounded border border-cz-border bg-cz-bg px-1 text-right text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
                 aria-label="Current page"

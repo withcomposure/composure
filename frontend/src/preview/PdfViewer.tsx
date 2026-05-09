@@ -252,7 +252,7 @@ function scrollPdfPageIntoView(
   const containerRect = scrollElement.getBoundingClientRect()
   const targetRect = targetPage.getBoundingClientRect()
   const nextTop = scrollElement.scrollTop + (targetRect.top - containerRect.top) - 12
-  scrollElement.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+  scrollElement.scrollTo({ top: Math.max(0, nextTop), behavior: 'auto' })
   return page
 }
 
