@@ -152,7 +152,7 @@ export function PreviewToolbar({
                   const nextPage = Math.max(1, Math.min(pageIndicator.totalPages, basePage + direction))
                   pageIndicator.onGoToPage(nextPage)
                 }}
-                className="box-content mr-1 h-6 w-auto shrink-0 min-w-[1ch] max-w-[6ch] rounded border border-cz-border bg-cz-bg px-1 text-right text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
+                className="[field-sizing:content] box-content mr-1 h-6 w-auto shrink-0 min-w-[1ch] max-w-[6ch] rounded border border-cz-border bg-cz-bg px-1 text-right text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
                 aria-label="Current page"
               />
             </span>
