@@ -63,6 +63,10 @@ const daySeparatorDateFormatter = new Intl.DateTimeFormat(undefined, {
 	day: 'numeric',
 	year: 'numeric',
 })
+const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
+	hour: 'numeric',
+	minute: '2-digit',
+})
 
 function readField(raw: unknown, key: string): unknown {
 	if (!raw || typeof raw !== 'object') {
@@ -182,6 +186,10 @@ function formatDaySeparatorLabel(createdAt: number): string {
 	}
 
 	return daySeparatorDateFormatter.format(dateStart)
+}
+
+function formatMessageTime(createdAt: number): string {
+	return messageTimeFormatter.format(new Date(createdAt * 1000))
 }
 
 export function ChatPanel({
@@ -493,6 +501,8 @@ export function ChatPanel({
 		}
 	}, [assessBottomPosition])
 
+	const typingText = formatTypingText(typingUsers)
+
 	return (
 		<div className="flex flex-1 flex-col overflow-hidden bg-cz-surface/30">
 			<div className="px-3 pb-2 pt-2">
@@ -514,9 +524,11 @@ export function ChatPanel({
 					className="h-full overflow-y-auto px-3 pb-3"
 					onScroll={handleScroll}
 				>
-					<div className="mb-3 text-center text-[11px] text-cz-text-muted/80">
-						{formatHistoryBeginningText(historyRetentionDays)}
-					</div>
+					{visibleMessages.length > 0 && (
+						<div className="mb-3 text-center text-[11px] text-cz-text-muted/80">
+							{formatHistoryBeginningText(historyRetentionDays)}
+						</div>
+					)}
 
 					{visibleMessages.length === 0 ? (
 						<div className="rounded-md border border-cz-border-subtle bg-cz-bg/60 p-3 text-xs text-cz-text-muted">
@@ -537,6 +549,7 @@ export function ChatPanel({
 
 								const { group } = item
 								const isOwnMessageGroup = group.authorKey === localIdentityKey
+								const avatarTooltip = `${group.authorDisplayName}\n${fmtTime(group.createdAt)}`
 
 								return (
 									<div key={item.key} className="flex items-start gap-2">
@@ -544,6 +557,7 @@ export function ChatPanel({
 											name={group.authorDisplayName}
 											imageUrl={group.authorProfileImageUrl}
 											isGuest={!group.authorUserId}
+											title={avatarTooltip}
 											size={24}
 										/>
 										<div className="min-w-0 flex-1">
@@ -551,7 +565,7 @@ export function ChatPanel({
 												<div className={`truncate text-[11px] font-semibold ${isOwnMessageGroup ? 'text-cz-accent' : 'text-cz-text'}`}>
 													{group.authorDisplayName}
 												</div>
-												<div className="text-[10px] text-cz-text-muted">{fmtTime(group.createdAt)}</div>
+												<div className="text-[10px] text-cz-text-muted">{formatMessageTime(group.createdAt)}</div>
 											</div>
 											<div className="mt-0.5 space-y-0.5">
 												{group.messages.map((message) => (
@@ -581,10 +595,12 @@ export function ChatPanel({
 				)}
 			</div>
 
-			<div className="px-3 py-2">
-				<div className="mb-1.5 min-h-[1rem] text-[11px] text-cz-text-muted">
-					{formatTypingText(typingUsers)}
-				</div>
+			<div className="px-3 pb-3 pt-0">
+				{typingText && (
+					<div className="mb-1 text-[11px] text-cz-text-muted">
+						{typingText}
+					</div>
+				)}
 
 				<div className="w-full overflow-hidden rounded-lg border border-cz-border bg-cz-bg">
 					<textarea

@@ -6,6 +6,7 @@ interface AvatarProps {
   isGuest?: boolean
   size?: number
   className?: string
+  title?: string
 }
 
 function initialsFromName(name: string): string {
@@ -36,12 +37,15 @@ function avatarPalette(seed: string): { bg: string; fg: string } {
   return { bg, fg }
 }
 
-export function Avatar({ name, imageUrl, isGuest = false, size = 34, className = '' }: AvatarProps) {
+export function Avatar({ name, imageUrl, isGuest = false, size = 34, className = '', title }: AvatarProps) {
+  const tooltipText = title ?? name
+
   if (imageUrl) {
     return (
       <img
         src={imageUrl}
         alt={name}
+        title={tooltipText}
         width={size}
         height={size}
         className={`rounded-full border border-cz-border object-cover ${className}`.trim()}
@@ -53,7 +57,7 @@ export function Avatar({ name, imageUrl, isGuest = false, size = 34, className =
     return (
       <div
         aria-label={name}
-        title={name}
+        title={tooltipText}
         className={`inline-flex select-none items-center justify-center rounded-full border border-cz-border bg-cz-surface text-cz-text-muted ${className}`.trim()}
         style={{
           width: size,
@@ -71,7 +75,7 @@ export function Avatar({ name, imageUrl, isGuest = false, size = 34, className =
   return (
     <div
       aria-label={name}
-      title={name}
+      title={tooltipText}
       className={`inline-flex select-none items-center justify-center rounded-full border border-cz-border text-xs font-semibold ${className}`.trim()}
       style={{
         width: size,
