@@ -1,6 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { ChevronDown, Download, Eye, FileImage, FileType2, Pencil, Share2 } from 'lucide-react'
+import { Download, Eye, FileImage, FileType2, Pencil, Share2 } from 'lucide-react'
 import {
   exportToBlob,
   exportToSvg,
@@ -14,10 +12,7 @@ import type {
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { WorkspaceProjectTitle } from '@/components/WorkspaceProjectTitle'
-import { IconDropdown } from '@/components/IconDropdown'
-import { useClickOutside } from '@/hooks/use-click-outside'
-import { useEscapeKey } from '@/hooks/use-escape-key'
-import { useMenuPosition } from '@/hooks/use-menu-position'
+import { IconDropdown, type DropdownOption } from '@/components/IconDropdown'
 import type { ConnectionState } from '@/types'
 import { ProfileMenu } from '@/workspace/ProfileMenu'
 import type { WhiteboardPresenceUser } from './useWhiteboardCollab'
@@ -76,89 +71,44 @@ function WhiteboardExportMenu({
   onExportPng,
   onExportSvg,
 }: WhiteboardExportMenuProps) {
-  const [showMenu, setShowMenu] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const closeMenu = useCallback(() => {
-    setShowMenu(false)
-  }, [])
-
-  const menuPosition = useMenuPosition(buttonRef, menuRef, {
-    enabled: showMenu,
-    fallbackWidth: 176,
-  })
-
-  useClickOutside([rootRef, menuRef], closeMenu, showMenu)
-  useEscapeKey(closeMenu, showMenu)
+  const exportOptions: Array<DropdownOption<'png' | 'svg'>> = [
+    {
+      type: 'action',
+      id: 'export-png',
+      icon: FileImage,
+      label: 'PNG Image',
+      disabled: exporting,
+      onSelect: onExportPng,
+    },
+    {
+      type: 'action',
+      id: 'export-svg',
+      icon: FileType2,
+      label: 'SVG Vector',
+      disabled: exporting,
+      onSelect: onExportSvg,
+    },
+  ]
 
   return (
-    <div className="inline-flex" ref={rootRef}>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setShowMenu((prev) => !prev)}
-        disabled={exporting}
-        title={exporting ? 'Exporting...' : 'Export'}
-        aria-label={exporting ? 'Exporting...' : 'Export'}
-        aria-haspopup="menu"
-        aria-expanded={showMenu}
-        className={`flex items-center gap-1 rounded-md h-7 px-2 text-xs font-medium transition-all ${
-          exporting
-            ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
-            : 'border border-cz-border text-cz-text hover:bg-cz-surface-hover'
-        }`}
-      >
-        {exporting ? (
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : (
-          <>
-            <Download size={12} />
-            <span>Export</span>
-            <ChevronDown size={10} />
-          </>
-        )}
-      </button>
-
-      {showMenu && createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          className="fixed z-[100] w-44 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl"
-          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              closeMenu()
-              onExportPng()
-            }}
-            disabled={exporting}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text hover:bg-cz-surface-hover disabled:opacity-50"
-          >
-            <FileImage size={14} className="text-cz-text-muted" />
-            PNG Image
-          </button>
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              closeMenu()
-              onExportSvg()
-            }}
-            disabled={exporting}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-cz-text hover:bg-cz-surface-hover disabled:opacity-50"
-          >
-            <FileType2 size={14} className="text-cz-text-muted" />
-            SVG Vector
-          </button>
-        </div>,
-        document.body,
-      )}
-    </div>
+    <IconDropdown<'png' | 'svg'>
+      disabled={exporting}
+      options={exportOptions}
+      fallbackWidth={176}
+      menuRole="menu"
+      menuClassName="w-44 p-1.5"
+      trigger={{
+        icon: Download,
+        label: 'Export',
+        loading: exporting,
+        title: exporting ? 'Exporting...' : 'Export',
+        ariaLabel: exporting ? 'Exporting...' : 'Export',
+        className: exporting
+          ? 'bg-cz-surface-hover text-cz-text-muted cursor-wait'
+          : 'border border-cz-border text-cz-text hover:bg-cz-surface-hover',
+      }}
+      className="inline-flex"
+    />
   )
 }
 

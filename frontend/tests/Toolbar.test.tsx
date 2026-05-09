@@ -20,6 +20,7 @@ const defaults = {
   onCompile: () => {},
   onCompileCurrentFile: () => {},
   canCompileCurrentFile: false,
+  compileCurrentFilePath: "main.tex",
   onClearCompileOutput: () => {},
   hasCompiledOutput: false,
   clearingCompileOutput: false,
@@ -65,7 +66,7 @@ describe("Toolbar", () => {
 
     fireEvent.click(screen.getByLabelText("Compile options"));
 
-    const clearButton = screen.getByRole("button", {
+    const clearButton = screen.getByRole("menuitem", {
       name: "Clear compile output",
     });
     expect(clearButton).toBeDisabled();
@@ -84,7 +85,7 @@ describe("Toolbar", () => {
 
     fireEvent.click(screen.getByLabelText("Compile options"));
     fireEvent.click(
-      screen.getByRole("button", { name: "Clear compile output" }),
+      screen.getByRole("menuitem", { name: "Clear compile output" }),
     );
 
     expect(onClearCompileOutput).toHaveBeenCalledTimes(1);
@@ -102,7 +103,7 @@ describe("Toolbar", () => {
     )
 
     fireEvent.click(screen.getByLabelText('Compile options'))
-    fireEvent.click(screen.getByRole('button', { name: 'Compile this file' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Compile "main.tex"' }))
 
     expect(onCompileCurrentFile).toHaveBeenCalledTimes(1)
   })

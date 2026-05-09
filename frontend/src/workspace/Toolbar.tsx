@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Eye, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Play, Link, LibraryBig, Timer, Trash2, type LucideIcon } from 'lucide-react'
 import { ExportMenu } from '@/sidebar/ExportMenu'
 import { ProfileMenu } from './ProfileMenu'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
-import { IconDropdown } from '@/components/IconDropdown'
-import { ToggleSwitch } from '@/components/ToggleSwitch'
+import { IconDropdown, type DropdownOption } from '@/components/IconDropdown'
 import { VersionsDropdown } from './VersionsDropdown'
 import type { HistoryState } from '@/types'
 
@@ -69,6 +67,8 @@ const modeOptions = [
   { value: 'edit'    as const, icon: Pencil,        label: 'Editing',    description: 'Full access'      },
 ] satisfies Array<{ value: 'view' | 'comment' | 'edit', icon: LucideIcon, label: string, description: string }>
 
+type CompileDropdownValue = 'compile-current-file' | 'clear-compile-output'
+
 export function Toolbar({
   sidebarOpen,
   onToggleSidebar,
@@ -114,8 +114,6 @@ export function Toolbar({
   const inDiffMode = historyState !== null
   const displayFileName = historyState?.filePath ?? activeFile
   const showCompileButton = projectFormat !== 'markdown' && projectFormat !== 'asciidoc'
-  const [showCompileMenu, setShowCompileMenu] = useState(false)
-  const compileMenuRef = useRef<HTMLDivElement>(null)
   const connectionDotClass = connectionState === 'connected'
     ? 'bg-emerald-500'
     : connectionState === 'disconnected'
@@ -134,17 +132,43 @@ export function Toolbar({
   const compileCurrentFileTitle = canCompileCurrentFile
     ? `Compile "${compileCurrentFileName}"`
     : 'Focus an editor tab to enable'
+  const clearCompileOutputTitle = hasCompiledOutput ? 'Clear compile output' : 'No compile output to clear'
 
-  useEffect(() => {
-    if (!showCompileMenu) return
-    const handle = (e: PointerEvent) => {
-      if (compileMenuRef.current && !compileMenuRef.current.contains(e.target as Node)) {
-        setShowCompileMenu(false)
-      }
-    }
-    window.addEventListener('pointerdown', handle, true)
-    return () => window.removeEventListener('pointerdown', handle, true)
-  }, [showCompileMenu])
+  const compileMenuOptions: Array<DropdownOption<CompileDropdownValue>> = [
+    {
+      type: 'toggle',
+      id: 'auto-compile',
+      icon: Timer,
+      label: 'Auto-Compile',
+      description: `Run after ${autoCompileTimeoutSeconds}s of editor inactivity`,
+      checked: autoCompileEnabled,
+      onToggle: onAutoCompileChange,
+      switchAriaLabel: 'Toggle Auto-Compile',
+    },
+    {
+      type: 'action',
+      id: 'compile-current-file',
+      icon: Play,
+      label: `Compile "${compileCurrentFileName}"`,
+      disabled: !canCompileCurrentFile || compiling,
+      onSelect: onCompileCurrentFile,
+      title: compileCurrentFileTitle,
+      ariaLabel: compileCurrentFileTitle,
+    },
+    {
+      type: 'action',
+      id: 'clear-compile-output',
+      icon: Trash2,
+      label: 'Clear Compile Output',
+      disabled: !canClearCompileOutput,
+      onSelect: onClearCompileOutput,
+      title: clearCompileOutputTitle,
+      ariaLabel: 'Clear compile output',
+      trailing: clearingCompileOutput
+        ? <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        : null,
+    },
+  ]
 
   return (
     <div
@@ -202,7 +226,7 @@ export function Toolbar({
         />
 
         {showCompileButton && (
-        <div className="relative" ref={compileMenuRef}>
+        <div>
           <div className="flex items-stretch">
             <button
               onClick={onCompile}
@@ -221,84 +245,26 @@ export function Toolbar({
                 <Play size={12} fill="currentColor" />
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowCompileMenu((prev) => !prev)}
+            <IconDropdown<CompileDropdownValue>
               disabled={compiling}
-              className={`rounded-r-md border-l border-white/20 px-2 text-xs transition-all ${
-                compiling
-                  ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
-                  : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
-              }`}
-              aria-label="Compile options"
-              title="Compile options"
-            >
-              <ChevronDown size={12} />
-            </button>
+              options={compileMenuOptions}
+              fallbackWidth={256}
+              menuRole="menu"
+              menuClassName="w-64 p-1.5"
+              trigger={{
+                icon: ChevronDown,
+                iconOnly: true,
+                showChevron: false,
+                title: 'Compile options',
+                ariaLabel: 'Compile options',
+                className: `rounded-r-md rounded-l-none border-l border-white/20 px-2 text-xs transition-all ${
+                  compiling
+                    ? 'bg-cz-accent/40 text-cz-accent cursor-wait'
+                    : 'bg-cz-accent text-white hover:bg-cz-accent-hover shadow-sm shadow-cz-accent/20'
+                }`,
+              }}
+            />
           </div>
-
-          {showCompileMenu && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-cz-border bg-cz-surface p-1.5 shadow-xl">
-              <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-cz-surface-hover">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Timer size={14} className="text-cz-text-muted" />
-                  <div className="min-w-0">
-                    <div className="text-xs text-cz-text">Auto-Compile</div>
-                    <div className="text-[10px] text-cz-text-muted">Run after {autoCompileTimeoutSeconds}s of editor inactivity</div>
-                  </div>
-                </div>
-                <ToggleSwitch
-                  checked={autoCompileEnabled}
-                  onChange={onAutoCompileChange}
-                  ariaLabel="Toggle Auto-Compile"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!canCompileCurrentFile) {
-                    return
-                  }
-                  onCompileCurrentFile()
-                  setShowCompileMenu(false)
-                }}
-                disabled={!canCompileCurrentFile || compiling}
-                className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canCompileCurrentFile && !compiling ? 'text-cz-text hover:bg-cz-surface-hover' : 'cursor-not-allowed text-cz-text-muted opacity-60'}`}
-                title={compileCurrentFileTitle}
-                aria-label={compileCurrentFileTitle}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Play size={14} className={'text-cz-text-muted'} />
-                  <span>Compile "{compileCurrentFileName}"</span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!canClearCompileOutput) {
-                    return
-                  }
-                  onClearCompileOutput()
-                  setShowCompileMenu(false)
-                }}
-                disabled={!canClearCompileOutput}
-                className={`mt-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors ${canClearCompileOutput ? 'text-cz-text hover:bg-cz-surface-hover' : 'cursor-not-allowed text-cz-text-muted opacity-60'}`}
-                title={hasCompiledOutput ? 'Clear compile output' : 'No compile output to clear'}
-                aria-label="Clear compile output"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Trash2 size={14} className={'text-cz-text-muted'} />
-                  <span>Clear Compile Output</span>
-                </span>
-                {clearingCompileOutput && (
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                )}
-              </button>
-
-            </div>
-          )}
         </div>
         )}
 
