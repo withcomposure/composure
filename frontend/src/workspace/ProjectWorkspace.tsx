@@ -49,6 +49,7 @@ import {
 } from "@/utils/file-metadata";
 import {
   detectProjectFormatFromFilename,
+  shouldScheduleAutoCompileForDocChange,
   type ProjectFormat,
 } from "@/utils/project-format";
 import {
@@ -2241,13 +2242,6 @@ export function ProjectWorkspace({
   ]);
 
   const compileDefaultRootFile = useMemo(() => {
-    if (
-      isRightPreviewPinned &&
-      rightPreviewFilePath &&
-      allFilePaths.has(rightPreviewFilePath)
-    ) {
-      return rightPreviewFilePath;
-    }
     if (activeEntrypoint) {
       return activeEntrypoint;
     }
@@ -2255,13 +2249,25 @@ export function ProjectWorkspace({
       return activeFilePath;
     }
     return "";
-  }, [
-    activeEntrypoint,
-    activeFilePath,
-    allFilePaths,
-    isRightPreviewPinned,
-    rightPreviewFilePath,
-  ]);
+  }, [activeEntrypoint, activeFilePath, allFilePaths]);
+
+  const autoCompileScheduleEligible = useMemo(
+    () =>
+      shouldScheduleAutoCompileForDocChange({
+        hasEntrypoint: activeEntrypoint != null,
+        compileRootPath: compileDefaultRootFile,
+        activeEditorPath: activeFilePath,
+        rightPreviewPath: rightPreviewFilePath,
+        previewPaneOpen: previewOpen,
+      }),
+    [
+      activeEntrypoint,
+      activeFilePath,
+      compileDefaultRootFile,
+      previewOpen,
+      rightPreviewFilePath,
+    ],
+  );
 
   const handleCompile = useCallback(
     async (options?: {
@@ -2475,7 +2481,7 @@ export function ProjectWorkspace({
         !autoCompileEnabled ||
         !canEdit ||
         !initialSyncDone ||
-        !compileDefaultRootFile
+        !autoCompileScheduleEligible
       )
         return;
       if (origin === provider) return;
@@ -2497,7 +2503,7 @@ export function ProjectWorkspace({
     autoCompileEnabled,
     canEdit,
     initialSyncDone,
-    compileDefaultRootFile,
+    autoCompileScheduleEligible,
   ]);
 
   useEffect(() => {
@@ -2505,7 +2511,7 @@ export function ProjectWorkspace({
       !autoCompileEnabled ||
       !canEdit ||
       !initialSyncDone ||
-      !compileDefaultRootFile ||
+      !autoCompileScheduleEligible ||
       compiling
     )
       return;
@@ -2523,7 +2529,7 @@ export function ProjectWorkspace({
     autoCompileEnabled,
     canEdit,
     initialSyncDone,
-    compileDefaultRootFile,
+    autoCompileScheduleEligible,
     compiling,
     autoCompileRevision,
     autoCompileTimeoutSeconds,

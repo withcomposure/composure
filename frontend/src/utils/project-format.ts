@@ -45,6 +45,53 @@ export function detectProjectFormatFromFilename(
   return null
 }
 
+function formatUsesBrowserLivePreview(format: ProjectFormat): boolean {
+  return format === 'markdown' || format === 'asciidoc'
+}
+
+/**
+ * Whether collaborative doc edits should schedule auto-compile
+ *
+ * - With an entrypoint: schedule when compile root is compile-capable (LaTeX, Typst)
+ * - Without an entrypoint: same root check, but skip when the user is currently editing 
+ *   a live-preview format (Markdown, AsciiDoc) with the preview pane open on that file
+ */
+export function shouldScheduleAutoCompileForDocChange(input: {
+  hasEntrypoint: boolean
+  compileRootPath: string
+  activeEditorPath: string
+  rightPreviewPath: string
+  previewPaneOpen: boolean
+}): boolean {
+  const root = input.compileRootPath.trim()
+  if (!root) {
+    return false
+  }
+
+  if (detectProjectFormatFromFilename(root, false) === null) {
+    return false
+  }
+
+  if (input.hasEntrypoint) {
+    return true
+  }
+
+  const { activeEditorPath, rightPreviewPath, previewPaneOpen } = input
+  if (
+    previewPaneOpen &&
+    activeEditorPath &&
+    rightPreviewPath &&
+    activeEditorPath === rightPreviewPath
+  ) {
+    const activeFmt = detectProjectFormatFromFilename(activeEditorPath, false)
+    if (activeFmt && formatUsesBrowserLivePreview(activeFmt)) {
+      return false
+    }
+  }
+
+  return true
+}
+
 export function projectFormatLabel(format: ProjectEngine): string {
   return projectFormatLabels[format]
 }

@@ -108,6 +108,11 @@ describe("Toolbar", () => {
     expect(onCompileCurrentFile).toHaveBeenCalledTimes(1)
   })
 
+  it("shows main compile control for markdown projects (entrypoint may still be .tex)", () => {
+    render(<Toolbar {...defaults} projectFormat="markdown" />);
+    expect(screen.getByRole("button", { name: "Compile" })).toBeInTheDocument();
+  });
+
   it('shows "Compile This File" when no active file is available', () => {
     render(
       <Toolbar

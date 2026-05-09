@@ -113,7 +113,6 @@ export function Toolbar({
 }: ToolbarProps) {
   const inDiffMode = activeDiffTab !== null
   const displayFileName = activeDiffTab?.filePath ?? activeFile
-  const showCompileButton = projectFormat !== 'markdown' && projectFormat !== 'asciidoc'
   const connectionDotClass = connectionState === 'connected'
     ? 'bg-emerald-500'
     : connectionState === 'disconnected'
@@ -228,7 +227,6 @@ export function Toolbar({
           onCollaboratorClick={(e) => onFocusCollaborator(e.clientId)}
         />
 
-        {showCompileButton && (
         <div>
           <div className="flex items-stretch">
             <button
@@ -270,7 +268,6 @@ export function Toolbar({
             />
           </div>
         </div>
-        )}
 
         <ExportMenu projectFormat={projectFormat} onExport={onExport} exporting={exporting} />
 
