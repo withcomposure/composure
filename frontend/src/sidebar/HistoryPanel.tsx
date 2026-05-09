@@ -252,18 +252,18 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-cz-surface/30">
-      <div className="flex items-center justify-between border-b border-cz-border px-3 py-2.5">
-        <div>
-          <span className="block text-xs font-medium uppercase tracking-[0.12em] text-cz-text-muted">History</span>
-          <span className="block text-[10px] text-cz-text-muted">Timeline of versions and snapshots</span>
-        </div>
+      <div className="mb-2 flex items-center justify-between px-3 pt-2">
+        <span className="text-[10px] font-medium uppercase tracking-widest text-cz-text-muted">
+          History
+        </span>
         {canEdit && (
           <button
             onClick={() => setShowNewSnapshot((v) => !v)}
-            className="flex items-center gap-1 rounded-md border border-cz-accent/35 bg-cz-accent/10 px-2 py-1 text-[11px] text-cz-accent hover:bg-cz-accent-muted"
-            title="Save snapshot"
+            className="flex items-center gap-1 text-sm text-cz-text-muted transition-colors hover:text-cz-accent"
+            title="New snapshot"
           >
-            <Plus size={12} /> Snapshot
+            <Plus size={14} />
+            <span className="text-[10px] font-medium uppercase tracking-wide">New</span>
           </button>
         )}
       </div>

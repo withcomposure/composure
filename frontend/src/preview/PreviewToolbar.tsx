@@ -1,5 +1,11 @@
-import type { ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { AlertTriangle, ExternalLink, Moon, Sun } from 'lucide-react'
+
+interface PreviewPageIndicator {
+  currentPage: number
+  totalPages: number
+  onGoToPage: (page: number) => void
+}
 
 interface PreviewToolbarProps {
   statusLabel: string
@@ -11,6 +17,7 @@ interface PreviewToolbarProps {
   onZoomOut: () => void
   url?: string | null
   extra?: ReactNode
+  pageIndicator?: PreviewPageIndicator | null
 }
 
 export function PreviewToolbar({
@@ -23,37 +30,110 @@ export function PreviewToolbar({
   onZoomOut,
   url,
   extra,
+  pageIndicator,
 }: PreviewToolbarProps) {
+  const pageInputId = useId()
+  const [pageDraft, setPageDraft] = useState('')
+
+  useEffect(() => {
+    if (!pageIndicator) {
+      setPageDraft('')
+      return
+    }
+    setPageDraft(String(pageIndicator.currentPage))
+  }, [pageIndicator?.currentPage, pageIndicator?.totalPages])
+
+  const commitPageDraft = () => {
+    if (!pageIndicator) {
+      return
+    }
+
+    const parsed = Number.parseInt(pageDraft, 10)
+    const fallbackPage = pageIndicator.currentPage
+    const nextPage = Number.isFinite(parsed)
+      ? Math.max(1, Math.min(pageIndicator.totalPages, parsed))
+      : fallbackPage
+
+    pageIndicator.onGoToPage(nextPage)
+    setPageDraft(String(nextPage))
+  }
+
   const btnClass =
-    'rounded px-1.5 py-0.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover transition-colors'
+    'inline-flex h-6 w-6 items-center justify-center rounded text-[11px] text-cz-text-muted transition-colors hover:bg-cz-surface-hover'
+  const fitBtnBaseClass =
+    'inline-flex h-6 items-center justify-center rounded px-2 text-[11px] transition-colors'
   const fitBtnClass = isFit
-    ? 'rounded px-1.5 py-0.5 text-xs text-cz-accent bg-cz-accent-muted transition-colors'
-    : btnClass
+    ? `${fitBtnBaseClass} bg-cz-accent-muted text-cz-accent`
+    : `${fitBtnBaseClass} text-cz-text-muted hover:bg-cz-surface-hover`
 
   return (
-    <div className="flex items-center justify-between border-b border-cz-border px-3 py-1.5 bg-cz-surface">
+    <div
+      className="flex items-center justify-between border-b border-cz-border bg-cz-surface px-3"
+      style={{ height: 'var(--sub-toolbar-height)' }}
+    >
       <span className="text-[11px] text-cz-text-muted">{statusLabel}</span>
 
       <div className="flex items-center gap-0.5">
-        {extra}
+        {pageIndicator && pageIndicator.totalPages > 1 && (
+          <>
+            <label className="sr-only" htmlFor={pageInputId}>
+              Current page
+            </label>
+            <input
+              id={pageInputId}
+              type="text"
+              inputMode="numeric"
+              value={pageDraft}
+              onChange={(event) => {
+                const next = event.target.value
+                if (/^\d*$/.test(next)) {
+                  setPageDraft(next)
+                }
+              }}
+              onBlur={commitPageDraft}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitPageDraft()
+                  return
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setPageDraft(String(pageIndicator.currentPage))
+                }
+              }}
+              className="h-6 w-10 rounded border border-cz-border bg-cz-bg px-1 text-center text-[11px] text-cz-text outline-none tabular-nums focus:border-cz-accent"
+              aria-label="Current page"
+            />
+            <span className="pr-1 text-[11px] text-cz-text-muted tabular-nums">/ {pageIndicator.totalPages}</span>
+            <div className="mx-0.5 h-3 w-px bg-cz-border" />
+          </>
+        )}
 
         {showFitButton && (
           <button onClick={onFit} className={fitBtnClass} title="Fit to width">Fit</button>
         )}
         <button onClick={onZoomOut} className={btnClass} title="Zoom out">-</button>
-        <span className="text-[11px] text-cz-text-muted w-11 text-center tabular-nums">
+        <span className="w-12 text-center text-[11px] text-cz-text-muted tabular-nums">
           {Math.round(scale * 100)}%
         </span>
         <button onClick={onZoomIn} className={btnClass} title="Zoom in">+</button>
 
+        {extra && (
+          <>
+            <div className="mx-0.5 h-3 w-px bg-cz-border" />
+            {extra}
+          </>
+        )}
+
         {url && (
           <>
-            <div className="mx-1 h-3 w-px bg-cz-border" />
+            <div className="mx-0.5 h-3 w-px bg-cz-border" />
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`${btnClass} inline-flex items-center gap-1`}
+              className={btnClass}
               title="Open in new tab"
             >
               <ExternalLink size={12} />
@@ -67,18 +147,15 @@ export function PreviewToolbar({
 
 export function PreviewDarkModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
-    <>
-      <div className="mx-1 h-3 w-px bg-cz-border" />
-      <button
-        onClick={onToggle}
-        className={`rounded px-1.5 py-0.5 text-xs transition-colors inline-flex items-center ${
-          enabled ? 'text-cz-accent bg-cz-accent-muted' : 'text-cz-text-muted hover:bg-cz-surface-hover'
-        }`}
-        title={enabled ? 'Switch to light background' : 'Switch to dark background'}
-      >
-        {enabled ? <Moon size={12} /> : <Sun size={12} />}
-      </button>
-    </>
+    <button
+      onClick={onToggle}
+      className={`inline-flex h-6 w-6 items-center justify-center rounded text-[11px] transition-colors ${
+        enabled ? 'bg-cz-accent-muted text-cz-accent' : 'text-cz-text-muted hover:bg-cz-surface-hover'
+      }`}
+      title={enabled ? 'Switch to light background' : 'Switch to dark background'}
+    >
+      {enabled ? <Moon size={12} /> : <Sun size={12} />}
+    </button>
   )
 }
 

@@ -219,12 +219,17 @@ export function CommentsPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-cz-border px-4 py-3">
-        <h3 className="text-sm font-semibold text-cz-text">Comments</h3>
-        <div className="text-xs text-cz-text-muted">{activeFile}</div>
+      <div className="mb-2 px-3 pt-2">
+        <div className="text-[10px] font-medium uppercase tracking-widest text-cz-text-muted">Review</div>
+        <div
+          className="mt-1 truncate text-xs text-cz-text-muted"
+          title={activeFile || 'No file selected'}
+        >
+          {activeFile || 'No file selected'}
+        </div>
       </div>
 
-      <div className="h-full overflow-y-auto p-3">
+      <div className="h-full overflow-y-auto px-3 pb-3">
         {rootComments.length === 0 ? (
           <div className="rounded-md border border-cz-border-subtle bg-cz-bg/60 p-3 text-xs text-cz-text-muted">
             No comments for this file yet.

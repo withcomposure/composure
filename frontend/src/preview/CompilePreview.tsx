@@ -341,6 +341,55 @@ function useDragToPan(scrollRef: React.RefObject<HTMLDivElement | null>, enabled
   }
 }
 
+function clampPageNumber(page: number, totalPages: number): number {
+  if (totalPages <= 0) {
+    return 1
+  }
+  return Math.min(totalPages, Math.max(1, page))
+}
+
+function getPdfPages(scrollElement: HTMLDivElement): HTMLDivElement[] {
+  return Array.from(scrollElement.querySelectorAll<HTMLDivElement>('.cz-pdf-page'))
+}
+
+function resolveVisiblePdfPage(scrollElement: HTMLDivElement, totalPages: number): number {
+  const pages = getPdfPages(scrollElement)
+  if (pages.length === 0) {
+    return 1
+  }
+
+  const viewportTop = scrollElement.getBoundingClientRect().top
+  const anchorY = viewportTop + Math.max(12, scrollElement.clientHeight * 0.2)
+  for (let index = 0; index < pages.length; index += 1) {
+    const rect = pages[index].getBoundingClientRect()
+    if (rect.bottom >= anchorY) {
+      return clampPageNumber(index + 1, totalPages)
+    }
+  }
+
+  return clampPageNumber(pages.length, totalPages)
+}
+
+function scrollPdfPageIntoView(
+  scrollElement: HTMLDivElement,
+  requestedPage: number,
+  totalPages: number,
+): number {
+  const pages = getPdfPages(scrollElement)
+  if (pages.length === 0) {
+    return 1
+  }
+
+  const maxPage = Math.min(totalPages, pages.length)
+  const page = clampPageNumber(requestedPage, maxPage)
+  const targetPage = pages[page - 1]
+  const containerRect = scrollElement.getBoundingClientRect()
+  const targetRect = targetPage.getBoundingClientRect()
+  const nextTop = scrollElement.scrollTop + (targetRect.top - containerRect.top) - 12
+  scrollElement.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+  return page
+}
+
 // ---------------------------------------------------------------------------
 // Internal UI pieces
 // ---------------------------------------------------------------------------
@@ -397,6 +446,7 @@ function CompilingPlaceholderContent() {
 export function CompilePreview({ pdfUrl, error, documentName = 'Compile', compiling = false }: CompilePreviewProps) {
   const [darkMode, setDarkMode] = useState(true)
   const [intrinsicWidth, setIntrinsicWidth] = useState<number | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentWidth = useElementContentWidth(scrollRef)
   const fitScale = intrinsicWidth && contentWidth > 0 ? contentWidth / intrinsicWidth : null
@@ -422,6 +472,59 @@ export function CompilePreview({ pdfUrl, error, documentName = 'Compile', compil
   const showPlaceholder = !pdfUrl && !displayError
   const showCompilingState = showPlaceholder && compiling
 
+  const syncCurrentPage = useCallback(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || pageCount <= 0) {
+      setCurrentPage(1)
+      return
+    }
+    setCurrentPage(resolveVisiblePdfPage(scrollElement, pageCount))
+  }, [pageCount])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pdfUrl])
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || showPlaceholder || pageCount <= 0) {
+      return
+    }
+
+    let frameId: number | null = null
+    const scheduleSync = () => {
+      if (frameId !== null) {
+        return
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        syncCurrentPage()
+      })
+    }
+
+    scrollElement.addEventListener('scroll', scheduleSync, { passive: true })
+    window.addEventListener('resize', scheduleSync)
+    scheduleSync()
+
+    return () => {
+      scrollElement.removeEventListener('scroll', scheduleSync)
+      window.removeEventListener('resize', scheduleSync)
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [pageCount, pdfUrl, renderScale, scale, showPlaceholder, syncCurrentPage])
+
+  const goToPage = useCallback((nextPage: number) => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || pageCount <= 0) {
+      return
+    }
+
+    const resolvedPage = scrollPdfPageIntoView(scrollElement, nextPage, pageCount)
+    setCurrentPage(resolvedPage)
+  }, [pageCount])
+
   return (
     <div className="flex h-full flex-col">
       {!showPlaceholder && (
@@ -432,6 +535,11 @@ export function CompilePreview({ pdfUrl, error, documentName = 'Compile', compil
           onFit={fitToWidth}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
+          pageIndicator={pageCount > 1 ? {
+            currentPage,
+            totalPages: pageCount,
+            onGoToPage: goToPage,
+          } : null}
           url={pdfUrl}
           extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
         />
@@ -479,6 +587,7 @@ interface PdfViewerProps {
 export function PdfViewer({ url, error, documentName = 'Preview' }: PdfViewerProps) {
   const [darkMode, setDarkMode] = useState(true)
   const [intrinsicWidth, setIntrinsicWidth] = useState<number | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentWidth = useElementContentWidth(scrollRef)
   const fitScale = intrinsicWidth && contentWidth > 0 ? contentWidth / intrinsicWidth : null
@@ -501,6 +610,59 @@ export function PdfViewer({ url, error, documentName = 'Preview' }: PdfViewerPro
 
   const displayError = error ?? renderError
 
+  const syncCurrentPage = useCallback(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || pageCount <= 0) {
+      setCurrentPage(1)
+      return
+    }
+    setCurrentPage(resolveVisiblePdfPage(scrollElement, pageCount))
+  }, [pageCount])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [url])
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || pageCount <= 0) {
+      return
+    }
+
+    let frameId: number | null = null
+    const scheduleSync = () => {
+      if (frameId !== null) {
+        return
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        syncCurrentPage()
+      })
+    }
+
+    scrollElement.addEventListener('scroll', scheduleSync, { passive: true })
+    window.addEventListener('resize', scheduleSync)
+    scheduleSync()
+
+    return () => {
+      scrollElement.removeEventListener('scroll', scheduleSync)
+      window.removeEventListener('resize', scheduleSync)
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [pageCount, renderScale, scale, syncCurrentPage, url])
+
+  const goToPage = useCallback((nextPage: number) => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || pageCount <= 0) {
+      return
+    }
+
+    const resolvedPage = scrollPdfPageIntoView(scrollElement, nextPage, pageCount)
+    setCurrentPage(resolvedPage)
+  }, [pageCount])
+
   if (!url && !displayError) {
     return (
       <PreviewEmptyState icon={<FileText size={40} aria-hidden="true" />}>
@@ -518,6 +680,11 @@ export function PdfViewer({ url, error, documentName = 'Preview' }: PdfViewerPro
         onFit={fitToWidth}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
+        pageIndicator={pageCount > 1 ? {
+          currentPage,
+          totalPages: pageCount,
+          onGoToPage: goToPage,
+        } : null}
         url={url}
         extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
       />

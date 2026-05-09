@@ -25,6 +25,7 @@
   /* Sizing */
   --sidebar-width: 260px;
   --toolbar-height: 44px;
+  --sub-toolbar-height: 32px;
 }
 
 :root[data-appearance='dark'] {

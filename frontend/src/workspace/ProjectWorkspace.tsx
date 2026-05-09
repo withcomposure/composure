@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { X } from "lucide-react";
+import { FolderTree, History as HistoryIcon, MessageSquare, X } from "lucide-react";
 import MarkdownIt from "markdown-it";
 import Asciidoctor from "@asciidoctor/core";
 import {
@@ -3476,7 +3476,10 @@ export function ProjectWorkspace({
         }`}
         style={sidebarOpen && !isMobileSidebarLayout ? { width: sidebarWidth } : undefined}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-cz-border">
+        <div
+          className="flex items-center justify-between border-b border-cz-border px-4"
+          style={{ height: "var(--toolbar-height)" }}
+        >
           <WorkspaceProjectTitle
             className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-cz-text"
             title={projectTitle}
@@ -3495,24 +3498,36 @@ export function ProjectWorkspace({
             <X size={16} />
           </button>
         </div>
-        <div className="grid grid-cols-3 border-b border-cz-border">
+        <div
+          className="grid grid-cols-3 border-b border-cz-border"
+          style={{ height: "var(--sub-toolbar-height)" }}
+        >
           <button
             onClick={() => setSidebarTab("files")}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "files" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            className={`inline-flex h-full items-center justify-center ${sidebarTab === "files" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            aria-label="Files"
+            title="Files"
           >
-            Files
+            <FolderTree size={14} />
+            <span className="sr-only">Files</span>
           </button>
           <button
             onClick={() => setSidebarTab("review")}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "review" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            className={`inline-flex h-full items-center justify-center ${sidebarTab === "review" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            aria-label="Review"
+            title="Review"
           >
-            Review
+            <MessageSquare size={14} />
+            <span className="sr-only">Review</span>
           </button>
           <button
             onClick={() => setSidebarTab("history")}
-            className={`px-3 py-2 text-xs font-medium ${sidebarTab === "history" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            className={`inline-flex h-full items-center justify-center ${sidebarTab === "history" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"}`}
+            aria-label="History"
+            title="History"
           >
-            History
+            <HistoryIcon size={14} />
+            <span className="sr-only">History</span>
           </button>
         </div>
 

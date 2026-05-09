@@ -164,7 +164,8 @@ export function FileTabs({
 
   return (
     <div
-      className="flex items-center border-b border-cz-border bg-cz-surface px-2 py-1"
+      className="flex items-center border-b border-cz-border bg-cz-surface px-2"
+      style={{ height: 'var(--sub-toolbar-height)' }}
       onPointerEnter={() => setIsTabBarHovered(true)}
       onPointerLeave={() => setIsTabBarHovered(false)}
     >
@@ -286,7 +287,7 @@ export function FileTabs({
                 onPromote(tab.path)
               }}
               title={tabTitle}
-              className={`group flex h-7 w-fit min-w-[4rem] max-w-[12rem] shrink-0 grow-0 items-center gap-1 rounded border px-2 text-xs select-none ${isActive
+              className={`group flex h-6 w-fit min-w-[4rem] max-w-[12rem] shrink-0 grow-0 items-center gap-1 rounded border px-2 text-xs select-none ${isActive
                 ? `${isFocusedPane ? 'border-cz-accent' : 'border-transparent'} bg-cz-accent-muted text-cz-accent`
                 : 'border-transparent text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'
               }`}
