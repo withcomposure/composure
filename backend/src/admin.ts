@@ -377,7 +377,7 @@ interface UpdateAdminServerSettingsBody {
   maxFilesPerProject?: number | 'unlimited'
   trashRetentionDays?: number
   largeFileThresholdChars?: number
-  chatHistoryRetentionDays?: number | 'unlimited'
+  chatHistoryRetentionDays?: number | 'unlimited' | 'off'
 }
 
 export async function updateAdminServerSettingsRoute(
@@ -478,11 +478,11 @@ export async function updateAdminServerSettingsRoute(
 
   if (req.body?.chatHistoryRetentionDays != null) {
     const raw = req.body.chatHistoryRetentionDays
-    if (raw !== 'unlimited' && (!Number.isFinite(Number(raw)) || Number(raw) < 1)) {
-      reply.status(400).send({ error: 'chatHistoryRetentionDays must be a positive number or "unlimited".' })
+    if (raw !== 'unlimited' && raw !== 'off' && (!Number.isFinite(Number(raw)) || Number(raw) < 1)) {
+      reply.status(400).send({ error: 'chatHistoryRetentionDays must be a positive number, "off", or "unlimited".' })
       return
     }
-    await setChatHistoryRetentionDays(raw === 'unlimited' ? 'unlimited' : Number(raw))
+    await setChatHistoryRetentionDays(raw === 'unlimited' || raw === 'off' ? raw : Number(raw))
   }
 
   const seconds = await getPasswordResetExpirySeconds()

@@ -395,14 +395,20 @@ export async function setLargeFileThresholdChars(value: number): Promise<number>
   return clamped
 }
 
-const defaultChatHistoryRetentionDays: number | 'unlimited' = 'unlimited'
+export type ChatHistoryRetentionDays = number | 'unlimited' | 'off'
+
+const defaultChatHistoryRetentionDays: ChatHistoryRetentionDays = 'unlimited'
 const minChatHistoryRetentionDays = 1
 const maxChatHistoryRetentionDays = 3650
 
-export async function getChatHistoryRetentionDays(): Promise<number | 'unlimited'> {
+export async function getChatHistoryRetentionDays(): Promise<ChatHistoryRetentionDays> {
   const stored = await getServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY)
   if (!stored || stored === 'unlimited') {
     return defaultChatHistoryRetentionDays
+  }
+
+  if (stored === 'off') {
+    return 'off'
   }
 
   const parsed = Number.parseInt(stored, 10)
@@ -414,11 +420,11 @@ export async function getChatHistoryRetentionDays(): Promise<number | 'unlimited
 }
 
 export async function setChatHistoryRetentionDays(
-  value: number | 'unlimited',
-): Promise<number | 'unlimited'> {
-  if (value === 'unlimited') {
-    await setServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY, 'unlimited')
-    return 'unlimited'
+  value: ChatHistoryRetentionDays,
+): Promise<ChatHistoryRetentionDays> {
+  if (value === 'unlimited' || value === 'off') {
+    await setServerSettingValue(CHAT_HISTORY_RETENTION_DAYS_KEY, value)
+    return value
   }
 
   const parsed = Number.isFinite(value) ? value : Number.parseInt(String(value), 10)

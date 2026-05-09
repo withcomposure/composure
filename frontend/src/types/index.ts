@@ -122,7 +122,7 @@ export interface ProjectAccessResponse {
   currentRole: ShareRole | 'owner' | null
   maxTextFileSizeBytes: number | 'unlimited'
   largeFileThresholdChars: number
-  chatHistoryRetentionDays: number | 'unlimited'
+  chatHistoryRetentionDays: number | 'unlimited' | 'off'
 }
 
 export interface ActiveCollaborator {

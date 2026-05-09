@@ -263,7 +263,7 @@ export function ProjectWorkspace({
   const [largeFileThresholdChars, setLargeFileThresholdChars] =
     useState(500_000);
   const [chatHistoryRetentionDays, setChatHistoryRetentionDays] = useState<
-    number | "unlimited"
+    number | "unlimited" | "off"
   >("unlimited");
   const [accessRole, setAccessRole] = useState<ShareRole | "owner" | null>(
     null,

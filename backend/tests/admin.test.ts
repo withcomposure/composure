@@ -137,6 +137,22 @@ describe('admin — server settings', () => {
     expect(body.chatHistoryRetentionDays).toBe(14)
   })
 
+  it('supports session-only chat retention mode', async () => {
+    const admin = await createTestUser({ email: 'admin@test.com' })
+    const sessionId = await createTestSession(admin.id)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/server-settings',
+      headers: { cookie: sessionCookie(sessionId) },
+      payload: { chatHistoryRetentionDays: 'off' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.chatHistoryRetentionDays).toBe('off')
+  })
+
   it('toggles guest signups off and on', async () => {
     const admin = await createTestUser({ email: 'admin@test.com' })
     const sessionId = await createTestSession(admin.id)

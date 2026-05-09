@@ -10,7 +10,7 @@ export interface ServerSettings {
   maxFilesPerProject: number | "unlimited";
   trashRetentionDays: number;
   largeFileThresholdChars: number;
-  chatHistoryRetentionDays: number | "unlimited";
+  chatHistoryRetentionDays: number | "unlimited" | "off";
 }
 
 export interface ServerSettingsFormState {
@@ -29,7 +29,7 @@ export interface ServerSettingsFormState {
   maxFilesValue: number;
   trashRetentionDays: number;
   largeFileThreshold: number;
-  chatHistoryRetentionMode: "on" | "unlimited";
+  chatHistoryRetentionMode: "on" | "unlimited" | "off";
   chatHistoryRetentionValue: number;
 }
 
@@ -85,7 +85,11 @@ export function toServerSettingsFormState(
       : 200;
 
   const chatHistoryRetentionMode =
-    response.chatHistoryRetentionDays === "unlimited" ? "unlimited" : "on";
+    response.chatHistoryRetentionDays === "off"
+      ? "off"
+      : response.chatHistoryRetentionDays === "unlimited"
+        ? "unlimited"
+        : "on";
   const chatHistoryRetentionValue =
     typeof response.chatHistoryRetentionDays === "number"
       ? response.chatHistoryRetentionDays
@@ -144,6 +148,8 @@ export function toServerSettingsPayload(
     chatHistoryRetentionDays:
       state.chatHistoryRetentionMode === "unlimited"
         ? "unlimited"
-        : state.chatHistoryRetentionValue,
+        : state.chatHistoryRetentionMode === "off"
+          ? "off"
+          : state.chatHistoryRetentionValue,
   };
 }

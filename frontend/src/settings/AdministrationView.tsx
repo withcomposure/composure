@@ -184,7 +184,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [maxFilesValue, setMaxFilesValue] = useState(200)
   const [trashRetentionDays, setTrashRetentionDays] = useState(30)
   const [largeFileThreshold, setLargeFileThreshold] = useState(500)  // in thousands of chars
-  const [chatHistoryRetentionMode, setChatHistoryRetentionMode] = useState<'on' | 'unlimited'>('unlimited')
+  const [chatHistoryRetentionMode, setChatHistoryRetentionMode] = useState<'on' | 'unlimited' | 'off'>('unlimited')
   const [chatHistoryRetentionValue, setChatHistoryRetentionValue] = useState(30)
   const [serverSettingsSaved, setServerSettingsSaved] = useState<ServerSettingsFormState>(
     DEFAULT_SERVER_SETTINGS_FORM_STATE,
@@ -1329,7 +1329,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               <div className="flex items-center justify-between gap-3 border-t border-cz-border px-3 py-3">
                 <div className="min-w-0">
                   <div className="text-sm text-cz-text">Chat history retention (days)</div>
-                  <div className="text-xs text-cz-text-muted">Controls how long project chat messages are kept. Choose unlimited to retain all chat history.</div>
+                  <div className="text-xs text-cz-text-muted">Controls how long project chat messages are kept. Choose Off for session-only chat that is discarded when everyone leaves.</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {chatHistoryRetentionMode === 'on' && (
@@ -1344,7 +1344,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   )}
                   <SegmentedControl
                     value={chatHistoryRetentionMode}
-                    options={['on', 'unlimited'] as const}
+                    options={['on', 'off', 'unlimited'] as const}
                     onChange={setChatHistoryRetentionMode}
                     ariaLabel="Chat history retention mode"
                   />

@@ -142,8 +142,8 @@ function readChatMessageCreatedAt(raw: unknown): number | null {
   return null
 }
 
-function pruneExpiredChatMessages(doc: Y.Doc, retentionDays: number | 'unlimited'): number {
-  if (retentionDays === 'unlimited') {
+function pruneExpiredChatMessages(doc: Y.Doc, retentionDays: number | 'unlimited' | 'off'): number {
+  if (retentionDays === 'unlimited' || retentionDays === 'off') {
     return 0
   }
 
@@ -417,16 +417,26 @@ const hocuspocus = new Hocuspocus({
       throw new Error('Invalid project ID')
     }
 
+    let chatRetentionDays: number | 'unlimited' | 'off' | null = null
+    if (documentRef.kind === 'chat') {
+      chatRetentionDays = await getChatHistoryRetentionDays()
+      if (chatRetentionDays === 'off') {
+        console.info(
+          `[hocuspocus] chat-session-only-load document=${data.documentName} mode=off`,
+        )
+        return data.document
+      }
+    }
+
     const stored = await runWithHocuspocusIdentity(data.context, async () => await loadDocument(data.documentName))
     if (stored) {
       Y.applyUpdate(data.document, new Uint8Array(stored))
 
-      if (documentRef.kind === 'chat') {
-        const retentionDays = await getChatHistoryRetentionDays()
-        const removedCount = pruneExpiredChatMessages(data.document, retentionDays)
+      if (documentRef.kind === 'chat' && chatRetentionDays != null) {
+        const removedCount = pruneExpiredChatMessages(data.document, chatRetentionDays)
         if (removedCount > 0) {
           console.info(
-            `[hocuspocus] chat-pruned-on-load document=${data.documentName} removed=${removedCount} retentionDays=${String(retentionDays)}`,
+            `[hocuspocus] chat-pruned-on-load document=${data.documentName} removed=${removedCount} retentionDays=${String(chatRetentionDays)}`,
           )
         }
       }
@@ -459,6 +469,13 @@ const hocuspocus = new Hocuspocus({
 
     if (documentRef.kind === 'chat') {
       const retentionDays = await getChatHistoryRetentionDays()
+      if (retentionDays === 'off') {
+        console.info(
+          `[hocuspocus] chat-session-only-store-skip document=${data.documentName} mode=off`,
+        )
+        return
+      }
+
       const removedCount = pruneExpiredChatMessages(data.document, retentionDays)
       if (removedCount > 0) {
         console.info(

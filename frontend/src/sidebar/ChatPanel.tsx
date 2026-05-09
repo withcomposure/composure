@@ -15,7 +15,7 @@ interface ChatPanelProps {
 		guestId: string | null
 		profileImageUrl: string | null
 	}
-	historyRetentionDays: number | 'unlimited'
+	historyRetentionDays: number | 'unlimited' | 'off'
 }
 
 interface ChatMessage {
@@ -56,6 +56,7 @@ type ChatRenderItem =
 	  }
 
 const bottomThresholdPx = 20
+const maxChatMessageChars = 2000
 const typingStateStaleAfterSeconds = 5
 const typingClearDelayMs = 1400
 const daySeparatorDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -148,7 +149,11 @@ function formatTypingText(users: TypingUser[]): string {
 	return `${users[0].name} and ${users.length - 1} others are typing...`
 }
 
-function formatHistoryBeginningText(historyRetentionDays: number | 'unlimited'): string {
+function formatHistoryBeginningText(historyRetentionDays: number | 'unlimited' | 'off'): string {
+	if (historyRetentionDays === 'off') {
+		return "You're at the beginning (this session only)."
+	}
+
 	if (historyRetentionDays === 'unlimited') {
 		return "You've reached the beginning."
 	}
@@ -463,7 +468,7 @@ export function ChatPanel({
 		}
 
 		const body = draft.trim()
-		if (!body) {
+		if (!body || body.length > maxChatMessageChars) {
 			return
 		}
 
@@ -502,6 +507,8 @@ export function ChatPanel({
 	}, [assessBottomPosition])
 
 	const typingText = formatTypingText(typingUsers)
+	const messageCharacterCount = draft.length
+	const sendDisabled = !canSend || draft.trim().length === 0 || messageCharacterCount > maxChatMessageChars
 
 	return (
 		<div className="flex flex-1 flex-col overflow-hidden bg-cz-surface/30">
@@ -605,24 +612,29 @@ export function ChatPanel({
 				<div className="w-full overflow-hidden rounded-lg border border-cz-border bg-cz-bg">
 					<textarea
 						value={draft}
-						onChange={(event) => setDraft(event.target.value)}
+						onChange={(event) => setDraft(event.target.value.slice(0, maxChatMessageChars))}
 						onKeyDown={handleComposerKeyDown}
 						onBlur={() => provider?.awareness?.setLocalStateField('chatTyping', null)}
 						placeholder={canSend ? 'Write a message...' : 'Chat is read-only for your role.'}
 						disabled={!canSend}
+						maxLength={maxChatMessageChars}
 						rows={5}
 						className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-xs text-cz-text outline-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					/>
-					<div className="flex justify-end border-t border-cz-border px-2 py-1.5">
+					<div className="flex items-center justify-between px-2 py-1.5">
+						<div className="text-[11px] text-cz-text-muted/80 tabular-nums">
+							{messageCharacterCount} / {maxChatMessageChars}
+						</div>
 						<button
 							type="button"
 							onClick={submitMessage}
-							disabled={!canSend || draft.trim().length === 0}
-							className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-cz-border bg-cz-bg text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
+							disabled={sendDisabled}
+							className="inline-flex h-8 items-center gap-1 rounded-md border border-cz-border bg-cz-bg px-2.5 text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:cursor-not-allowed disabled:opacity-60"
 							aria-label="Send message"
 							title="Send"
 						>
 							<Send size={13} />
+							<span className="text-xs font-medium">Send</span>
 						</button>
 					</div>
 				</div>
