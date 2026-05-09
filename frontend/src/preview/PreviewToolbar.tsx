@@ -13,6 +13,7 @@ interface PreviewToolbarProps {
   isFit: boolean
   onFit: () => void
   showFitButton?: boolean
+  zoomStepScale?: number
   onZoomIn: () => void
   onZoomOut: () => void
   onSetScale: (scale: number) => void
@@ -27,6 +28,7 @@ export function PreviewToolbar({
   isFit,
   onFit,
   showFitButton = true,
+  zoomStepScale = 0.2,
   onZoomIn,
   onZoomOut,
   onSetScale,
@@ -53,9 +55,7 @@ export function PreviewToolbar({
   const roundedZoomPercent = Math.round(scale * 100)
 
   useEffect(() => {
-    if (!zoomFocused) {
-      setZoomDraft(String(roundedZoomPercent))
-    }
+    setZoomDraft(String(roundedZoomPercent))
   }, [roundedZoomPercent, zoomFocused])
 
   useLayoutEffect(() => {
@@ -166,7 +166,6 @@ export function PreviewToolbar({
             }}
             onFocus={() => {
               setZoomFocused(true)
-              setZoomDraft(String(roundedZoomPercent))
             }}
             onBlur={() => {
               setZoomFocused(false)
@@ -184,6 +183,14 @@ export function PreviewToolbar({
                 setZoomDraft(String(roundedZoomPercent))
                 ;(event.target as HTMLInputElement).blur()
               }
+            }}
+            onWheel={(event) => {
+              const direction = event.deltaY > 0 ? -1 : event.deltaY < 0 ? 1 : 0
+              if (direction === 0) return
+              event.preventDefault()
+              const parsed = Number.parseInt(zoomDraft, 10)
+              const basePct = Number.isFinite(parsed) ? parsed : roundedZoomPercent
+              onSetScale(basePct / 100 + direction * zoomStepScale)
             }}
             className="box-content h-6 w-[4.5ch] shrink-0 rounded border border-cz-border bg-cz-bg px-1 text-center text-[11px] text-cz-text font-mono tabular-nums outline-none focus:border-cz-accent"
             aria-label="Zoom percentage"

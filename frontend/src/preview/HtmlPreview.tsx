@@ -178,6 +178,7 @@ export function HtmlPreview({ html, error, pinControl = null }: HtmlPreviewProps
           isFit={isFit}
           onFit={fitToWidth}
           showFitButton={false}
+          zoomStepScale={0.1}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onSetScale={setScale}
