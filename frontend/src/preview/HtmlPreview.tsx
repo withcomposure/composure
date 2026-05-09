@@ -3,9 +3,9 @@ import { FileText } from 'lucide-react'
 import {
   PreviewDarkModeToggle,
   PreviewEmptyState,
-  PreviewErrorBanner,
   PreviewToolbar,
 } from './PreviewToolbar'
+import { PreviewPane } from './PreviewPane'
 import { usePreviewZoom } from './preview-zoom'
 
 interface HtmlPreviewProps {
@@ -164,21 +164,22 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <PreviewToolbar
-        statusLabel="Preview"
-        scale={scale}
-        isFit={isFit}
-        onFit={fitToWidth}
-        showFitButton={false}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        url={openUrl}
-        extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
-      />
-
-      {error && <PreviewErrorBanner label="Render Error" message={error} />}
-
+    <PreviewPane
+      toolbar={(
+        <PreviewToolbar
+          statusLabel="Preview"
+          scale={scale}
+          isFit={isFit}
+          onFit={fitToWidth}
+          showFitButton={false}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          url={openUrl}
+          extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
+        />
+      )}
+      error={error ? { label: 'Render Error', message: error } : null}
+    >
       <div className="min-h-0 flex-1">
         <iframe
           ref={iframeRef}
@@ -187,6 +188,6 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
           className="h-full w-full border-0"
         />
       </div>
-    </div>
+    </PreviewPane>
   )
 }
