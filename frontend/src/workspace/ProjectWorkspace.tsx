@@ -220,6 +220,8 @@ export function ProjectWorkspace({
     useState(autoCompileDefault);
   const [autoCompileRevision, setAutoCompileRevision] = useState(0);
   const [markdownHtml, setMarkdownHtml] = useState("");
+  const [rightPreviewPinnedFilePath, setRightPreviewPinnedFilePath] =
+    useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [connectionState, setConnectionState] =
@@ -555,6 +557,7 @@ export function ProjectWorkspace({
     sidebarWidthRef.current = defaults.sidebarWidth;
     setPreviewOpen(defaults.previewOpen);
     setPreviewWidth(defaults.previewWidth);
+    setRightPreviewPinnedFilePath(null);
     setPaneDropHint(null);
     paneIdCounterRef.current = 2;
     splitIdCounterRef.current = 1;
@@ -582,9 +585,64 @@ export function ProjectWorkspace({
     return Array.from(paths);
   }, [paneStateById, textFilePaths]);
 
+  const activeRightPreviewFilePath = useMemo(() => {
+    if (!activeFilePath || !activeTab || !isFileWorkspaceTab(activeTab)) {
+      return "";
+    }
+    return activeFilePath;
+  }, [activeFilePath, activeTab]);
+
+  const isRightPreviewPinned = useMemo(() => {
+    return (
+      rightPreviewPinnedFilePath != null &&
+      allFilePaths.has(rightPreviewPinnedFilePath)
+    );
+  }, [allFilePaths, rightPreviewPinnedFilePath]);
+
+  const rightPreviewFilePath = useMemo(() => {
+    if (isRightPreviewPinned && rightPreviewPinnedFilePath) {
+      return rightPreviewPinnedFilePath;
+    }
+    return activeRightPreviewFilePath;
+  }, [activeRightPreviewFilePath, isRightPreviewPinned, rightPreviewPinnedFilePath]);
+
+  const rightPreviewFormat = useMemo<ProjectFormat>(() => {
+    if (isRightPreviewPinned && rightPreviewFilePath) {
+      return detectProjectFormatFromFilename(rightPreviewFilePath) ?? "latex";
+    }
+    return projectFormat;
+  }, [isRightPreviewPinned, projectFormat, rightPreviewFilePath]);
+
+  const canPinRightPreview = useMemo(() => {
+    return (
+      !isRightPreviewPinned &&
+      activeRightPreviewFilePath.length > 0
+    );
+  }, [activeRightPreviewFilePath, isRightPreviewPinned]);
+
+  const toggleRightPreviewPin = useCallback(() => {
+    if (isRightPreviewPinned) {
+      setRightPreviewPinnedFilePath(null);
+      return;
+    }
+    if (!canPinRightPreview) {
+      return;
+    }
+    setRightPreviewPinnedFilePath(activeRightPreviewFilePath);
+  }, [activeRightPreviewFilePath, canPinRightPreview, isRightPreviewPinned]);
+
   useEffect(() => {
     openTabsRef.current = openTabs;
   }, [openTabs]);
+
+  useEffect(() => {
+    if (!rightPreviewPinnedFilePath) {
+      return;
+    }
+    if (!allFilePaths.has(rightPreviewPinnedFilePath)) {
+      setRightPreviewPinnedFilePath(null);
+    }
+  }, [allFilePaths, rightPreviewPinnedFilePath]);
 
   useEffect(() => {
     if (maxTextFileSizeBytes === "unlimited") {
@@ -2183,6 +2241,13 @@ export function ProjectWorkspace({
   ]);
 
   const compileDefaultRootFile = useMemo(() => {
+    if (
+      isRightPreviewPinned &&
+      rightPreviewFilePath &&
+      allFilePaths.has(rightPreviewFilePath)
+    ) {
+      return rightPreviewFilePath;
+    }
     if (activeEntrypoint) {
       return activeEntrypoint;
     }
@@ -2190,7 +2255,13 @@ export function ProjectWorkspace({
       return activeFilePath;
     }
     return "";
-  }, [activeEntrypoint, activeFilePath, allFilePaths]);
+  }, [
+    activeEntrypoint,
+    activeFilePath,
+    allFilePaths,
+    isRightPreviewPinned,
+    rightPreviewFilePath,
+  ]);
 
   const handleCompile = useCallback(
     async (options?: {
@@ -2462,18 +2533,16 @@ export function ProjectWorkspace({
   // Live Markdown/AsciiDoc preview: render on doc changes with 300ms debounce
   useEffect(() => {
     if (
-      (projectFormat !== "markdown" && projectFormat !== "asciidoc") ||
-      !activeFilePath ||
-      !activeTab ||
-      !isFileWorkspaceTab(activeTab) ||
+      (rightPreviewFormat !== "markdown" && rightPreviewFormat !== "asciidoc") ||
+      !rightPreviewFilePath ||
       !initialSyncDone
     )
       return;
 
     const renderPreview = () => {
-      const textKey = `file:${activeFilePath}`;
+      const textKey = `file:${rightPreviewFilePath}`;
       const text = ydoc.getText(textKey).toString();
-      if (projectFormat === "markdown") {
+      if (rightPreviewFormat === "markdown") {
         setMarkdownHtml(md.render(text));
       } else {
         setMarkdownHtml(
@@ -2503,7 +2572,14 @@ export function ProjectWorkspace({
         markdownDebounceTimerRef.current = null;
       }
     };
-  }, [ydoc, activeFilePath, activeTab, projectFormat, initialSyncDone, md, adoc]);
+  }, [
+    ydoc,
+    rightPreviewFilePath,
+    rightPreviewFormat,
+    initialSyncDone,
+    md,
+    adoc,
+  ]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -3703,15 +3779,34 @@ export function ProjectWorkspace({
                 className="relative min-w-[300px]"
                 style={{ width: previewWidth }}
               >
-                {projectFormat === "markdown" ||
-                projectFormat === "asciidoc" ? (
-                  <HtmlPreview html={markdownHtml} error={null} />
+                {rightPreviewFormat === "markdown" ||
+                rightPreviewFormat === "asciidoc" ? (
+                  <HtmlPreview
+                    html={markdownHtml}
+                    error={null}
+                    pinControl={
+                      isRightPreviewPinned || canPinRightPreview
+                        ? {
+                            pinned: isRightPreviewPinned,
+                            onToggle: toggleRightPreviewPin,
+                          }
+                        : null
+                    }
+                  />
                 ) : (
                   <CompilePreview
                     pdfUrl={pdfUrl}
                     error={compileError}
                     documentName="Compile"
                     compiling={compiling}
+                    pinControl={
+                      isRightPreviewPinned || canPinRightPreview
+                        ? {
+                            pinned: isRightPreviewPinned,
+                            onToggle: toggleRightPreviewPin,
+                          }
+                        : null
+                    }
                   />
                 )}
 

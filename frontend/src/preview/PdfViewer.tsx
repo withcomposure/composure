@@ -4,8 +4,10 @@ import * as pdfjsLib from 'pdfjs-dist'
 import {
   PreviewDarkModeToggle,
   PreviewEmptyState,
+  PreviewPinToggle,
   PreviewToolbar,
 } from './PreviewToolbar'
+import { getPreviewDarkModeDefault } from './preview-theme'
 import { usePreviewZoom } from './preview-zoom'
 import {
   useDebouncedNumber,
@@ -271,6 +273,10 @@ interface PdfViewerProps {
   errorLabel?: string
   placeholder?: PdfViewerPlaceholder | null
   hideToolbarWhenPlaceholder?: boolean
+  pinControl?: {
+    pinned: boolean
+    onToggle: () => void
+  } | null
 }
 
 export function PdfViewer({
@@ -280,8 +286,9 @@ export function PdfViewer({
   errorLabel = 'Error',
   placeholder = null,
   hideToolbarWhenPlaceholder = true,
+  pinControl = null,
 }: PdfViewerProps) {
-  const [darkMode, setDarkMode] = useState(true)
+  const [darkMode, setDarkMode] = useState(getPreviewDarkModeDefault)
   const [intrinsicWidth, setIntrinsicWidth] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -328,9 +335,9 @@ export function PdfViewer({
 
     const zoomRatio = scale / previousScale
     const centerX = scrollElement.scrollLeft + (scrollElement.clientWidth / 2)
-    const centerY = scrollElement.scrollTop + (scrollElement.clientHeight / 2)
+    const topY = scrollElement.scrollTop
     scrollElement.scrollLeft = Math.max(0, centerX * zoomRatio - (scrollElement.clientWidth / 2))
-    scrollElement.scrollTop = Math.max(0, centerY * zoomRatio - (scrollElement.clientHeight / 2))
+    scrollElement.scrollTop = Math.max(0, topY * zoomRatio)
     previousScaleRef.current = scale
   }, [scale, showPlaceholder])
 
@@ -411,7 +418,14 @@ export function PdfViewer({
             onGoToPage: goToPage,
           } : null}
           url={url}
-          extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
+          extra={(
+            <div className="flex items-center gap-0.5">
+              {pinControl && (
+                <PreviewPinToggle pinned={pinControl.pinned} onToggle={pinControl.onToggle} />
+              )}
+              <PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />
+            </div>
+          )}
         />
       )}
       error={displayError ? { label: errorLabel, message: displayError } : null}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import { AlertTriangle, ExternalLink, Moon, Sun } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Moon, Pin, Sun } from 'lucide-react'
 
 interface PreviewPageIndicator {
   currentPage: number
@@ -159,6 +159,21 @@ export function PreviewDarkModeToggle({ enabled, onToggle }: { enabled: boolean;
       title={enabled ? 'Switch to light background' : 'Switch to dark background'}
     >
       {enabled ? <Moon size={12} /> : <Sun size={12} />}
+    </button>
+  )
+}
+
+export function PreviewPinToggle({ pinned, onToggle }: { pinned: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className={`inline-flex h-6 w-6 items-center justify-center rounded text-[11px] transition-colors ${
+        pinned ? 'bg-cz-accent-muted text-cz-accent' : 'text-cz-text-muted hover:bg-cz-surface-hover'
+      }`}
+      title={pinned ? 'Unpin preview from this file' : 'Pin preview to this file'}
+      aria-pressed={pinned}
+    >
+      <Pin size={12} className={pinned ? 'fill-current' : ''} />
     </button>
   )
 }

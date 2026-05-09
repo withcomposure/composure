@@ -3,19 +3,25 @@ import { FileText } from 'lucide-react'
 import {
   PreviewDarkModeToggle,
   PreviewEmptyState,
+  PreviewPinToggle,
   PreviewToolbar,
 } from './PreviewToolbar'
 import { PreviewPane } from './PreviewPane'
+import { getPreviewDarkModeDefault } from './preview-theme'
 import { usePreviewZoom } from './preview-zoom'
 
 interface HtmlPreviewProps {
   html: string
   error: string | null
+  pinControl?: {
+    pinned: boolean
+    onToggle: () => void
+  } | null
 }
 
-export function HtmlPreview({ html, error }: HtmlPreviewProps) {
+export function HtmlPreview({ html, error, pinControl = null }: HtmlPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [darkMode, setDarkMode] = useState(true)
+  const [darkMode, setDarkMode] = useState(getPreviewDarkModeDefault)
   const scrollTopRef = useRef(0)
   const scrollLeftRef = useRef(0)
   const { scale, isFit, zoomIn, zoomOut, fitToWidth } = usePreviewZoom(1, null, {
@@ -175,7 +181,14 @@ export function HtmlPreview({ html, error }: HtmlPreviewProps) {
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           url={openUrl}
-          extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
+          extra={(
+            <div className="flex items-center gap-0.5">
+              {pinControl && (
+                <PreviewPinToggle pinned={pinControl.pinned} onToggle={pinControl.onToggle} />
+              )}
+              <PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />
+            </div>
+          )}
         />
       )}
       error={error ? { label: 'Render Error', message: error } : null}

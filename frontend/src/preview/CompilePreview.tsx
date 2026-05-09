@@ -7,6 +7,10 @@ interface CompilePreviewProps {
   error: string | null
   documentName?: string
   compiling?: boolean
+  pinControl?: {
+    pinned: boolean
+    onToggle: () => void
+  } | null
 }
 
 function CompilingPlaceholderContent() {
@@ -43,6 +47,7 @@ export function CompilePreview({
   error,
   documentName = 'Compile',
   compiling = false,
+  pinControl = null,
 }: CompilePreviewProps) {
   const placeholder: PdfViewerPlaceholder = compiling
     ? {
@@ -69,7 +74,8 @@ export function CompilePreview({
       documentName={documentName}
       errorLabel="Compilation Error"
       placeholder={placeholder}
-      hideToolbarWhenPlaceholder
+      hideToolbarWhenPlaceholder={pinControl == null}
+      pinControl={pinControl}
     />
   )
 }

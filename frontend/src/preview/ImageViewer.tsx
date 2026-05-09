@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { FileImage } from 'lucide-react'
-import { PreviewEmptyState, PreviewToolbar } from './PreviewToolbar'
+import { PreviewDarkModeToggle, PreviewEmptyState, PreviewToolbar } from './PreviewToolbar'
 import { usePreviewZoom } from './preview-zoom'
 import { useDragToPan, useElementContentWidth } from './preview-interactions'
 import { PreviewPane, PreviewViewport } from './PreviewPane'
+import { getPreviewDarkModeDefault } from './preview-theme'
 
 interface ImageViewerProps {
   url: string | null
@@ -12,6 +13,7 @@ interface ImageViewerProps {
 }
 
 export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewerProps) {
+  const [darkMode, setDarkMode] = useState(getPreviewDarkModeDefault)
   const [imageMetrics, setImageMetrics] = useState<{
     url: string | null
     intrinsicWidth: number | null
@@ -61,6 +63,7 @@ export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewe
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           url={url}
+          extra={<PreviewDarkModeToggle enabled={darkMode} onToggle={() => setDarkMode((d) => !d)} />}
         />
       )}
       error={error ? { label: 'Error', message: error } : null}
@@ -83,8 +86,15 @@ export function ImageViewer({ url, error, documentName = 'Preview' }: ImageViewe
                 })
               }}
               style={displayWidth != null
-                ? { width: `${displayWidth}px`, maxWidth: 'none' }
-                : { maxWidth: '100%' }
+                ? {
+                    width: `${displayWidth}px`,
+                    maxWidth: 'none',
+                    filter: darkMode ? 'invert(0.88) hue-rotate(180deg)' : undefined,
+                  }
+                : {
+                    maxWidth: '100%',
+                    filter: darkMode ? 'invert(0.88) hue-rotate(180deg)' : undefined,
+                  }
               }
               className="shrink-0 rounded shadow-sm"
             />
