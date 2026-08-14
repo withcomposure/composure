@@ -27,6 +27,8 @@ import {
   guestLabel,
 } from '@/utils/page-utils'
 import { apiFetch, fetchJson, getErrorMessage } from '@/utils/fetch'
+import { isPasskeyCancellation, loginWithPasskey } from '@/utils/passkey'
+import { providerLabel } from '@/utils/auth-providers'
 import {
   navigateToProject,
   navigateToProjects,
@@ -58,14 +60,6 @@ const authErrorMessages: Record<string, string> = {
   invite_email_mismatch: 'This invite link was issued for a different email address.',
   provider_email_unverified: 'This provider email is not verified. Verify your provider email before linking or creating an account.',
   email_conflict_requires_linking: 'An account with this email already exists. Log in to that account and link this provider from Settings.',
-}
-
-function providerLabel(provider: string): string {
-  if (provider === 'github') return 'GitHub'
-  if (provider === 'google') return 'Google'
-  if (provider === 'orcid') return 'ORCID'
-  if (provider === 'password') return 'Password'
-  return provider
 }
 
 export default function App() {
@@ -596,6 +590,25 @@ export default function App() {
     }
   }, [grantAuthEntry, handleSessionChange, route])
 
+  const submitPasskeyLogin = useCallback(async () => {
+    setAuthEntryBusy(true)
+    setAuthEntryError(null)
+    try {
+      const next = await loginWithPasskey()
+      grantAuthEntry()
+      handleSessionChange(next)
+      if (route.kind === 'invite') {
+        navigateToProjects()
+      }
+    } catch (err) {
+      if (!isPasskeyCancellation(err)) {
+        setAuthEntryError(getErrorMessage(err))
+      }
+    } finally {
+      setAuthEntryBusy(false)
+    }
+  }, [grantAuthEntry, handleSessionChange, route])
+
   const submitPasswordReset = useCallback(async (payload: { token: string; newPassword: string }) => {
     setAuthEntryBusy(true)
     setAuthEntryError(null)
@@ -1110,6 +1123,9 @@ export default function App() {
         resetEmail={route.kind === 'reset-password' ? passwordResetEmail ?? undefined : undefined}
         onLogin={({ email, password }) => {
           void submitEntryAuth('login', { email, password })
+        }}
+        onPasskeyLogin={() => {
+          void submitPasskeyLogin()
         }}
         onSignup={({ displayName, email, password, inviteToken }) => {
           void submitEntryAuth('signup', { displayName, email, password, inviteToken })

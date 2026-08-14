@@ -13,6 +13,7 @@ import {
   findGuestUserByCookieId,
   getEnabledOAuthProviders,
   getGuestSignupsEnabled,
+  getPasskeyLoginEnabled,
   getInviteTokenState,
   getPasswordLoginEnabled,
   getPasswordResetTokenState,
@@ -322,6 +323,7 @@ function isIdentityRequiredRoute(req: FastifyRequest): boolean {
     || path.endsWith('/auth/oauth/confirm')
     || path.endsWith('/auth/oauth/complete-profile')
     || path.includes('/auth/password-reset/')
+    || path.includes('/auth/passkey/')
     || path.includes('/auth/via/')
     || path.endsWith('/templates')
   ) {
@@ -551,8 +553,12 @@ export const authHook: preHandlerHookHandler = async (req, reply) => {
   req.currentRefreshTokenId = currentRefreshTokenId
 }
 
-async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionResponse> {
+export async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionResponse> {
   const enabledProviders = await getEnabledOAuthProviders()
+  const enabledLoginProviders = enabledProviders.map((p) => p.provider)
+  if (await getPasskeyLoginEnabled()) {
+    enabledLoginProviders.unshift('passkey')
+  }
   return {
     authenticated: Boolean(req.authUser),
     user: req.authUser,
@@ -561,7 +567,7 @@ async function makeSessionPayload(req: FastifyRequest): Promise<AuthSessionRespo
     userCount: await runWithIdentityContext(null, 'system', async () => await countUsers()),
     signupMode: await getSignupMode(),
     guestSignupsEnabled: await getGuestSignupsEnabled(),
-    enabledLoginProviders: enabledProviders.map((p) => p.provider),
+    enabledLoginProviders,
   }
 }
 

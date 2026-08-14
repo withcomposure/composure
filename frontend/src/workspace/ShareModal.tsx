@@ -104,7 +104,7 @@ export function ShareModal({
                 onChange={(e) => onInviteEmailChange(e.target.value)}
                 disabled={!canManage || inviting}
                 placeholder="person@example.com"
-                className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-xs text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
+                className="h-8 min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-bg px-3 text-xs text-cz-text outline-none focus:border-cz-accent disabled:opacity-60"
               />
               <IconDropdown
                 value={effectiveInviteRole}
@@ -115,7 +115,7 @@ export function ShareModal({
               <button
                 onClick={onInvite}
                 disabled={!canManage || inviting || inviteEmail.trim().length === 0}
-                className="rounded-md bg-cz-accent px-3 py-2 text-xs font-medium text-white hover:bg-cz-accent-hover disabled:opacity-60"
+                className="inline-flex h-8 items-center rounded-md bg-cz-accent px-3 text-xs font-medium text-white hover:bg-cz-accent-hover disabled:opacity-60"
               >
                 {inviting ? 'Inviting...' : 'Invite'}
               </button>
@@ -183,18 +183,18 @@ export function ShareModal({
                   readOnly
                   aria-label="Share link"
                   value={shareUrl}
-                  className="min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-surface px-3 py-2 text-xs text-cz-text-muted outline-none"
+                  className="h-8 min-w-[200px] flex-1 rounded-md border border-cz-border bg-cz-surface px-3 text-xs text-cz-text-muted outline-none"
                 />
                 <button
                   onClick={() => navigator.clipboard.writeText(shareUrl)}
-                  className="rounded-md border border-cz-border px-3 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                  className="inline-flex h-8 items-center rounded-md border border-cz-border px-3 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                 >
                   Copy link
                 </button>
                 {canManage && (
                   <button
                     onClick={onLinkInvalidate}
-                    className="rounded-md border border-cz-border px-3 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                    className="inline-flex h-8 items-center rounded-md border border-cz-border px-3 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                     title="Generate a new link, invalidating the previous one"
                   >
                     <RefreshCw size={12} className="mr-1 inline" />

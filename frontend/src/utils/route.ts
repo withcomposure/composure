@@ -1,9 +1,5 @@
 import type { RouteState } from '@/types'
 
-export function isValidProjectId(id: string): boolean {
-  return /^[a-f0-9]{32}$/.test(id)
-}
-
 function parseTokenRoute(pathname: string, query: URLSearchParams): RouteState | null {
   if (pathname === '/reset-password') {
     const token = query.get('token') ?? undefined

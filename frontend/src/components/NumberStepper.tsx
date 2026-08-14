@@ -132,7 +132,7 @@ export function NumberStepper({
 
   return (
     <div
-      className={`${widthClass} flex items-stretch rounded-md border border-cz-border bg-cz-bg text-sm transition-colors focus-within:border-cz-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      className={`${widthClass} flex h-8 items-stretch rounded-md border border-cz-border bg-cz-bg text-sm transition-colors focus-within:border-cz-accent ${disabled ? 'pointer-events-none opacity-50' : ''}`}
     >
       <input
         ref={inputRef}
@@ -156,7 +156,7 @@ export function NumberStepper({
         }}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-cz-text outline-none tabular-nums"
+        className="min-w-0 flex-1 bg-transparent px-2 text-cz-text outline-none tabular-nums"
       />
       <div className="flex flex-col border-l border-cz-border">
         <button

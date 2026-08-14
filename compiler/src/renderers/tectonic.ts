@@ -8,12 +8,6 @@ const tectonicCache = process.env.TECTONIC_CACHE ?? '/var/composure/caches/tecto
 export const tectonicRenderer: Renderer = {
   id: 'tectonic',
 
-  capabilities: {
-    outputFormats: ['pdf'],
-    needsPersistentProcess: false,
-    supportsClientPreview: false,
-  },
-
   canHandle(): boolean {
     return true // Fallback renderer for LaTeX and any unmatched extensions
   },

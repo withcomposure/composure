@@ -13,6 +13,7 @@ const defaults = {
   initialMode: 'login' as const,
   enabledLoginProviders: [],
   onLogin: () => {},
+  onPasskeyLogin: () => {},
   onSignup: () => {},
   onPasswordReset: () => {},
   onContinueAsGuest: () => {},

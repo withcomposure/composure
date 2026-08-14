@@ -53,7 +53,9 @@ import {
   updateUserSuspended,
   listOAuthProviders,
   upsertOAuthProvider,
+  getPasskeyLoginEnabled,
   getPasswordLoginEnabled,
+  setPasskeyLoginEnabled,
   setPasswordLoginEnabled,
   getStrandedUserCounts,
   getStrandedUserDetails,
@@ -765,9 +767,11 @@ export async function getLoginProvidersRoute(
   if (!ensureAdmin(req, reply)) return
   const providers = await listOAuthProviders()
   const passwordEnabled = await getPasswordLoginEnabled()
+  const passkeyEnabled = await getPasskeyLoginEnabled()
   reply.send({
     providers: [
       { provider: 'password', enabled: passwordEnabled, hasCredentials: true },
+      { provider: 'passkey', enabled: passkeyEnabled, hasCredentials: true },
       ...providers.map((p) => ({
         provider: p.provider,
         enabled: p.enabled,
@@ -802,17 +806,24 @@ export async function updateLoginProvidersRoute(
   const existingProviders = await listOAuthProviders()
   const nextOAuthEnabled = new Map(existingProviders.map((provider) => [provider.provider, provider.enabled]))
   let passwordEnabled = await getPasswordLoginEnabled()
+  let passkeyEnabled = await getPasskeyLoginEnabled()
 
   for (const item of items) {
     if (item.provider === 'password') {
       passwordEnabled = Boolean(item.enabled)
       continue
     }
+    if (item.provider === 'passkey') {
+      passkeyEnabled = Boolean(item.enabled)
+      continue
+    }
     nextOAuthEnabled.set(item.provider, Boolean(item.enabled))
   }
 
   const enabledProviderCount =
-    (passwordEnabled ? 1 : 0) + Array.from(nextOAuthEnabled.values()).filter((enabled) => enabled).length
+    (passwordEnabled ? 1 : 0)
+    + (passkeyEnabled ? 1 : 0)
+    + Array.from(nextOAuthEnabled.values()).filter((enabled) => enabled).length
 
   if (enabledProviderCount === 0) {
     reply.status(400).send({ error: 'At least one login provider must remain enabled.' })
@@ -820,7 +831,7 @@ export async function updateLoginProvidersRoute(
   }
 
   for (const item of items) {
-    if (item.provider === 'password') {
+    if (item.provider === 'password' || item.provider === 'passkey') {
       continue
     }
 
@@ -833,6 +844,7 @@ export async function updateLoginProvidersRoute(
   }
 
   await setPasswordLoginEnabled(passwordEnabled)
+  await setPasskeyLoginEnabled(passkeyEnabled)
 
   reply.send({ ok: true })
 }

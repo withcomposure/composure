@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, AlertTriangle, Camera, History, KeyRound, Lock, Palette, Shield, Type, User } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Camera, History, KeyRound, Lock, Palette, Shield, Trash2, Type, User } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { BackToProjectsButton } from './BackToProjectsButton'
 import { IconDropdown } from '@/components/IconDropdown'
@@ -14,6 +14,8 @@ import { THEMES } from '@/themes/themes'
 import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
 import { fetchJson, getErrorMessage } from '@/utils/fetch'
 import { oauthIntentUrl } from '@/utils/oauth'
+import { isPasskeyCancellation, registerPasskey } from '@/utils/passkey'
+import { PROVIDER_LABELS } from '@/utils/auth-providers'
 import { fmtTime } from '@/utils/format-time'
 import { navigateToAdmin, navigateToProjects } from '@/utils/route'
 import {
@@ -45,12 +47,8 @@ const settingsSectionItems: Array<{ id: SettingsSectionId; label: string; icon: 
   { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
 ]
 
-const providerLabels: Record<string, string> = {
-  password: 'Password',
-  github: 'GitHub',
-  google: 'Google',
-  orcid: 'ORCID',
-}
+const providerOrderRank = (provider: string): number =>
+  provider === 'password' ? 0 : provider === 'passkey' ? 1 : 2
 
 const themeOptions = THEMES.map((theme) => ({
   value: theme.id,
@@ -115,9 +113,8 @@ export function SettingsView({
       }>('/auth/providers')
       const enabledProviderSet = new Set(res.providers.filter((p) => p.enabled).map((p) => p.provider))
       const orderedProviders = Array.from(enabledProviderSet).sort((a, b) => {
-        if (a === 'password') return -1
-        if (b === 'password') return 1
-        return a.localeCompare(b)
+        const rankDelta = providerOrderRank(a) - providerOrderRank(b)
+        return rankDelta !== 0 ? rankDelta : a.localeCompare(b)
       })
       setAvailableProviders(orderedProviders)
       setLinkedProviders(res.linked.filter((provider) => enabledProviderSet.has(provider.provider)))
@@ -137,6 +134,34 @@ export function SettingsView({
     setProvidersError(null)
     try {
       await fetchJson(`/auth/via/${provider}/unlink`, { method: 'DELETE' })
+      await loadProviders()
+    } catch (err) {
+      setProvidersError(getErrorMessage(err))
+    } finally {
+      setProvidersBusy(null)
+    }
+  }, [loadProviders])
+
+  const addPasskey = useCallback(async () => {
+    setProvidersBusy('passkey')
+    setProvidersError(null)
+    try {
+      await registerPasskey()
+      await loadProviders()
+    } catch (err) {
+      if (!isPasskeyCancellation(err)) {
+        setProvidersError(getErrorMessage(err))
+      }
+    } finally {
+      setProvidersBusy(null)
+    }
+  }, [loadProviders])
+
+  const removePasskeys = useCallback(async () => {
+    setProvidersBusy('passkey')
+    setProvidersError(null)
+    try {
+      await fetchJson('/auth/passkey', { method: 'DELETE' })
       await loadProviders()
     } catch (err) {
       setProvidersError(getErrorMessage(err))
@@ -381,31 +406,29 @@ export function SettingsView({
 
             {session?.authenticated ? (
               <>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-cz-border-subtle bg-cz-bg/60 p-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-5 sm:flex-row">
+                  <div className="flex shrink-0 flex-col items-center gap-2">
                     <Avatar
                       name={session?.user?.displayName ?? session?.user?.email ?? 'User'}
                       imageUrl={profileImageUrl || null}
-                      size={44}
+                      size={88}
                     />
-                    <div className="text-xs font-medium uppercase tracking-wider text-cz-text-muted">Profile Photo</div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => profileImageUploadRef.current?.click()}
-                      className="inline-flex items-center gap-2 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-cz-border px-2 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                     >
-                      <Camera size={14} />
-                      Upload Photo
+                      <Camera size={13} />
+                      Upload
                     </button>
                     {hasCustomAvatar && (
                       <button
                         type="button"
                         onClick={() => setProfileImageUrl('')}
-                        className="rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
                       >
-                        Reset Avatar
+                        <Trash2 size={13} />
+                        Delete
                       </button>
                     )}
                     <input
@@ -419,27 +442,29 @@ export function SettingsView({
                       className="hidden"
                     />
                   </div>
+
+                  <div className="min-w-0 flex-1">
+                    <label className="block text-xs uppercase tracking-wider text-cz-text-muted">
+                      Display name
+                    </label>
+                    <input
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                    />
+
+                    <label className="mt-4 block text-xs uppercase tracking-wider text-cz-text-muted">
+                      Email
+                    </label>
+                    <input
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                    />
+                  </div>
                 </div>
-
-                <label className="mt-4 block text-xs uppercase tracking-wider text-cz-text-muted">
-                  Display name
-                </label>
-                <input
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-                />
-
-                <label className="mt-4 block text-xs uppercase tracking-wider text-cz-text-muted">
-                  Email
-                </label>
-                <input
-                  value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                />
 
                 <div className="mt-4 flex gap-2">
                   <button
@@ -504,25 +529,51 @@ export function SettingsView({
                         const linkedMethodCount = linkedProviders.filter((lp) => availableProviders.includes(lp.provider)).length
                         const canRemoveLinkedProvider = linkedMethodCount > 1
                         const isPasswordProvider = provider === 'password'
-                        const providerLabel = providerLabels[provider] ?? provider
+                        const isPasskeyProvider = provider === 'passkey'
+                        const providerLabel = PROVIDER_LABELS[provider] ?? provider
                         return (
                           <div key={provider} className={`flex items-center justify-between gap-3 px-3 py-3 ${index === 0 ? '' : 'border-t border-cz-border'}`}>
                             <div className="min-w-0">
                               <div className="text-sm text-cz-text">{providerLabel}</div>
                               {linked && (
                                 <div className="text-xs text-cz-text-muted">
-                                  {isPasswordProvider ? 'Linked to your account password.' : linked.email ?? 'Linked'}
+                                  {isPasswordProvider
+                                    ? 'Linked to your account password.'
+                                    : isPasskeyProvider
+                                      ? 'Sign in with a passkey saved on your devices.'
+                                      : linked.email ?? 'Linked'}
                                 </div>
                               )}
                             </div>
                             {linked ? (
-                              isPasswordProvider ? (
+                              isPasskeyProvider ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => { void addPasskey() }}
+                                    disabled={providersBusy === provider}
+                                    className="rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                                  >
+                                    {providersBusy === provider ? 'Waiting...' : 'Add Passkey'}
+                                  </button>
+                                  {canRemoveLinkedProvider && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { void removePasskeys() }}
+                                      disabled={providersBusy === provider}
+                                      className="rounded-md border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              ) : isPasswordProvider ? (
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
                                     onClick={openChangePasswordDialog}
                                     disabled={providersBusy === provider || passwordDialogBusy}
-                                    className="rounded border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                                    className="rounded-md border border-cz-border px-2 py-1 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
                                   >
                                     Change Password
                                   </button>
@@ -531,7 +582,7 @@ export function SettingsView({
                                       type="button"
                                       onClick={() => { void disablePasswordProvider() }}
                                       disabled={providersBusy === provider}
-                                      className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                                      className="rounded-md border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
                                     >
                                       {providersBusy === provider ? 'Disabling...' : 'Disable'}
                                     </button>
@@ -542,13 +593,22 @@ export function SettingsView({
                                   type="button"
                                   onClick={() => { void unlinkProvider(provider) }}
                                   disabled={providersBusy === provider || !canRemoveLinkedProvider}
-                                  className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="rounded-md border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {providersBusy === provider ? 'Unlinking...' : 'Unlink'}
                                 </button>
                               )
                             ) : (
-                              isPasswordProvider ? (
+                              isPasskeyProvider ? (
+                                <button
+                                  type="button"
+                                  onClick={() => { void addPasskey() }}
+                                  disabled={providersBusy === provider}
+                                  className="rounded-md bg-cz-accent px-2 py-1 text-xs text-white hover:bg-cz-accent-hover disabled:opacity-60"
+                                >
+                                  {providersBusy === provider ? 'Waiting...' : 'Set Up'}
+                                </button>
+                              ) : isPasswordProvider ? (
                                 <button
                                   type="button"
                                   onClick={openEnablePasswordDialog}
@@ -599,7 +659,7 @@ export function SettingsView({
                                 .then(() => onReloadSessions())
                                 .catch(() => setGlobalError('Something went wrong. Please try again.'))
                             }}
-                            className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
+                            className="rounded-md border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
                           >
                             Revoke
                           </button>
@@ -703,16 +763,15 @@ export function SettingsView({
                   <div className="text-sm text-cz-text">Enable auto-compile by default</div>
                   <div className="text-xs text-cz-text-muted">Applied when opening projects.</div>
                 </div>
-                <button
-                  onClick={() => {
-                    void onUpdatePreferences({ autoCompileDefault: !preferences.autoCompileDefault }).catch(() => {
+                <ToggleSwitch
+                  checked={preferences.autoCompileDefault}
+                  ariaLabel="Enable auto-compile by default"
+                  onChange={(nextChecked) => {
+                    void onUpdatePreferences({ autoCompileDefault: nextChecked }).catch(() => {
                       setGlobalError('Something went wrong. Please try again.')
                     })
                   }}
-                  className={`rounded px-3 py-2 text-xs ${preferences.autoCompileDefault ? 'bg-cz-accent text-white' : 'border border-cz-border text-cz-text-muted hover:bg-cz-surface-hover'}`}
-                >
-                  {preferences.autoCompileDefault ? 'On' : 'Off'}
-                </button>
+                />
               </div>
               <div className="flex items-center justify-between rounded-md border border-cz-border bg-cz-bg/50 px-3 py-3">
                 <div>
@@ -851,32 +910,30 @@ export function SettingsView({
                   <div className="text-sm text-cz-text">Auto-commit on compile</div>
                   <div className="text-xs text-cz-text-muted">Create a snapshot before manually compiling. Excludes automatic compiles.</div>
                 </div>
-                <button
-                  onClick={() => {
-                    void onUpdatePreferences({ autoSaveOnCompile: !preferences.autoSaveOnCompile }).catch(() => {
+                <ToggleSwitch
+                  checked={preferences.autoSaveOnCompile}
+                  ariaLabel="Auto-commit on compile"
+                  onChange={(nextChecked) => {
+                    void onUpdatePreferences({ autoSaveOnCompile: nextChecked }).catch(() => {
                       setGlobalError('Something went wrong. Please try again.')
                     })
                   }}
-                  className={`rounded px-3 py-2 text-xs ${preferences.autoSaveOnCompile ? 'bg-cz-accent text-white' : 'border border-cz-border text-cz-text-muted hover:bg-cz-surface-hover'}`}
-                >
-                  {preferences.autoSaveOnCompile ? 'On' : 'Off'}
-                </button>
+                />
               </div>
               <div className="flex items-center justify-between rounded-md border border-cz-border bg-cz-bg/50 px-3 py-3">
                 <div>
                   <div className="text-sm text-cz-text">Auto-commit on export</div>
                   <div className="text-xs text-cz-text-muted">Create a snapshot before exporting.</div>
                 </div>
-                <button
-                  onClick={() => {
-                    void onUpdatePreferences({ autoSaveOnExport: !preferences.autoSaveOnExport }).catch(() => {
+                <ToggleSwitch
+                  checked={preferences.autoSaveOnExport}
+                  ariaLabel="Auto-commit on export"
+                  onChange={(nextChecked) => {
+                    void onUpdatePreferences({ autoSaveOnExport: nextChecked }).catch(() => {
                       setGlobalError('Something went wrong. Please try again.')
                     })
                   }}
-                  className={`rounded px-3 py-2 text-xs ${preferences.autoSaveOnExport ? 'bg-cz-accent text-white' : 'border border-cz-border text-cz-text-muted hover:bg-cz-surface-hover'}`}
-                >
-                  {preferences.autoSaveOnExport ? 'On' : 'Off'}
-                </button>
+                />
               </div>
             </div>
           </section>

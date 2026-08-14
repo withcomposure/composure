@@ -1,8 +1,10 @@
 import crypto from 'crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import {
+  countPasskeyCredentialsForUser,
   countUserAuthMethods,
   deleteUserAccount,
+  getPasskeyLoginEnabled,
   findOAuthAccount,
   findUserByOAuth,
   getPasswordLoginEnabled,
@@ -291,7 +293,7 @@ async function issueOAuthAuthCookies(req: FastifyRequest, reply: FastifyReply, u
   await runWithIdentityContext(null, 'system', async () => await markUserLoggedIn(userId))
 }
 
-async function migrateGuestData(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
+export async function migrateGuestData(req: FastifyRequest, reply: FastifyReply, userId: string): Promise<void> {
   const guestUserId = req.principal.userId
   if (guestUserId && guestUserId !== userId) {
     await runWithIdentityContext(null, 'system', async () => {
@@ -440,10 +442,14 @@ export function registerOAuthRoutes(
   // GET /auth/providers — list configured login providers and user's linked methods
   app.get(apiPath('/auth/providers'), async (req) => {
     const passwordEnabled = await getPasswordLoginEnabled()
+    const passkeyEnabled = await getPasskeyLoginEnabled()
     const oauthProviders = await getEnabledOAuthProviders()
     const providers: Array<{ provider: string; enabled: boolean }> = []
     if (passwordEnabled) {
       providers.push({ provider: 'password', enabled: true })
+    }
+    if (passkeyEnabled) {
+      providers.push({ provider: 'passkey', enabled: true })
     }
     for (const p of oauthProviders) {
       providers.push({ provider: p.provider, enabled: true })
@@ -454,6 +460,12 @@ export function registerOAuthRoutes(
     if (req.authUser) {
       if (passwordEnabled && (await userHasPasswordAuthMethod(req.authUser.id))) {
         linked.push({ provider: 'password', email: req.authUser.email })
+      }
+      if (passkeyEnabled) {
+        const passkeyCount = await countPasskeyCredentialsForUser(req.authUser.id)
+        if (passkeyCount > 0) {
+          linked.push({ provider: 'passkey', email: null })
+        }
       }
       const accounts = await listOAuthAccountsForUser(req.authUser.id)
       linked = linked.concat(accounts.map((a) => ({ provider: a.provider, email: a.email })))

@@ -26,12 +26,6 @@ export interface PandocCompileContext extends CompileContext {
 export const pandocRenderer: Renderer = {
   id: 'pandoc',
 
-  capabilities: {
-    outputFormats: ['pdf', 'docx', 'html', 'latex', 'typst'],
-    needsPersistentProcess: false,
-    supportsClientPreview: false,
-  },
-
   canHandle(): boolean {
     // Pandoc is only invoked explicitly for exports, not auto-selected
     return false

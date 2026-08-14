@@ -222,6 +222,7 @@ export function ReferenceLookupModal({
           <Search size={16} className="text-cz-text-muted" />
           <span className="text-sm text-cz-text-muted">Find references in:</span>
           <IconDropdown
+            size="sm"
             value={source}
             options={referenceSourceOptions}
             onChange={(nextSource) => {
@@ -256,6 +257,7 @@ export function ReferenceLookupModal({
                   Field
                 </span>
                 <IconDropdown
+                  size="sm"
                   value={field}
                   options={referenceFieldOptions}
                   onChange={setField}
@@ -302,12 +304,14 @@ export function ReferenceLookupModal({
               <span className="text-xs uppercase tracking-wide text-cz-text-muted">Results</span>
               <div className="flex items-center gap-2">
                 <IconDropdown
+                  size="sm"
                   value={sortBy}
                   options={referenceSortOptions}
                   onChange={setSortBy}
                   className="shrink-0"
                 />
                 <IconDropdown
+                  size="sm"
                   value={citationFormat}
                   options={citationFormatOptions}
                   onChange={onCitationFormatChange}

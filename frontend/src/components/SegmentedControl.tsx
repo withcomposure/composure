@@ -14,7 +14,7 @@ interface SegmentedControlProps<T extends string> {
 
 export function SegmentedControl<T extends string>({ value, options, onChange, ariaLabel }: SegmentedControlProps<T>) {
   return (
-    <div className="inline-flex shrink-0 rounded-md border border-cz-border bg-cz-bg" role="radiogroup" aria-label={ariaLabel}>
+    <div className="inline-flex h-8 shrink-0 items-stretch rounded-md border border-cz-border bg-cz-bg" role="radiogroup" aria-label={ariaLabel}>
       {options.map((option) => {
         const normalized = typeof option === 'string'
           ? { value: option, label: option[0].toUpperCase() + option.slice(1) }
@@ -27,7 +27,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange, a
           role="radio"
           aria-checked={value === normalized.value}
           onClick={() => onChange(normalized.value)}
-          className={`px-3 py-1.5 text-xs font-medium first:rounded-l-md last:rounded-r-md ${
+          className={`inline-flex items-center px-3 text-xs font-medium first:rounded-l-md last:rounded-r-md ${
             value === normalized.value
               ? 'bg-cz-accent text-white'
               : 'text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text'

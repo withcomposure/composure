@@ -462,8 +462,8 @@ export function DashboardView({
         onClose={() => setSidebarDrawerOpen(false)}
         ariaLabel="Workspace navigation"
         title={
-          <div className="px-1 text-base font-semibold tracking-tight text-cz-text">
-            <span className="text-cz-accent">C</span>omposure
+          <div className="px-1 font-brand text-xl text-cz-text">
+            Composure
           </div>
         }
       >
@@ -472,8 +472,8 @@ export function DashboardView({
 
       <aside className="hidden w-72 flex-col border-r border-cz-border bg-cz-surface lg:flex">
         <div className="p-4 pb-2">
-          <div className="px-1 text-lg font-semibold tracking-tight text-cz-text">
-            <span className="text-cz-accent">C</span>omposure
+          <div className="px-1 font-brand text-2xl text-cz-text">
+            Composure
           </div>
         </div>
         {sidebarContent}
@@ -559,17 +559,17 @@ export function DashboardView({
               options={sortOptions}
               onChange={onSortByChange}
             />
-            <div className="flex items-center overflow-hidden rounded-md border border-cz-border">
+            <div className="flex h-8 items-stretch overflow-hidden rounded-md border border-cz-border">
               <button
                 onClick={() => onLayoutChange("grid")}
-                className={`px-2 py-2 ${dashboardLayout === "grid" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover"}`}
+                className={`flex items-center px-2 ${dashboardLayout === "grid" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover"}`}
                 title="Grid"
               >
                 <Grid3X3 size={14} />
               </button>
               <button
                 onClick={() => onLayoutChange("list")}
-                className={`px-2 py-2 ${dashboardLayout === "list" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover"}`}
+                className={`flex items-center px-2 ${dashboardLayout === "list" ? "bg-cz-accent-muted text-cz-accent" : "text-cz-text-muted hover:bg-cz-surface-hover"}`}
                 title="List"
               >
                 <List size={14} />

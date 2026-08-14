@@ -42,6 +42,7 @@ import { apiUrl, fetchJson, getErrorMessage } from '@/utils/fetch'
 import { apiRequestCredentials } from '@/utils/api-routing'
 import { fmtTime, fmtRelativeTime } from '@/utils/format-time'
 import { navigateToProjects, navigateToSettings } from '@/utils/route'
+import { PROVIDER_LABELS } from '@/utils/auth-providers'
 
 interface AdminUser {
   id: string
@@ -138,13 +139,6 @@ const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof User }
   { value: 'user', label: 'User', icon: User },
   { value: 'admin', label: 'Admin', icon: Crown },
 ]
-
-const loginProviderLabels: Record<string, string> = {
-  password: 'Password',
-  github: 'GitHub',
-  google: 'Google',
-  orcid: 'ORCID',
-}
 
 const adminSectionItems: Array<{ id: AdminSectionId; label: string; icon: typeof User }> = [
   { id: 'users', label: 'User Management', icon: Users },
@@ -280,7 +274,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [loginProvidersError, setLoginProvidersError] = useState<string | null>(null)
   const [providerTestResults, setProviderTestResults] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'fail'>>({})
   const [providerTestErrors, setProviderTestErrors] = useState<Record<string, string>>({})
-  const [callbackCopied, setCallbackCopied] = useState(false)
+  const [callbackCopiedProvider, setCallbackCopiedProvider] = useState<string | null>(null)
   const [strandedDialog, setStrandedDialog] = useState<{
     kind: 'error' | 'warning'
     message: string
@@ -434,7 +428,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
         }))
         const failedProviders = testResults
           .filter((result) => !result.ok)
-          .map((result) => loginProviderLabels[result.provider] ?? result.provider)
+          .map((result) => PROVIDER_LABELS[result.provider] ?? result.provider)
 
         if (failedProviders.length > 0) {
           setLoginProvidersError(
@@ -1028,13 +1022,13 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search by name or email"
-                  className="w-full rounded-md border border-cz-border bg-cz-bg py-2 pl-9 pr-3 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-full rounded-md border border-cz-border bg-cz-bg pl-9 pr-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover"
+                className="inline-flex h-8 items-center gap-2 rounded-md bg-cz-accent px-3 text-sm text-white hover:bg-cz-accent-hover"
               >
                 <UserPlus size={14} />
                 Add User
@@ -1119,7 +1113,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 type="button"
                 onClick={() => { void saveServerSettings() }}
                 disabled={settingsBusy || !serverSettingsDirty}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs disabled:opacity-60 ${
                   serverSettingsDirty
                     ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
                     : 'border-cz-border bg-cz-bg text-cz-text-muted'
@@ -1389,14 +1383,14 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}
                 placeholder="Restrict to email (optional)"
-                className="min-w-0 w-1/4 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                className="h-8 min-w-0 w-1/4 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
               />
               <input
                 ref={generatedInviteRef}
                 value={generatedInviteUrl}
                 readOnly
                 placeholder="New invite links will appear here"
-                className="min-w-0 flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text-muted"
+                className="h-8 min-w-0 flex-1 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text-muted"
               />
               {generatedInviteUrl && (
                 <button
@@ -1404,7 +1398,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   onClick={() => {
                     void navigator.clipboard.writeText(generatedInviteUrl)
                   }}
-                  className="inline-flex items-center gap-1 shrink-0 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                  className="inline-flex h-8 items-center gap-1 shrink-0 rounded-md border border-cz-border px-3 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
                 >
                   <Copy size={14} />
                   Copy
@@ -1416,7 +1410,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   void createNewInvite()
                 }}
                 disabled={invitesBusy}
-                className="inline-flex items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
+                className="inline-flex h-8 items-center gap-2 rounded-md bg-cz-accent px-3 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
               >
                 <UserPlus size={14} />
                 New Invite
@@ -1488,7 +1482,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 type="button"
                 onClick={() => { void saveSmtpSettings() }}
                 disabled={smtpBusy || !smtpDirty}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs disabled:opacity-60 ${
                   smtpDirty
                     ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
                     : 'border-cz-border bg-cz-bg text-cz-text-muted'
@@ -1511,7 +1505,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   value={smtpHost}
                   onChange={(e) => setSmtpHost(e.target.value)}
                   placeholder="smtp.example.com"
-                  className="w-42 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-42 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <NumberStepper
                   value={smtpPort}
@@ -1546,7 +1540,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   value={smtpUsername}
                   onChange={(e) => setSmtpUsername(e.target.value)}
                   placeholder="user@example.com"
-                  className="w-69 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-69 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
 
@@ -1564,7 +1558,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                     value={smtpPassword}
                     onChange={(e) => setSmtpPassword(e.target.value)}
                     placeholder={smtpHasPassword ? '••••••••' : 'Enter password'}
-                    className="w-69 rounded-md border border-cz-border bg-cz-bg px-3 py-2 pr-9 text-sm text-cz-text outline-none focus:border-cz-accent"
+                    className="h-8 w-69 rounded-md border border-cz-border bg-cz-bg px-3 pr-9 text-sm text-cz-text outline-none focus:border-cz-accent"
                   />
                   <button
                     type="button"
@@ -1588,14 +1582,14 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   value={smtpSenderName}
                   onChange={(e) => setSmtpSenderName(e.target.value)}
                   placeholder="Composure"
-                  className="w-28 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-28 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <input
                   type="text"
                   value={smtpSenderAddress}
                   onChange={(e) => setSmtpSenderAddress(e.target.value)}
                   placeholder="noreply@example.com"
-                  className="w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
               </div>
 
@@ -1610,13 +1604,13 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   value={testEmailTo}
                   onChange={(e) => setTestEmailTo(e.target.value)}
                   placeholder="recipient@example.com"
-                  className="w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                  className="h-8 w-48 shrink-0 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                 />
                 <button
                   type="button"
                   onClick={() => { void sendTestEmail() }}
                   disabled={testEmailBusy || !testEmailTo.trim() || smtpDirty || !smtpAllFilled}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-md bg-cz-accent px-3 py-2 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
+                  className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md bg-cz-accent px-3 text-sm text-white hover:bg-cz-accent-hover disabled:opacity-60"
                 >
                   <Send size={14} />
                   {testEmailBusy ? 'Sending...' : 'Send'}
@@ -1641,7 +1635,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                 type="button"
                 onClick={() => { void saveLoginProviders() }}
                 disabled={loginProvidersBusy || !loginProvidersDirty}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs disabled:opacity-60 ${
+                className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs disabled:opacity-60 ${
                   loginProvidersDirty
                     ? 'border-transparent bg-cz-accent text-white hover:bg-cz-accent-hover'
                     : 'border-cz-border bg-cz-bg text-cz-text-muted'
@@ -1652,55 +1646,27 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
               </button>
             </div>
 
-            {/* Callback URL */}
-            <div className="mb-4">
-              <label className="mb-1 block text-xs text-cz-text-muted">Callback URL (configure this in each provider)</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={new URL(apiUrl('/auth/via/{provider}/callback'), window.location.origin).href}
-                  className="flex-1 rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text-muted outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(new URL(apiUrl('/auth/via/{provider}/callback'), window.location.origin).href)
-                    setCallbackCopied(true)
-                    setTimeout(() => setCallbackCopied(false), 2000)
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 py-2 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-                >
-                  {callbackCopied ? <Check size={14} /> : <Copy size={14} />}
-                  {callbackCopied ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-            </div>
-
             <div className="overflow-hidden rounded-md border border-cz-border bg-cz-bg/50">
               {loginProviders.map((p, idx) => {
                 const testStatus = providerTestResults[p.provider] ?? 'idle'
                 const testError = providerTestErrors[p.provider]
                 const isPasswordProvider = p.provider === 'password'
-                const canTest = !isPasswordProvider && p.enabled && p.clientId.trim() !== '' && (p.clientSecret.trim() !== '' || p.hasCredentials)
+                const isPasskeyProvider = p.provider === 'passkey'
+                const isOAuthProvider = !isPasswordProvider && !isPasskeyProvider
+                const canTest = isOAuthProvider && p.enabled && p.clientId.trim() !== '' && (p.clientSecret.trim() !== '' || p.hasCredentials)
                 const toggleDisabled = loginProvidersBusy || (p.enabled && enabledLoginProviderCount <= 1)
-                const providerLabel = loginProviderLabels[p.provider] ?? p.provider
+                const providerLabel = PROVIDER_LABELS[p.provider] ?? p.provider
                 return (
                   <div key={p.provider} className={`${idx === 0 ? '' : 'border-t border-cz-border'} px-3 py-3`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-cz-text">{providerLabel}</div>
-                        <div className="text-xs text-cz-text-muted">
-                          {isPasswordProvider
-                            ? 'Email and password login for local accounts.'
-                            : p.provider === 'github'
-                              ? 'GitHub OAuth App'
-                              : p.provider === 'google'
-                                ? 'Google OAuth 2.0'
-                                : p.provider === 'orcid'
-                                  ? 'ORCID OpenID Connect'
-                                : `${p.provider} OAuth`}
-                        </div>
+                        {isPasswordProvider && (
+                          <div className="text-xs text-cz-text-muted">Email and password login for local accounts.</div>
+                        )}
+                        {isPasskeyProvider && (
+                          <div className="text-xs text-cz-text-muted">Passwordless sign-in with device biometrics or security keys.</div>
+                        )}
                       </div>
                       <ToggleSwitch
                         checked={p.enabled}
@@ -1718,8 +1684,32 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                         ariaLabel={`Enable ${p.provider}`}
                       />
                     </div>
-                    {!isPasswordProvider && p.enabled && (
+                    {isOAuthProvider && p.enabled && (
                       <div className="mt-3 space-y-2">
+                        <div>
+                          <label className="mb-1 block text-xs text-cz-text-muted">Callback URL (configure this in your {providerLabel} app)</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={new URL(apiUrl(`/auth/via/${p.provider}/callback`), window.location.origin).href}
+                              onFocus={(e) => e.currentTarget.select()}
+                              className="h-8 min-w-0 flex-1 rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text-muted outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(new URL(apiUrl(`/auth/via/${p.provider}/callback`), window.location.origin).href)
+                                setCallbackCopiedProvider(p.provider)
+                                setTimeout(() => setCallbackCopiedProvider((prev) => (prev === p.provider ? null : prev)), 2000)
+                              }}
+                              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
+                            >
+                              {callbackCopiedProvider === p.provider ? <Check size={14} /> : <Copy size={14} />}
+                              {callbackCopiedProvider === p.provider ? 'Copied' : 'Copy'}
+                            </button>
+                          </div>
+                        </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
                             <label className="mb-1 block text-xs text-cz-text-muted">Client ID</label>
@@ -1737,7 +1727,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                                 })
                               }}
                               placeholder="Client ID"
-                              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                              className="h-8 w-full rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                             />
                           </div>
                           <div>
@@ -1756,7 +1746,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                                 })
                               }}
                               placeholder={p.hasCredentials ? '••••••••' : 'Client Secret'}
-                              className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                              className="h-8 w-full rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                             />
                           </div>
                         </div>
@@ -1767,7 +1757,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                             onClick={() => {
                               void testProvider(p.provider, p.clientId, p.clientSecret || '__keep__')
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-cz-border bg-cz-bg px-2.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
                           >
                             {testStatus === 'testing' && <RefreshCw size={12} className="animate-spin" />}
                             {testStatus === 'ok' && <Check size={12} className="text-green-400" />}
@@ -1832,7 +1822,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                       value={strandedConfirmText}
                       onChange={(e) => setStrandedConfirmText(e.target.value)}
                       placeholder="I understand"
-                      className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
+                      className="h-8 w-full rounded-md border border-cz-border bg-cz-bg px-3 text-sm text-cz-text outline-none focus:border-cz-accent"
                     />
                   </div>
                 )}
@@ -1872,7 +1862,7 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
                   type="button"
                   onClick={() => { void loadMonitoringData(jobsTimeframe) }}
                   disabled={monitoringBusy}
-                  className="inline-flex items-center gap-2 rounded-md border border-cz-border bg-cz-bg px-3 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
+                  className="inline-flex h-8 items-center gap-2 rounded-md border border-cz-border bg-cz-bg px-3 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-60"
                 >
                   <RefreshCw size={14} className={monitoringBusy ? 'animate-spin' : ''} />
                   Refresh

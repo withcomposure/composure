@@ -3,7 +3,7 @@ import { typstRenderer } from './typst.js'
 import { tectonicRenderer } from './tectonic.js'
 export { pandocRenderer } from './pandoc.js'
 
-export type { Renderer, CompileContext, CompileOutput, OutputFile, RendererCapabilities } from './types.js'
+export type { Renderer, CompileContext, CompileOutput, OutputFile } from './types.js'
 
 // Ordered list — first match wins. Specific renderers before fallbacks.
 const renderers: Renderer[] = [

@@ -98,23 +98,6 @@ describe('parseRoute', () => {
   })
 })
 
-describe('isValidProjectId', () => {
-  it('accepts valid 32-char hex ID', async () => {
-    const { isValidProjectId } = await import('../src/utils/route')
-    expect(isValidProjectId('11a0ec5340b04612b57194f60da95db7')).toBe(true)
-  })
-
-  it('rejects short strings', async () => {
-    const { isValidProjectId } = await import('../src/utils/route')
-    expect(isValidProjectId('short')).toBe(false)
-  })
-
-  it('rejects strings with invalid characters', async () => {
-    const { isValidProjectId } = await import('../src/utils/route')
-    expect(isValidProjectId('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ')).toBe(false)
-  })
-})
-
 describe('fmtRelativeTime', () => {
   it('returns "Less than 1m ago" for timestamps within the last 60 seconds', async () => {
     const { fmtRelativeTime } = await import('../src/utils/format-time')

@@ -1,5 +1,6 @@
 import { sql } from './connection.js'
 import { createUid } from '../ids.js'
+import { countPasskeyCredentialsForUser, getPasskeyLoginEnabled } from './passkeys.js'
 import type { SessionUser } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -337,6 +338,9 @@ export async function countUserAuthMethods(userId: string): Promise<number> {
   const passwordEnabled = await getPasswordLoginEnabled()
   const hasPassword = passwordEnabled && (await userHasPasswordAuthMethod(userId))
 
+  const passkeyEnabled = await getPasskeyLoginEnabled()
+  const hasPasskey = passkeyEnabled && (await countPasskeyCredentialsForUser(userId)) > 0
+
   const [{ count: oauthCount }] = await sql<[{ count: number }]>`
     SELECT COUNT(1)::integer AS count
     FROM oauth_accounts oa
@@ -347,7 +351,7 @@ export async function countUserAuthMethods(userId: string): Promise<number> {
       AND op.client_secret IS NOT NULL
   `
 
-  return (hasPassword ? 1 : 0) + oauthCount
+  return (hasPassword ? 1 : 0) + (hasPasskey ? 1 : 0) + oauthCount
 }
 
 /** For the "stranded users" admin check: returns counts of users who rely on specific providers. */
@@ -361,12 +365,17 @@ export async function getStrandedUserCounts(
 
   // A user is stranded if all currently enabled auth methods are being disabled.
   const passwordEnabled = await getPasswordLoginEnabled()
+  const passkeyEnabled = await getPasskeyLoginEnabled()
 
   const rows = await sql`
     WITH user_methods AS (
       SELECT u.id,
         CASE WHEN ${passwordEnabled} = true AND u.password_hash IS NOT NULL THEN 'password' ELSE NULL END AS method
       FROM users u
+      UNION ALL
+      SELECT DISTINCT wc.user_id AS id, 'passkey' AS method
+      FROM webauthn_credentials wc
+      WHERE ${passkeyEnabled} = true
       UNION ALL
       SELECT oa.user_id AS id, oa.provider AS method
       FROM oauth_accounts oa

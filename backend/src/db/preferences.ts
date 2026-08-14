@@ -2,6 +2,26 @@ import { isValidProjectId } from '../security.js'
 import { sql } from './connection.js'
 import type { UserPreferences } from './types.js'
 
+export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  appearance: 'system',
+  theme: 'default',
+  recentItemsLimit: 10,
+  autoCompileDefault: false,
+  autoCompileTimeoutSeconds: 2,
+  editorBraceMatching: true,
+  editorHighlightSelectionMatches: true,
+  editorInEditorFind: true,
+  editorAutocomplete: true,
+  editorAutoCloseLatexBeginEnd: true,
+  dashboardSortBy: 'last-active',
+  dashboardLayout: 'grid',
+  pinnedProjectIds: [],
+  quickAccessPinnedLimit: 8,
+  autoVersionIntervalMinutes: 5,
+  autoSaveOnCompile: true,
+  autoSaveOnExport: true,
+}
+
 function normalizeRecentLimit(limit: number): number {
   return Math.max(3, Math.min(50, Math.floor(limit)))
 }
@@ -59,25 +79,7 @@ function normalizePinnedProjectIds(input: unknown): string[] {
 
 export async function getUserPreferences(userId: string | null): Promise<UserPreferences> {
   if (!userId) {
-    return {
-      appearance: 'system',
-      theme: 'default',
-      recentItemsLimit: 10,
-      autoCompileDefault: false,
-      autoCompileTimeoutSeconds: 2,
-      editorBraceMatching: true,
-      editorHighlightSelectionMatches: true,
-      editorInEditorFind: true,
-      editorAutocomplete: true,
-      editorAutoCloseLatexBeginEnd: true,
-      dashboardSortBy: 'last-active',
-      dashboardLayout: 'grid',
-      pinnedProjectIds: [],
-      quickAccessPinnedLimit: 8,
-      autoVersionIntervalMinutes: 5,
-      autoSaveOnCompile: true,
-      autoSaveOnExport: true,
-    }
+    return { ...DEFAULT_USER_PREFERENCES }
   }
 
   const [row] = await sql`
@@ -92,25 +94,7 @@ export async function getUserPreferences(userId: string | null): Promise<UserPre
   `
 
   if (!row) {
-    return {
-      appearance: 'system',
-      theme: 'default',
-      recentItemsLimit: 10,
-      autoCompileDefault: false,
-      autoCompileTimeoutSeconds: 2,
-      editorBraceMatching: true,
-      editorHighlightSelectionMatches: true,
-      editorInEditorFind: true,
-      editorAutocomplete: true,
-      editorAutoCloseLatexBeginEnd: true,
-      dashboardSortBy: 'last-active',
-      dashboardLayout: 'grid',
-      pinnedProjectIds: [],
-      quickAccessPinnedLimit: 8,
-      autoVersionIntervalMinutes: 5,
-      autoSaveOnCompile: true,
-      autoSaveOnExport: true,
-    }
+    return { ...DEFAULT_USER_PREFERENCES }
   }
 
   let parsedPinnedIds: unknown = []

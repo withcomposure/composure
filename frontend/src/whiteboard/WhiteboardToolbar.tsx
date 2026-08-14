@@ -4,12 +4,9 @@ import {
   exportToSvg,
 } from '@excalidraw/excalidraw'
 import type {
-  AppState,
-  BinaryFiles,
   ExcalidrawImperativeAPI,
   SocketId,
 } from '@excalidraw/excalidraw/types'
-import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { WorkspaceProjectTitle } from '@/components/WorkspaceProjectTitle'
 import { IconDropdown, type DropdownOption } from '@/components/IconDropdown'
@@ -92,6 +89,7 @@ function WhiteboardExportMenu({
 
   return (
     <IconDropdown<'png' | 'svg'>
+      size="sm"
       disabled={exporting}
       options={exportOptions}
       fallbackWidth={176}
@@ -246,6 +244,7 @@ export function WhiteboardToolbar({
         />
 
         <IconDropdown
+          size="sm"
           value={selectedMode}
           options={modeOptions.map((option) => (
             option.value === 'edit' && !canRoleEdit
@@ -279,14 +278,3 @@ export function WhiteboardToolbar({
   )
 }
 
-export function snapshotSceneFromApi(api: ExcalidrawImperativeAPI): {
-  elements: readonly OrderedExcalidrawElement[]
-  appState: AppState
-  files: BinaryFiles
-} {
-  return {
-    elements: api.getSceneElements(),
-    appState: api.getAppState(),
-    files: api.getFiles(),
-  }
-}

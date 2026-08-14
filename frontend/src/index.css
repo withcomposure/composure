@@ -21,6 +21,7 @@
   /* Fonts */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-brand: "Kaushan Script", cursive;
 
   /* Sizing */
   --sidebar-width: 260px;

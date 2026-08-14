@@ -297,7 +297,10 @@ describe('admin — login providers', () => {
       url: '/api/v1/admin/login-providers',
       headers: { cookie: sessionCookie(sessionId) },
       payload: {
-        providers: [{ provider: 'password', enabled: false }],
+        providers: [
+          { provider: 'password', enabled: false },
+          { provider: 'passkey', enabled: false },
+        ],
       },
     })
 

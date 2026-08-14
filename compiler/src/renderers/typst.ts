@@ -8,12 +8,6 @@ const typstCache = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
 export const typstRenderer: Renderer = {
   id: 'typst',
 
-  capabilities: {
-    outputFormats: ['pdf'],
-    needsPersistentProcess: false,
-    supportsClientPreview: false,
-  },
-
   canHandle(rootFile: string): boolean {
     return path.extname(rootFile).toLowerCase() === '.typ'
   },

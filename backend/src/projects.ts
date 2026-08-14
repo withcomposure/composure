@@ -361,9 +361,16 @@ export async function deleteProjectRoute(
     return
   }
 
-  const access = await ensureProjectAccess(projectId, req.principal, false)
-  if (!access.ok) {
+  const project = await findProjectById(projectId)
+  if (!project || project.deleted_at != null) {
     reply.status(404).send({ error: 'Project not found' })
+    return
+  }
+
+  // Only the owner may trash a project; collaborators (even editors) cannot.
+  const isOwner = req.principal.userId != null && project.owner_user_id === req.principal.userId
+  if (!isOwner) {
+    reply.status(403).send({ error: 'Forbidden' })
     return
   }
 

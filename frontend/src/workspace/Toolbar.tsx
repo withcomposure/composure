@@ -247,6 +247,7 @@ export function Toolbar({
               )}
             </button>
             <IconDropdown<CompileDropdownValue>
+              size="sm"
               disabled={compiling}
               options={compileMenuOptions}
               unstyledButton
@@ -274,6 +275,7 @@ export function Toolbar({
         <VersionsDropdown projectId={projectId} activeFile={displayFileName} onViewDiff={onViewDiff} />
 
         <IconDropdown
+          size="sm"
           value={mode}
           disabled={inDiffMode}
           iconOnly

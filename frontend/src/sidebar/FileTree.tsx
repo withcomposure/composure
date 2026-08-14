@@ -1000,7 +1000,6 @@ export function FileTree({
     return folder ? `${folder}/${normalized}` : normalized
   }, [])
 
-  // Create file
   const handleCreateFile = useCallback((name: string, folder: string | null) => {
     const trimmed = name.trim()
     if (!trimmed) return
@@ -1013,7 +1012,6 @@ export function FileTree({
     onSelect(fullPath)
   }, [fileMap, ydoc, scopedPath, onSelect])
 
-  // Create folder
   const handleCreateFolder = useCallback((name: string, folder: string | null) => {
     const trimmed = name.trim()
     if (!trimmed) return
@@ -1023,7 +1021,6 @@ export function FileTree({
     setExpandedFolders((prev) => new Set(prev).add(fullPath))
   }, [fileMap, scopedPath])
 
-  // Confirm rename (inline)
   const confirmRename = useCallback(() => {
     if (!renaming) return
     const newName = normalizeWorkspacePath(renaming.value)
@@ -1096,7 +1093,6 @@ export function FileTree({
     setRenaming(null)
   }, [renaming, fileMap, ydoc, onRename, openAlert])
 
-  // Confirm delete
   const confirmDelete = useCallback(async () => {
     if (!popup || popup.kind !== 'delete') return
 

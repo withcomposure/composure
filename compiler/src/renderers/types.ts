@@ -18,18 +18,8 @@ export interface CompileContext {
   timeoutMs: number
 }
 
-export interface RendererCapabilities {
-  /** Output formats this renderer can produce (e.g. ['pdf'], ['html', 'pdf']) */
-  outputFormats: string[]
-  /** Whether the renderer requires a persistent background process (e.g. Jupyter kernel) */
-  needsPersistentProcess: boolean
-  /** Whether the frontend can render a live preview client-side without a compile round-trip */
-  supportsClientPreview: boolean
-}
-
 export interface Renderer {
   id: string
-  capabilities: RendererCapabilities
   canHandle(rootFile: string): boolean
   compile(ctx: CompileContext): Promise<CompileOutput>
 }

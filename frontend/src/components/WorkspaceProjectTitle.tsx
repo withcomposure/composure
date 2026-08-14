@@ -13,17 +13,6 @@ export interface WorkspaceProjectTitleProps {
   backLabel?: string;
 }
 
-/** Chevron hidden until group hover / coarse pointer; overridden when `editing` (always shown). */
-const chevronRevealClasses =
-  "mr-0 -translate-x-1 opacity-0 pointer-events-none transition-all duration-200 group-hover:pointer-events-auto group-hover:mr-1 group-hover:translate-x-0 group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:mr-1 [@media(pointer:coarse)]:translate-x-0 [@media(pointer:coarse)]:opacity-100";
-
-const chevronShownEditingClasses =
-  "mr-1 translate-x-0 opacity-100 pointer-events-auto transition-all duration-200";
-
-/** Fine pointer: rest further left toward the chevron; hover slides right. Coarse: chevron stays visible — keep hover alignment. */
-const titleSlideClasses =
-  "transition-transform duration-150 [@media(pointer:fine)]:-translate-x-6 group-hover:!translate-x-1 [@media(pointer:coarse)]:translate-x-1";
-
 export function WorkspaceProjectTitle({
   title,
   canRename,
@@ -116,7 +105,7 @@ export function WorkspaceProjectTitle({
 
   return (
     <div
-      className={`group flex min-w-0 items-center text-cz-text ${className}`}
+      className={`flex min-w-0 items-center text-cz-text ${className}`}
     >
       <button
         type="button"
@@ -126,14 +115,14 @@ export function WorkspaceProjectTitle({
         }}
         title={backLabel}
         aria-label={backLabel}
-        className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-cz-text-muted transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent ${editing ? chevronShownEditingClasses : chevronRevealClasses}`}
+        className="mr-1 inline-flex shrink-0 items-center justify-center rounded-md p-1 text-cz-text-muted transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent"
       >
         <ChevronLeft size={14} className="shrink-0" />
       </button>
 
       {editing ? (
         <form
-          className="inline-grid w-max max-w-full shrink translate-x-1 overflow-x-auto font-inherit"
+          className="inline-grid w-max max-w-full shrink overflow-x-auto font-inherit"
           data-cz-project-title-edit=""
           onSubmit={(e) => {
             e.preventDefault();
@@ -167,14 +156,14 @@ export function WorkspaceProjectTitle({
               type="button"
               onClick={handleTitleClick}
               title={title ? `Rename “${title}”` : "Rename project"}
-              className={`inline-block min-w-[16ch] max-w-full truncate rounded-md border border-transparent box-border px-2 py-0.5 text-left text-cz-text transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent ${titleSlideClasses}`}
+              className="inline-block min-w-[16ch] max-w-full truncate rounded-md border border-transparent box-border px-2 py-0.5 text-left text-cz-text transition-colors hover:bg-cz-accent-muted hover:text-cz-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cz-accent"
             >
               {title || "Untitled project"}
             </button>
           ) : (
             <span
               title={title || undefined}
-              className={`inline-block min-w-[40ch] max-w-full truncate px-2 py-0.5 text-left ${titleSlideClasses}`}
+              className="inline-block min-w-[40ch] max-w-full truncate px-2 py-0.5 text-left"
             >
               {title || "Untitled project"}
             </span>

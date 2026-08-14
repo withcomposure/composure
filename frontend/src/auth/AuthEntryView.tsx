@@ -1,12 +1,8 @@
 import { useCallback, useState } from "react";
+import { Fingerprint } from "lucide-react";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { oauthIntentUrl } from "@/utils/oauth";
-
-const providerLabels: Record<string, string> = {
-  github: "GitHub",
-  google: "Google",
-  orcid: "ORCID",
-};
+import { PROVIDER_LABELS } from "@/utils/auth-providers";
 
 const providerIcons: Record<string, React.ReactNode> = {
   github: (
@@ -41,6 +37,7 @@ interface AuthEntryViewProps {
   enabledLoginProviders: string[];
   inviteToken?: string;
   onLogin: (input: { email: string; password: string }) => void;
+  onPasskeyLogin: () => void;
   onSignup: (input: {
     displayName: string;
     email: string;
@@ -64,6 +61,7 @@ export function AuthEntryView({
   enabledLoginProviders,
   inviteToken,
   onLogin,
+  onPasskeyLogin,
   onSignup,
   onPasswordReset,
   onContinueAsGuest,
@@ -92,7 +90,12 @@ export function AuthEntryView({
         : "login";
   const effectiveEmail = isPasswordResetMode ? (resetEmail ?? "") : email;
 
-  const hasOAuthProviders = enabledLoginProviders.length > 0;
+  const oauthProviders = enabledLoginProviders.filter(
+    (provider) => provider !== "passkey",
+  );
+  const hasPasskey = enabledLoginProviders.includes("passkey");
+  const hasOAuthProviders = oauthProviders.length > 0;
+  const hasAltLoginMethods = hasOAuthProviders || hasPasskey;
   const showSignupOAuth = hasOAuthProviders && !isNoUsersBootstrap;
 
   const submitAuth = useCallback(() => {
@@ -131,9 +134,23 @@ export function AuthEntryView({
     effectiveMode === "signup" &&
     displayName.trim().length < 2;
 
+  // Passkey sign-in button (login contexts only; passkeys cannot create accounts)
+  const passkeyButton = () =>
+    hasPasskey ? (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onPasskeyLogin}
+        className="flex w-full items-center justify-center gap-2 rounded-md border border-cz-border px-3 py-2 text-sm text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text disabled:opacity-70"
+      >
+        <Fingerprint size={16} />
+        Continue with Passkey
+      </button>
+    ) : null;
+
   // Shared OAuth button list
   const oauthButtons = () =>
-    enabledLoginProviders.map((provider) => (
+    oauthProviders.map((provider) => (
       <a
         key={provider}
         href={oauthIntentUrl(provider, "login", { inviteToken })}
@@ -141,12 +158,12 @@ export function AuthEntryView({
       >
         {providerIcons[provider] ?? null}
         Continue with{" "}
-        {providerLabels[provider] ?? provider}
+        {PROVIDER_LABELS[provider] ?? provider}
       </a>
     ));
 
-  // Divider between email + OAuth
-  const oauthDivider = hasOAuthProviders ? (
+  // Divider between email + alternative login methods
+  const oauthDivider = hasAltLoginMethods ? (
     <div className="my-5 flex items-center gap-3">
       <div className="h-px flex-1 bg-cz-border" />
       <span className="text-xs uppercase tracking-[0.2em] text-cz-text-muted">
@@ -229,7 +246,12 @@ export function AuthEntryView({
         {/* ---- Login mode ---- */}
         {effectiveMode === "login" && !isPasswordResetMode && (
           <>
-            {hasOAuthProviders && <div className="space-y-2">{oauthButtons()}</div>}
+            {hasAltLoginMethods && (
+              <div className="space-y-2">
+                {passkeyButton()}
+                {oauthButtons()}
+              </div>
+            )}
             {oauthDivider}
 
             <form
@@ -400,10 +422,13 @@ export function AuthEntryView({
               </button>
             </form>
 
-            {hasOAuthProviders && (
+            {hasAltLoginMethods && (
               <>
                 {oauthDivider}
-                <div className="space-y-2">{oauthButtons()}</div>
+                <div className="space-y-2">
+                  {passkeyButton()}
+                  {oauthButtons()}
+                </div>
               </>
             )}
           </>

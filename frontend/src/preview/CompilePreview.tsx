@@ -79,6 +79,3 @@ export function CompilePreview({
     />
   )
 }
-
-export { PdfViewer } from './PdfViewer'
-export { ImageViewer } from './ImageViewer'

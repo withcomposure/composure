@@ -41,6 +41,7 @@ export function ExportMenu({ projectFormat, onExport, exporting }: ExportMenuPro
 
   return (
     <IconDropdown<ExportFormat>
+      size="sm"
       disabled={exporting}
       options={exportOptions}
       fallbackWidth={192}

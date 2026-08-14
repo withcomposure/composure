@@ -58,13 +58,6 @@ export async function createSnapshotApi(
   return body.snapshot
 }
 
-export async function fetchSnapshots(projectId: string): Promise<SnapshotEntry[]> {
-  const body = await fetchJson<{ snapshots: SnapshotEntry[] }>(
-    `/projects/${projectId}/history/snapshots`,
-  )
-  return body.snapshots
-}
-
 export async function restoreVersion(
   projectId: string,
   commitSha: string,

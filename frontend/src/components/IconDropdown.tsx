@@ -61,6 +61,8 @@ interface IconDropdownProps<T extends string> {
   onChange?: (value: T) => void
   disabled?: boolean
   iconOnly?: boolean
+  /** Trigger height: 'md' (32px, standard control height) or 'sm' (28px, dense toolbars). */
+  size?: 'sm' | 'md'
   className?: string
   menuClassName?: string
   buttonClassName?: string
@@ -103,6 +105,7 @@ export function IconDropdown<T extends string>({
   onChange,
   disabled = false,
   iconOnly = false,
+  size = 'md',
   className = '',
   menuClassName = '',
   buttonClassName = '',
@@ -161,7 +164,7 @@ export function IconDropdown<T extends string>({
   useClickOutside([rootRef, menuRef], closeMenu, open)
   useEscapeKey(closeMenu, open)
 
-  const buttonBaseClass = 'flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50'
+  const buttonBaseClass = `flex ${size === 'sm' ? 'h-7' : 'h-8'} items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50`
   const buttonSkinClass = unstyledButton
     ? ''
     : 'border border-cz-border bg-cz-surface text-cz-text hover:bg-cz-surface-hover'

@@ -122,6 +122,7 @@ import {
   resolveApiRouting,
 } from './routing.js'
 import { registerAllStrategies, registerOAuthRoutes } from './auth/oauth.js'
+import { registerPasskeyRoutes } from './auth/passkeys.js'
 import { beginRequestContext } from './db/request-context.js'
 import { getJwksResponse } from './auth/jwt.js'
 
@@ -421,6 +422,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     trustedFrontendOrigins: trustedOrigins,
   })
 
+  // Passkey (WebAuthn) routes
+  registerPasskeyRoutes(app, apiPath)
+
   // Project dashboard routes
   app.get(apiPath('/projects'), listProjectsRoute)
   app.get(apiPath('/projects/recents'), listRecentProjectsRoute)
@@ -442,7 +446,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, createProjectRoute)
-  app.patch(apiPath('/projects/:projectId'), {
+  app.patch<{ Params: { projectId: string }; Body: { title: string } }>(apiPath('/projects/:projectId'), {
+    preHandler: requireProjectParamAccess('edit', false),
     schema: {
       params: {
         type: 'object',

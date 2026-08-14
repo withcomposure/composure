@@ -98,13 +98,11 @@ async function doCommitSnapshot(projectId: string, yDocState?: Uint8Array, opts?
     }
   }
 
-  // Stage all files
   const currentFiles = listFiles(dir)
   if (currentFiles.length === 0) {
     return null
   }
 
-  // Stage everything
   await git.add({ fs, dir, filepath: '.' })
 
   // Check for deleted files and remove them from index
