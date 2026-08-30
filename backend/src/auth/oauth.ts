@@ -105,8 +105,8 @@ export function verifyState(token: string): Record<string, unknown> | null {
 // confirm/complete step. The `link` intent is already bound via req.authUser.
 // ---------------------------------------------------------------------------
 
-const OAUTH_LOGIN_NONCE_COOKIE = 'oauth_login_nonce'
-const OAUTH_LOGIN_NONCE_TTL_SEC = 10 * 60
+const oauthLoginNonceCookie = 'oauth_login_nonce'
+const oauthLoginNonceTtlSec = 10 * 60
 
 function hashLoginNonce(nonce: string): string {
   return crypto.createHash('sha256').update(nonce).digest('base64url')
@@ -115,20 +115,20 @@ function hashLoginNonce(nonce: string): string {
 /** Set the nonce cookie and return its hash to embed in the signed state. */
 function issueLoginNonce(req: FastifyRequest, reply: FastifyReply): string {
   const nonce = crypto.randomBytes(32).toString('base64url')
-  reply.setCookie(OAUTH_LOGIN_NONCE_COOKIE, nonce, {
+  reply.setCookie(oauthLoginNonceCookie, nonce, {
     httpOnly: true,
     // Lax so it survives the provider's top-level GET redirect back to us.
     sameSite: 'lax',
     secure: shouldUseSecureCookies(req),
     path: '/',
-    maxAge: OAUTH_LOGIN_NONCE_TTL_SEC,
+    maxAge: oauthLoginNonceTtlSec,
   })
   return hashLoginNonce(nonce)
 }
 
 function loginNonceMatches(req: FastifyRequest, expectedHash: unknown): boolean {
   if (typeof expectedHash !== 'string' || expectedHash.length === 0) return false
-  const cookie = req.cookies?.[OAUTH_LOGIN_NONCE_COOKIE]
+  const cookie = req.cookies?.[oauthLoginNonceCookie]
   if (typeof cookie !== 'string' || cookie.length === 0) return false
   const actual = Buffer.from(hashLoginNonce(cookie))
   const expected = Buffer.from(expectedHash)
@@ -136,7 +136,7 @@ function loginNonceMatches(req: FastifyRequest, expectedHash: unknown): boolean 
 }
 
 function clearLoginNonce(reply: FastifyReply): void {
-  reply.clearCookie(OAUTH_LOGIN_NONCE_COOKIE, { path: '/' })
+  reply.clearCookie(oauthLoginNonceCookie, { path: '/' })
 }
 
 // ---------------------------------------------------------------------------

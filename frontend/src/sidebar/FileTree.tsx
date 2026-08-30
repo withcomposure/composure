@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Map as YMap, Doc as YDoc } from 'yjs'
 import {
   ChevronRight,
@@ -807,7 +807,7 @@ function TreeItem({
 // FileTree
 // ---------------------------------------------------------------------------
 
-export function FileTree({
+export const FileTree = memo(function FileTree({
   fileMap,
   ydoc,
   projectId,
@@ -1835,4 +1835,4 @@ export function FileTree({
       </PopupDialog>
     </div>
   )
-}
+})

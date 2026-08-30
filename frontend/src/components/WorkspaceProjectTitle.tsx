@@ -33,11 +33,22 @@ export function WorkspaceProjectTitle({
   /** True for the whole async rename; blur must not cancel while set (state updates lag). */
   const commitLockRef = useRef(false);
 
-  useEffect(() => {
+  // While not editing, the draft mirrors the (possibly re-fetched) title
+  // (previously an effect keyed on the same values).
+  const [prevTitleSync, setPrevTitleSync] = useState<{
+    title: string;
+    editing: boolean;
+  } | null>(null);
+  if (
+    prevTitleSync === null ||
+    prevTitleSync.title !== title ||
+    prevTitleSync.editing !== editing
+  ) {
+    setPrevTitleSync({ title, editing });
     if (!editing) {
       setDraft(title);
     }
-  }, [title, editing]);
+  }
 
   useEffect(() => {
     if (!editing) {

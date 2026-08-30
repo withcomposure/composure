@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadLibraryFromBlob, serializeLibraryAsJSON } from '@excalidraw/excalidraw'
 import type { LibraryItems, OnUserFollowedPayload, SocketId } from '@excalidraw/excalidraw/types'
 import { PopupDialog } from '@/components/PopupDialog'
-import type { AccessPerson, SessionUser, ShareRole } from '@/types'
+import type { SessionUser, ShareRole } from '@/types'
 import { apiFetch, getErrorMessage } from '@/utils/fetch'
-import { makeProjectUrl } from '@/utils/route'
+import { useProjectSharing } from '@/hooks/use-project-sharing'
 import { ShareModal } from '@/workspace/ShareModal'
 import { WhiteboardCanvas } from './WhiteboardCanvas'
 import { WhiteboardToolbar } from './WhiteboardToolbar'
@@ -128,14 +128,6 @@ export function WhiteboardWorkspace({
   } = session
 
   const [showShareModal, setShowShareModal] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<ShareRole>('view')
-  const [inviting, setInviting] = useState(false)
-  const [peopleWithAccess, setPeopleWithAccess] = useState<AccessPerson[]>([])
-  const [linkEnabled, setLinkEnabled] = useState(false)
-  const [linkRole, setLinkRole] = useState<ShareRole>('view')
-  const [linkToken, setLinkToken] = useState<string | null>(null)
-  const [accessRole, setAccessRole] = useState<ShareRole | 'owner' | null>(null)
   const [editModeEnabled, setEditModeEnabled] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [followedSocketId, setFollowedSocketId] = useState<SocketId | null>(null)
@@ -152,18 +144,66 @@ export function WhiteboardWorkspace({
     [shareToken],
   )
 
+  const {
+    peopleWithAccess,
+    linkEnabled,
+    linkRole,
+    accessRole,
+    inviteEmail,
+    setInviteEmail,
+    inviteRole,
+    setInviteRole,
+    inviting,
+    setLinkRole,
+    inviteMember,
+    updateMemberRole,
+    setLinkSharing,
+    invalidateLinkSharing,
+    shareUrl,
+  } = useProjectSharing({
+    projectId,
+    shareToken,
+    shareHeaders,
+    onPopupAlert,
+    normalizeRole: normalizeWhiteboardShareRole,
+  })
+
   const canRoleEdit = accessRole === 'owner' || accessRole === 'edit'
   const canWrite = canRoleEdit && editModeEnabled
   const canManageAccess = accessRole === 'owner' && Boolean(sessionUser?.id)
 
-  useEffect(() => {
+  // Edit mode follows the user's role whenever it (or the project) changes
+  // (previously an effect; runs on mount too, matching the old behavior).
+  const [prevEditModeKey, setPrevEditModeKey] = useState<{
+    canRoleEdit: boolean
+    projectId: string
+  } | null>(null)
+  if (
+    prevEditModeKey === null ||
+    prevEditModeKey.canRoleEdit !== canRoleEdit ||
+    prevEditModeKey.projectId !== projectId
+  ) {
+    setPrevEditModeKey({ canRoleEdit, projectId })
     setEditModeEnabled(canRoleEdit)
-  }, [canRoleEdit, projectId])
+  }
+
+  // The library reloads per project/user; reset the loading state as soon as
+  // the identity changes (previously the first lines of the load effect).
+  const [prevLibraryKey, setPrevLibraryKey] = useState({
+    projectId,
+    userId: principal.userId,
+  })
+  if (
+    prevLibraryKey.projectId !== projectId ||
+    prevLibraryKey.userId !== principal.userId
+  ) {
+    setPrevLibraryKey({ projectId, userId: principal.userId })
+    setLibraryLoaded(false)
+    setLibraryItems([])
+  }
 
   useEffect(() => {
     let cancelled = false
-    setLibraryLoaded(false)
-    setLibraryItems([])
 
     const loadLibrary = async () => {
       try {
@@ -338,153 +378,6 @@ export function WhiteboardWorkspace({
     }
   }, [excalidrawApi, onPopupAlert, requestLibraryImportConfirmation])
 
-  const loadAccess = useCallback(async () => {
-    try {
-      const response = await apiFetch(`/projects/${projectId}/access`, {
-        headers: shareHeaders,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load project access')
-      }
-
-      const body = (await response.json()) as {
-        people: AccessPerson[]
-        linkSharing: {
-          enabled: boolean
-          role: ShareRole | null
-          token: string | null
-        }
-        currentRole: ShareRole | 'owner' | null
-      }
-
-      setPeopleWithAccess(body.people)
-      setLinkEnabled(body.linkSharing.enabled)
-      setLinkRole(body.linkSharing.role ? normalizeWhiteboardShareRole(body.linkSharing.role) : 'view')
-      setLinkToken(body.linkSharing.token)
-      setAccessRole(body.currentRole)
-    } catch (error) {
-      console.warn(`[whiteboard] load-access-failed ${String(error)}`)
-    }
-  }, [projectId, shareHeaders])
-
-  useEffect(() => {
-    void loadAccess()
-  }, [loadAccess])
-
-  const inviteMember = useCallback(async () => {
-    const email = inviteEmail.trim()
-    if (!email) {
-      return
-    }
-
-    setInviting(true)
-    try {
-      const response = await apiFetch(`/projects/${projectId}/members`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...shareHeaders,
-        },
-        body: JSON.stringify({
-          email,
-          role: normalizeWhiteboardShareRole(inviteRole),
-        }),
-      })
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: 'Invite failed' })) as { error?: string }
-        throw new Error(String(body.error ?? 'Invite failed'))
-      }
-
-      setInviteEmail('')
-      await loadAccess()
-    } catch (error) {
-      onPopupAlert(getErrorMessage(error), 'Invite failed')
-    } finally {
-      setInviting(false)
-    }
-  }, [inviteEmail, inviteRole, loadAccess, onPopupAlert, projectId, shareHeaders])
-
-  const updateMemberRole = useCallback(async (memberId: string, role: ShareRole | 'remove') => {
-    const encodedMemberId = encodeURIComponent(memberId)
-    const response = await apiFetch(`/projects/${projectId}/members/${encodedMemberId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify(role === 'remove' ? { remove: true } : { role: normalizeWhiteboardShareRole(role) }),
-    })
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: 'Failed to update member' })) as { error?: string }
-      onPopupAlert(String(body.error ?? 'Failed to update member'), 'Update failed')
-      return
-    }
-
-    await loadAccess()
-  }, [loadAccess, onPopupAlert, projectId, shareHeaders])
-
-  const setLinkSharing = useCallback(async (enabled: boolean, role: ShareRole) => {
-    const response = await apiFetch(`/projects/${projectId}/link-sharing`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ enabled, role: normalizeWhiteboardShareRole(role) }),
-    })
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: 'Failed to update link sharing' })) as { error?: string }
-      onPopupAlert(String(body.error ?? 'Failed to update link sharing'), 'Update failed')
-      return
-    }
-
-    const body = (await response.json()) as {
-      enabled: boolean
-      role: ShareRole | null
-      token: string | null
-    }
-
-    setLinkEnabled(body.enabled)
-    setLinkRole(body.role ? normalizeWhiteboardShareRole(body.role) : 'view')
-    setLinkToken(body.token)
-  }, [onPopupAlert, projectId, shareHeaders])
-
-  const invalidateLinkSharing = useCallback(async () => {
-    const response = await apiFetch(`/projects/${projectId}/link-sharing`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ invalidate: true }),
-    })
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: 'Failed to rotate link' })) as { error?: string }
-      onPopupAlert(String(body.error ?? 'Failed to rotate link'), 'Rotate failed')
-      return
-    }
-
-    const body = (await response.json()) as {
-      enabled: boolean
-      role: ShareRole | null
-      token: string | null
-    }
-
-    setLinkEnabled(body.enabled)
-    setLinkRole(body.role ? normalizeWhiteboardShareRole(body.role) : 'view')
-    setLinkToken(body.token)
-  }, [onPopupAlert, projectId, shareHeaders])
-
-  const shareUrl = useMemo(
-    () => `${window.location.origin}${makeProjectUrl(projectId, linkToken ?? shareToken)}`,
-    [linkToken, projectId, shareToken],
-  )
-
   const handleExportPng = useCallback(async () => {
     if (!excalidrawApi) {
       onPopupAlert('Whiteboard is still initializing. Please try export again.', 'Export unavailable')
@@ -634,7 +527,7 @@ export function WhiteboardWorkspace({
         shareUrl={shareUrl}
         onClose={() => setShowShareModal(false)}
         onInviteEmailChange={setInviteEmail}
-        onInviteRoleChange={(role) => setInviteRole(normalizeWhiteboardShareRole(role))}
+        onInviteRoleChange={setInviteRole}
         onInvite={() => {
           void inviteMember()
         }}
@@ -645,9 +538,8 @@ export function WhiteboardWorkspace({
           void setLinkSharing(enabled, linkRole)
         }}
         onLinkRoleChange={(role) => {
-          const normalizedRole = normalizeWhiteboardShareRole(role)
-          setLinkRole(normalizedRole)
-          void setLinkSharing(linkEnabled, normalizedRole)
+          setLinkRole(role)
+          void setLinkSharing(linkEnabled, role)
         }}
         onLinkInvalidate={() => {
           void invalidateLinkSharing()

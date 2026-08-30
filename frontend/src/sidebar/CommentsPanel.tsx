@@ -138,13 +138,18 @@ export function CommentsPanel({
     setEditFocusId(null)
   }, [editById, editFocusId])
 
-  useEffect(() => {
-    if (canComment) return
-    setReplyById({})
-    setEditById({})
-    setReplyFocusId(null)
-    setEditFocusId(null)
-  }, [canComment])
+  // Losing comment permission discards in-progress drafts (previously an
+  // effect keyed on canComment).
+  const [prevCanComment, setPrevCanComment] = useState(canComment)
+  if (prevCanComment !== canComment) {
+    setPrevCanComment(canComment)
+    if (!canComment) {
+      setReplyById({})
+      setEditById({})
+      setReplyFocusId(null)
+      setEditFocusId(null)
+    }
+  }
 
   const [actionError, setActionError] = useState<string | null>(null)
 

@@ -192,19 +192,27 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
 
   const pageSize = 200
 
-  const loadData = useCallback(async () => {
+  // Fetches the first page and applies it entirely from promise callbacks so
+  // the load effect below stays free of synchronous state updates.
+  const fetchAndApplyHistory = useCallback(() => {
+    return fetchHistory(projectId, { limit: pageSize })
+      .then((commitList) => {
+        setCommits(commitList)
+        setHasMore(commitList.length === pageSize)
+      })
+      .catch((err: unknown) => {
+        setError(getErrorMessage(err))
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [projectId])
+
+  const loadData = useCallback(() => {
     setLoading(true)
     setError(null)
-    try {
-      const commitList = await fetchHistory(projectId, { limit: pageSize })
-      setCommits(commitList)
-      setHasMore(commitList.length === pageSize)
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [projectId])
+    return fetchAndApplyHistory()
+  }, [fetchAndApplyHistory])
 
   const loadMore = useCallback(async () => {
     if (loadingMore || commits.length === 0) return
@@ -221,9 +229,25 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
     }
   }, [projectId, commits, loadingMore])
 
+  // Entering the loading state for effect-driven refreshes happens during
+  // render (previously loadData did it synchronously inside the effect).
+  const [prevLoadKey, setPrevLoadKey] = useState<{
+    projectId: string
+    refreshKey: number
+  } | null>(null)
+  if (
+    prevLoadKey === null ||
+    prevLoadKey.projectId !== projectId ||
+    prevLoadKey.refreshKey !== refreshKey
+  ) {
+    setPrevLoadKey({ projectId, refreshKey })
+    setLoading(true)
+    setError(null)
+  }
+
   useEffect(() => {
-    void loadData()
-  }, [loadData, refreshKey])
+    void fetchAndApplyHistory()
+  }, [fetchAndApplyHistory, refreshKey])
 
   const handleCreateSnapshot = useCallback(async () => {
     const name = snapshotName.trim()

@@ -55,7 +55,6 @@ async function requireRole(
   projectId: string,
   requiredRole: ProjectRole,
   principal: Principal,
-  shareToken?: string,
 ): Promise<boolean> {
   const access = await canAccessProjectWithRole(projectId, principal, requiredRole)
   if (!access.ok) {
@@ -121,8 +120,7 @@ export async function getProjectAccessRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  if (!(await requireRole(req, reply, projectId, 'view', req.principal, shareToken))) {
+  if (!(await requireRole(req, reply, projectId, 'view', req.principal))) {
     return
   }
 
@@ -333,8 +331,7 @@ export async function listProjectCommentsRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  if (!(await requireRole(req, reply, projectId, 'view', req.principal, shareToken))) {
+  if (!(await requireRole(req, reply, projectId, 'view', req.principal))) {
     return
   }
 
@@ -353,8 +350,7 @@ export async function addProjectCommentRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  if (!(await requireRole(req, reply, projectId, 'comment', req.principal, shareToken))) {
+  if (!(await requireRole(req, reply, projectId, 'comment', req.principal))) {
     return
   }
 
@@ -412,8 +408,7 @@ export async function patchProjectCommentRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  if (!(await requireRole(req, reply, projectId, 'comment', req.principal, shareToken))) {
+  if (!(await requireRole(req, reply, projectId, 'comment', req.principal))) {
     return
   }
 
@@ -461,8 +456,7 @@ export async function deleteProjectCommentRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  if (!(await requireRole(req, reply, projectId, 'comment', req.principal, shareToken))) {
+  if (!(await requireRole(req, reply, projectId, 'comment', req.principal))) {
     return
   }
 

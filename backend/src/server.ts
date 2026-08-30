@@ -252,7 +252,6 @@ async function assertHocuspocusContextAccess(
   }
 
   await runWithHocuspocusIdentity(context, async () => {
-    const shareToken = authContext?.shareToken
     const access = documentRef.kind === 'chat'
       ? await canAccessProjectChat(documentRef.projectId, principal)
       : await canAccessProjectWithRole(documentRef.projectId, principal, 'view')
@@ -337,13 +336,11 @@ const hocuspocus = new Hocuspocus({
     )
   },
   async beforeHandleMessage(data) {
-    let authContext: HocuspocusAuthContext | undefined
     let documentRef: CollaborationDocumentRef
     let principal: Principal
 
     try {
       const accessCheck = await assertHocuspocusContextAccess(data.documentName, data.context)
-      authContext = data.context as HocuspocusAuthContext | undefined
       principal = accessCheck.principal
       documentRef = accessCheck.documentRef
     } catch (err) {
@@ -353,7 +350,6 @@ const hocuspocus = new Hocuspocus({
       throw err
     }
 
-    const shareToken = authContext?.shareToken
     const requiredWriteRole = documentRef.kind === 'chat' ? 'comment' : 'edit'
     const canWrite = principal
       ? (await runWithHocuspocusIdentity(

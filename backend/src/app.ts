@@ -175,7 +175,7 @@ export interface BuildAppOptions {
 // inline styles plus runtime <style> injection for theming, and pdf.js needs
 // eval. Everything else is locked down — no plugins, no framing, self-only base
 // and form targets.
-const APP_CONTENT_SECURITY_POLICY = [
+const appContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
@@ -209,18 +209,18 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Per-process rate limiting for unauthenticated auth endpoints. See
   // rate-limit.ts for the single-instance caveat.
   const authRateLimiter = new FixedWindowRateLimiter()
-  const RL_WINDOW_MS = 15 * 60 * 1000
+  const rlWindowMs = 15 * 60 * 1000
 
   const loginRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
     const ip = clientIpKey(req.ip)
     const email = normalizeEmailForKey((req.body as { email?: unknown } | undefined)?.email)
     return [
       // Tight: one host guessing one account's password.
-      { key: `login:ip+email:${ip}:${email}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
+      { key: `login:ip+email:${ip}:${email}`, rule: { max: 10, windowMs: rlWindowMs } },
       // Looser email axis: a botnet spreading attempts on one account across many IPs.
-      { key: `login:email:${email}`, rule: { max: 20, windowMs: RL_WINDOW_MS } },
+      { key: `login:email:${email}`, rule: { max: 20, windowMs: rlWindowMs } },
       // IP axis: credential stuffing many accounts from one host.
-      { key: `login:ip:${ip}`, rule: { max: 50, windowMs: RL_WINDOW_MS } },
+      { key: `login:ip:${ip}`, rule: { max: 50, windowMs: rlWindowMs } },
     ]
   })
 
@@ -228,8 +228,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     const ip = clientIpKey(req.ip)
     const email = normalizeEmailForKey((req.body as { email?: unknown } | undefined)?.email)
     return [
-      { key: `signup:ip:${ip}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
-      { key: `signup:email:${email}`, rule: { max: 5, windowMs: RL_WINDOW_MS } },
+      { key: `signup:ip:${ip}`, rule: { max: 10, windowMs: rlWindowMs } },
+      { key: `signup:email:${email}`, rule: { max: 5, windowMs: rlWindowMs } },
     ]
   })
 
@@ -237,15 +237,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     const ip = clientIpKey(req.ip)
     const token = String((req.params as { token?: string } | undefined)?.token ?? '')
     return [
-      { key: `pwreset:ip:${ip}`, rule: { max: 20, windowMs: RL_WINDOW_MS } },
-      { key: `pwreset:token:${token}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
+      { key: `pwreset:ip:${ip}`, rule: { max: 20, windowMs: rlWindowMs } },
+      { key: `pwreset:token:${token}`, rule: { max: 10, windowMs: rlWindowMs } },
     ]
   })
 
   // Looser than login: a provider hiccup can trigger legitimate confirm retries.
   const oauthConfirmRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
     const ip = clientIpKey(req.ip)
-    return [{ key: `oauth-confirm:ip:${ip}`, rule: { max: 60, windowMs: RL_WINDOW_MS } }]
+    return [{ key: `oauth-confirm:ip:${ip}`, rule: { max: 60, windowMs: rlWindowMs } }]
   })
 
   await app.register(fastifyCors, {
@@ -277,7 +277,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     // Routes that need a stricter policy (e.g. the sandboxed /assets responses)
     // set their own CSP; don't override it here.
     if (!reply.getHeader('content-security-policy')) {
-      reply.header('Content-Security-Policy', APP_CONTENT_SECURITY_POLICY)
+      reply.header('Content-Security-Policy', appContentSecurityPolicy)
     }
     return payload
   })

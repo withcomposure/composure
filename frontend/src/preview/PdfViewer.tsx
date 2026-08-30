@@ -345,9 +345,12 @@ export function PdfViewer({
     setCurrentPage(resolveVisiblePdfPage(scrollElement, pageCount))
   }, [pageCount])
 
-  useEffect(() => {
+  // A new document starts back at page 1 (previously an effect keyed on url).
+  const [prevUrl, setPrevUrl] = useState(url)
+  if (prevUrl !== url) {
+    setPrevUrl(url)
     setCurrentPage(1)
-  }, [url])
+  }
 
   useEffect(() => {
     const scrollElement = scrollRef.current

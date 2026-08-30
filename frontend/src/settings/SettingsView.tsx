@@ -105,22 +105,23 @@ export function SettingsView({
   const [passwordDialogBusy, setPasswordDialogBusy] = useState(false)
   const [passwordDialogError, setPasswordDialogError] = useState<string | null>(null)
 
-  const loadProviders = useCallback(async () => {
-    try {
-      const res = await fetchJson<{
-        providers: Array<{ provider: string; enabled: boolean }>
-        linked: Array<{ provider: string; email: string | null }>
-      }>('/auth/providers')
-      const enabledProviderSet = new Set(res.providers.filter((p) => p.enabled).map((p) => p.provider))
-      const orderedProviders = Array.from(enabledProviderSet).sort((a, b) => {
-        const rankDelta = providerOrderRank(a) - providerOrderRank(b)
-        return rankDelta !== 0 ? rankDelta : a.localeCompare(b)
+  const loadProviders = useCallback(() => {
+    return fetchJson<{
+      providers: Array<{ provider: string; enabled: boolean }>
+      linked: Array<{ provider: string; email: string | null }>
+    }>('/auth/providers')
+      .then((res) => {
+        const enabledProviderSet = new Set(res.providers.filter((p) => p.enabled).map((p) => p.provider))
+        const orderedProviders = Array.from(enabledProviderSet).sort((a, b) => {
+          const rankDelta = providerOrderRank(a) - providerOrderRank(b)
+          return rankDelta !== 0 ? rankDelta : a.localeCompare(b)
+        })
+        setAvailableProviders(orderedProviders)
+        setLinkedProviders(res.linked.filter((provider) => enabledProviderSet.has(provider.provider)))
       })
-      setAvailableProviders(orderedProviders)
-      setLinkedProviders(res.linked.filter((provider) => enabledProviderSet.has(provider.provider)))
-    } catch {
-      // silent
-    }
+      .catch(() => {
+        // silent
+      })
   }, [])
 
   useEffect(() => {
@@ -251,11 +252,28 @@ export function SettingsView({
     }
   }, [passwordDialogMode, passwordCurrentValue, passwordNewValue, passwordConfirmValue, closePasswordDialog, loadProviders])
 
-  useEffect(() => {
+  // The profile form follows the freshest session values (previously an
+  // effect keyed on the same fields).
+  const [prevProfileSource, setPrevProfileSource] = useState<{
+    displayName: string | null | undefined
+    email: string | null | undefined
+    profileImageUrl: string | null | undefined
+  } | null>(null)
+  if (
+    prevProfileSource === null ||
+    prevProfileSource.displayName !== session?.user?.displayName ||
+    prevProfileSource.email !== session?.user?.email ||
+    prevProfileSource.profileImageUrl !== session?.user?.profileImageUrl
+  ) {
+    setPrevProfileSource({
+      displayName: session?.user?.displayName,
+      email: session?.user?.email,
+      profileImageUrl: session?.user?.profileImageUrl,
+    })
     setProfileName(session?.user?.displayName ?? '')
     setProfileEmail(session?.user?.email ?? '')
     setProfileImageUrl(session?.user?.profileImageUrl ?? '')
-  }, [session?.user?.displayName, session?.user?.email, session?.user?.profileImageUrl])
+  }
 
   const hasCustomAvatar = profileImageUrl.trim().length > 0
   const normalizedProfileName = profileName.trim()

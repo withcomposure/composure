@@ -19,7 +19,7 @@ export interface RunCommandResult {
   spawnError?: string
 }
 
-const DEFAULT_MAX_OUTPUT = 1024 * 1024 // 1 MiB per stream
+const defaultMaxOutput = 1024 * 1024 // 1 MiB per stream
 
 /**
  * Spawn a subprocess with a hard timeout, bounded output capture, and
@@ -34,7 +34,7 @@ const DEFAULT_MAX_OUTPUT = 1024 * 1024 // 1 MiB per stream
  * filename beginning with `-` can never be parsed as a flag.
  */
 export function runCommand(opts: RunCommandOptions): Promise<RunCommandResult> {
-  const maxOutput = opts.maxOutputBytes ?? DEFAULT_MAX_OUTPUT
+  const maxOutput = opts.maxOutputBytes ?? defaultMaxOutput
 
   return new Promise((resolve) => {
     const proc = spawn(opts.bin, opts.args, {

@@ -1,8 +1,8 @@
 import { sql } from './connection.js'
 
-const MAX_LIBRARY_JSON_BYTES = 8 * 1024 * 1024
-const EXCALIDRAW_LIBRARY_TYPE = 'excalidrawlib'
-const DEFAULT_LIBRARY_SOURCE = 'https://withcomposure.com'
+const maxLibraryJsonBytes = 8 * 1024 * 1024
+const excalidrawLibraryType = 'excalidrawlib'
+const defaultLibrarySource = 'https://withcomposure.com'
 
 export interface ExcalidrawLibraryPersisted {
   library: string
@@ -89,7 +89,7 @@ function normalizeLibraryDocument(value: unknown): string | null {
     return null
   }
 
-  if (value.type !== EXCALIDRAW_LIBRARY_TYPE) {
+  if (value.type !== excalidrawLibraryType) {
     return null
   }
 
@@ -103,9 +103,9 @@ function normalizeLibraryDocument(value: unknown): string | null {
   }
 
   return JSON.stringify({
-    type: EXCALIDRAW_LIBRARY_TYPE,
+    type: excalidrawLibraryType,
     version: value.version,
-    source: isNonEmptyString(value.source) ? value.source : DEFAULT_LIBRARY_SOURCE,
+    source: isNonEmptyString(value.source) ? value.source : defaultLibrarySource,
     libraryItems: rawLibraryItems,
   })
 }
@@ -125,9 +125,9 @@ function serializeLegacyLibraryItems(items: unknown[]): string | null {
   }
 
   return JSON.stringify({
-    type: EXCALIDRAW_LIBRARY_TYPE,
+    type: excalidrawLibraryType,
     version: 2,
-    source: DEFAULT_LIBRARY_SOURCE,
+    source: defaultLibrarySource,
     libraryItems: items,
   })
 }
@@ -200,7 +200,7 @@ export async function upsertUserExcalidrawLibrary(
     throw new Error('invalid-library')
   }
 
-  if (Buffer.byteLength(normalizedLibrary, 'utf8') > MAX_LIBRARY_JSON_BYTES) {
+  if (Buffer.byteLength(normalizedLibrary, 'utf8') > maxLibraryJsonBytes) {
     throw new Error('library-too-large')
   }
 

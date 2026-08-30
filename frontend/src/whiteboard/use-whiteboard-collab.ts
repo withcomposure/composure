@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { CaptureUpdateAction } from '@excalidraw/excalidraw'
 import * as Y from 'yjs'
@@ -13,6 +13,7 @@ import type {
 import type { ExcalidrawElement, OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types'
 import type { ConnectionState } from '@/types'
 import { collaborationWsUrl } from '@/utils/api-routing'
+import { createHocuspocusProviderStore } from '@/utils/hocuspocus-provider-store'
 
 const elementsMapKey = 'excalidraw.elements'
 const elementOrderKey = 'excalidraw.elementOrder'
@@ -444,9 +445,23 @@ interface WhiteboardCollabResult {
   handlePointerUpdate: NonNullable<ExcalidrawProps['onPointerUpdate']>
 }
 
+interface WhiteboardProviderSnapshot {
+  provider: HocuspocusProvider | null
+  connectionState: ConnectionState
+  isSynced: boolean
+  initialScene: WhiteboardSceneData | null
+}
+
+const offlineWhiteboardSnapshot: WhiteboardProviderSnapshot = {
+  provider: null,
+  connectionState: 'connecting',
+  isSynced: false,
+  initialScene: null,
+}
+
 function presenceIsLocalUser(
   person: WhiteboardPresenceUser,
-  localUser: WhiteboardCollabOptions['localUser'],
+  localUser: Pick<WhiteboardCollabOptions['localUser'], 'userId' | 'guestId'>,
 ): boolean {
   if (localUser.userId && person.userId && person.userId === localUser.userId) {
     return true
@@ -460,10 +475,6 @@ function presenceIsLocalUser(
 export function useWhiteboardCollab(options: WhiteboardCollabOptions): WhiteboardCollabResult {
   const { projectId, shareToken, rootFile, canWrite, localUser } = options
   const [ydoc, setYdoc] = useState(() => new Y.Doc())
-  const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
-  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
-  const [isSynced, setIsSynced] = useState(false)
-  const [initialScene, setInitialScene] = useState<WhiteboardSceneData | null>(null)
   const [excalidrawApi, setExcalidrawApiState] = useState<ExcalidrawImperativeAPI | null>(null)
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map())
   const [activeCollaborators, setActiveCollaborators] = useState<WhiteboardPresenceUser[]>([])
@@ -473,7 +484,49 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
   const sceneHydratedForWritesRef = useRef(false)
   const suppressLocalSceneWritesRef = useRef(false)
   const suppressLocalSceneWritesTokenRef = useRef(0)
-  activeProjectIdRef.current = projectId
+  useEffect(() => {
+    // Stale-event guards read this at event time; syncing it post-commit
+    // only widens the (intentional) drop window around a project switch by
+    // one commit.
+    activeProjectIdRef.current = projectId
+  }, [projectId])
+
+  const providerStore = useMemo(
+    () =>
+      createHocuspocusProviderStore<WhiteboardProviderSnapshot>((update, read) => {
+        const wsUrl = collaborationWsUrl(shareToken)
+        return new HocuspocusProvider({
+          url: wsUrl,
+          name: projectId,
+          document: ydoc,
+          onConnect: () => update({ connectionState: 'connected' }),
+          onDisconnect: () => update({ connectionState: 'disconnected' }),
+          onClose: () => update({ connectionState: 'disconnected' }),
+          onAuthenticationFailed: () => update({ connectionState: 'disconnected' }),
+          onStatus: ({ status }) => {
+            if (status === 'connected' || status === 'connecting' || status === 'disconnected') {
+              update({ connectionState: status })
+            }
+          },
+          onSynced: ({ state }) => {
+            if (!state || read().isSynced) {
+              return
+            }
+            migrateLegacyWhiteboardSceneFile(ydoc, rootFile)
+            update({
+              isSynced: true,
+              initialScene: readWhiteboardSceneFromYDoc(ydoc),
+            })
+          },
+        })
+      }, offlineWhiteboardSnapshot),
+    [projectId, rootFile, shareToken, ydoc],
+  )
+
+  const { provider, connectionState, isSynced, initialScene } = useSyncExternalStore(
+    providerStore.subscribe,
+    providerStore.getSnapshot,
+  )
 
   const runWithSuppressedLocalSceneWrites = useCallback((callback: () => void): void => {
     suppressLocalSceneWritesRef.current = true
@@ -525,8 +578,6 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     }
 
     ydocProjectIdRef.current = projectId
-    setIsSynced(false)
-    setInitialScene(null)
     setExcalidrawApiState(null)
     activeExcalidrawApiRef.current = null
     sceneHydratedForWritesRef.current = false
@@ -539,58 +590,19 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     }
   }, [ydoc])
 
-  useEffect(() => {
-    const wsUrl = collaborationWsUrl(shareToken)
-
-    setConnectionState('connecting')
-    setIsSynced(false)
-
-    const nextProvider = new HocuspocusProvider({
-      url: wsUrl,
-      name: projectId,
-      document: ydoc,
-      onConnect: () => setConnectionState('connected'),
-      onDisconnect: () => setConnectionState('disconnected'),
-      onClose: () => setConnectionState('disconnected'),
-      onAuthenticationFailed: () => setConnectionState('disconnected'),
-      onStatus: ({ status }) => {
-        if (status === 'connected' || status === 'connecting' || status === 'disconnected') {
-          setConnectionState(status)
-        }
-      },
-      onSynced: ({ state }) => {
-        if (state) {
-          setIsSynced(true)
-        }
-      },
-    })
-
-    setProvider(nextProvider)
-
-    return () => {
-      nextProvider.destroy()
-      setProvider(null)
-      setExcalidrawApiState(null)
-      activeExcalidrawApiRef.current = null
+  // A provider swap (project or share-token change) discards the previous
+  // session's collaborator lists before the new awareness feed repopulates
+  // them (previously the provider effect's cleanup).
+  const [prevCollabProvider, setPrevCollabProvider] = useState<
+    HocuspocusProvider | null
+  >(provider)
+  if (prevCollabProvider !== provider) {
+    setPrevCollabProvider(provider)
+    if (!provider?.awareness) {
       setCollaborators(new Map())
       setActiveCollaborators([])
-      setConnectionState('connecting')
-      setIsSynced(false)
-      setInitialScene(null)
-      sceneHydratedForWritesRef.current = false
     }
-  }, [projectId, shareToken, ydoc])
-
-  useEffect(() => {
-    if (!isSynced) {
-      setInitialScene(null)
-      sceneHydratedForWritesRef.current = false
-      return
-    }
-
-    migrateLegacyWhiteboardSceneFile(ydoc, rootFile)
-    setInitialScene(readWhiteboardSceneFromYDoc(ydoc))
-  }, [isSynced, rootFile, ydoc])
+  }
 
   useEffect(() => {
     if (!provider) {
@@ -618,11 +630,12 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     }
   }, [provider, localUser.guestId, localUser.name, localUser.profileImageUrl, localUser.userId])
 
+  const localUserId = localUser.userId
+  const localGuestId = localUser.guestId
+
   useEffect(() => {
     const awareness = provider?.awareness
     if (!awareness) {
-      setCollaborators(new Map())
-      setActiveCollaborators([])
       return
     }
 
@@ -690,7 +703,9 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
 
       setCollaborators(nextCollaborators)
       setActiveCollaborators(
-        Array.from(dedupedPeople.values()).filter((p) => !presenceIsLocalUser(p, localUser)),
+        Array.from(dedupedPeople.values()).filter(
+          (p) => !presenceIsLocalUser(p, { userId: localUserId, guestId: localGuestId }),
+        ),
       )
     }
 
@@ -700,7 +715,7 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
     return () => {
       awareness.off('change', update)
     }
-  }, [provider, localUser.userId, localUser.guestId])
+  }, [provider, localUserId, localGuestId])
 
   useEffect(() => {
     if (!excalidrawApi || !isSynced) {

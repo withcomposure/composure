@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DragEvent as ReactDragEvent } from "react";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import type * as Y from "yjs";
@@ -27,9 +28,9 @@ interface EditorPaneProps {
   shareToken?: string;
   activeDiffTab: DiffWorkspaceTab | null;
   canEdit: boolean;
-  onActiveDiffModeChange: (mode: "side-by-side" | "inline") => void;
-  onActiveDiffBaseChange: (base: "parent" | "current") => void;
-  onHistoryRestored: (filePath: string) => void;
+  onActiveDiffModeChange: (paneId: string, mode: "side-by-side" | "inline") => void;
+  onActiveDiffBaseChange: (paneId: string, base: "parent" | "current") => void;
+  onHistoryRestored: (paneId: string, filePath: string) => void;
   onPopupAlert: (message: string, title?: string) => void;
   paneActiveFile: string;
   paneHasActiveTextFile: boolean;
@@ -71,6 +72,7 @@ interface EditorPaneProps {
     limitBytes: number;
   }) => void;
   onCommentLineNumbersChange: (
+    filePath: string,
     nextFileLineNumbers: Record<string, CommentLineNumbers>,
   ) => void;
   onFocusPane: (paneId: string) => void;
@@ -86,7 +88,7 @@ interface EditorPaneProps {
   onPaneEditorFocusChange: (paneId: string, isFocused: boolean) => void;
 }
 
-export function EditorPane({
+export const EditorPane = memo(function EditorPane({
   paneId,
   paneState,
   activePaneId,
@@ -182,10 +184,12 @@ export function EditorPane({
             filePath={activeDiffTab.filePath}
             diffMode={activeDiffTab.diffMode}
             diffBase={activeDiffTab.diffBase}
-            onDiffModeChange={onActiveDiffModeChange}
-            onDiffBaseChange={onActiveDiffBaseChange}
+            onDiffModeChange={(mode) => onActiveDiffModeChange(paneId, mode)}
+            onDiffBaseChange={(base) => onActiveDiffBaseChange(paneId, base)}
             canRestore={canEdit}
-            onRestore={(restoredFilePath) => onHistoryRestored(restoredFilePath)}
+            onRestore={(restoredFilePath) =>
+              onHistoryRestored(paneId, restoredFilePath)
+            }
             onPopupAlert={onPopupAlert}
           />
         ) : paneTextOverLimit ? (
@@ -233,7 +237,9 @@ export function EditorPane({
             editorAutoCloseLatexBeginEnd={editorAutoCloseLatexBeginEnd}
             onCreateComment={onCreateComment}
             onTextLimitExceeded={onTextLimitExceeded}
-            onCommentLineNumbersChange={onCommentLineNumbersChange}
+            onCommentLineNumbersChange={(nextFileLineNumbers) =>
+              onCommentLineNumbersChange(paneActiveFile, nextFileLineNumbers)
+            }
           />
         ) : paneActiveAsset ? (
           <AssetPreview
@@ -284,4 +290,4 @@ export function EditorPane({
       </div>
     </div>
   );
-}
+});

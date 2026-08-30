@@ -302,10 +302,19 @@ export function ChatPanel({
 		}
 	}, [localUser.guestId, localUser.name, localUser.profileImageUrl, localUser.userId, provider])
 
+	// A detached provider means nobody can be typing (previously set in the
+	// subscription effect below).
+	const [prevTypingProvider, setPrevTypingProvider] = useState(provider)
+	if (prevTypingProvider !== provider) {
+		setPrevTypingProvider(provider)
+		if (!provider?.awareness) {
+			setTypingUsers([])
+		}
+	}
+
 	useEffect(() => {
 		const awareness = provider?.awareness
 		if (!awareness) {
-			setTypingUsers([])
 			return
 		}
 

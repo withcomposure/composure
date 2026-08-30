@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify'
 import type { Principal, SessionUser } from './db/index.js'
 import {

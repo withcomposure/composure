@@ -1142,7 +1142,11 @@ export function Editor({
     setDraftBody('')
   }, [])
 
-  useEffect(() => {
+  // Switching files discards all per-file comment UI state (previously an
+  // effect keyed on activeFile).
+  const [prevCommentUiFile, setPrevCommentUiFile] = useState(activeFile)
+  if (prevCommentUiFile !== activeFile) {
+    setPrevCommentUiFile(activeFile)
     setDraft(null)
     setDraftBody('')
     setHoveredRangeId(null)
@@ -1150,14 +1154,17 @@ export function Editor({
     setFocusedCommentSpan(null)
     setFocusedCommentId(null)
     setActiveRangeOverlay(null)
-  }, [activeFile])
+  }
 
-  useEffect(() => {
+  // Losing comment permission discards the draft (previously an effect).
+  const [prevCanComment, setPrevCanComment] = useState(canComment)
+  if (prevCanComment !== canComment) {
+    setPrevCanComment(canComment)
     if (!canComment) {
       setDraft(null)
       setDraftBody('')
     }
-  }, [canComment])
+  }
 
   useEffect(() => {
     pinnedRangeIdRef.current = pinnedRangeId
@@ -1192,37 +1199,55 @@ export function Editor({
     refreshActiveRangeOverlay(activeRangeId)
   }, [pinnedRangeId, hoveredRangeId, refreshActiveRangeOverlay, fileComments])
 
-  useEffect(() => {
+  const pruneStaleRangeSelection = useCallback((pinned: string | null, hovered: string | null) => {
     const view = viewRef.current
     const context = rangeContextRef.current
     if (!view || !context) return
 
     const rangeIds = new Set(buildUnionRanges(view.state, context.anchorField, context.comments).map((entry) => entry.rangeId))
-    if (pinnedRangeId && !rangeIds.has(pinnedRangeId)) {
+    if (pinned && !rangeIds.has(pinned)) {
       setPinnedRangeId(null)
       setFocusedCommentSpan(null)
     }
-    if (hoveredRangeId && !rangeIds.has(hoveredRangeId)) {
+    if (hovered && !rangeIds.has(hovered)) {
       setHoveredRangeId(null)
     }
-  }, [fileComments, pinnedRangeId, hoveredRangeId])
+  }, [])
 
   useEffect(() => {
+    pruneStaleRangeSelection(pinnedRangeId, hoveredRangeId)
+  }, [fileComments, pinnedRangeId, hoveredRangeId, pruneStaleRangeSelection])
+
+  // Deactivating the workspace-level comment clears the local selection; this
+  // runs on the same triggers the old effect used (id, revision, comment set).
+  const [prevActiveCommentSync, setPrevActiveCommentSync] = useState<{
+    activeCommentId: string | null
+    activeCommentRevision: number
+    fileComments: ProjectComment[]
+  } | null>(null)
+  if (
+    prevActiveCommentSync === null ||
+    prevActiveCommentSync.activeCommentId !== activeCommentId ||
+    prevActiveCommentSync.activeCommentRevision !== activeCommentRevision ||
+    prevActiveCommentSync.fileComments !== fileComments
+  ) {
+    setPrevActiveCommentSync({ activeCommentId, activeCommentRevision, fileComments })
     if (!activeCommentId) {
       setPinnedRangeId(null)
       setHoveredRangeId(null)
       setFocusedCommentSpan(null)
       setFocusedCommentId(null)
       setActiveRangeOverlay(null)
-      return
     }
+  }
 
+  const applyActiveCommentSelection = useCallback((commentId: string) => {
     const view = viewRef.current
     const context = rangeContextRef.current
     if (!view || !context) return
 
     const anchored = buildAnchoredCommentRanges(view.state, context.anchorField, context.comments)
-    const selectedComment = anchored.find((entry) => entry.id === activeCommentId)
+    const selectedComment = anchored.find((entry) => entry.id === commentId)
     if (!selectedComment) return
 
     const range = buildUnionRanges(view.state, context.anchorField, context.comments)
@@ -1240,7 +1265,12 @@ export function Editor({
     view.dispatch({
       effects: EditorView.scrollIntoView(selectedComment.from, { y: 'center' }),
     })
-  }, [activeCommentId, activeCommentRevision, refreshActiveRangeOverlay, fileComments])
+  }, [])
+
+  useEffect(() => {
+    if (!activeCommentId) return
+    applyActiveCommentSelection(activeCommentId)
+  }, [activeCommentId, activeCommentRevision, refreshActiveRangeOverlay, fileComments, applyActiveCommentSelection])
 
   useEffect(() => {
     const activeRangeId = pinnedRangeId ?? hoveredRangeId
@@ -1354,6 +1384,58 @@ export function Editor({
     })
   }, [focusCollaboratorRequest, provider, ydoc, ytext])
 
+  // The large-file decision is sampled once per editor mount cycle (the same
+  // dependency tuple as the mount effect below). Entering a large document
+  // also shows the deferred-loading placeholder until the view mounts on the
+  // next frame; both were previously set synchronously inside the effect.
+  const [prevMountCycle, setPrevMountCycle] = useState<{
+    ytext: typeof ytext
+    provider: typeof provider
+    activeFile: string
+    maxTextFileSizeBytes: typeof maxTextFileSizeBytes
+    canEdit: boolean
+    canComment: boolean
+    editorBraceMatching: boolean
+    editorHighlightSelectionMatches: boolean
+    editorInEditorFind: boolean
+    editorAutocomplete: boolean
+    editorAutoCloseLatexBeginEnd: boolean
+    largeFileThresholdChars: number
+  } | null>(null)
+  if (
+    prevMountCycle === null ||
+    prevMountCycle.ytext !== ytext ||
+    prevMountCycle.provider !== provider ||
+    prevMountCycle.activeFile !== activeFile ||
+    prevMountCycle.maxTextFileSizeBytes !== maxTextFileSizeBytes ||
+    prevMountCycle.canEdit !== canEdit ||
+    prevMountCycle.canComment !== canComment ||
+    prevMountCycle.editorBraceMatching !== editorBraceMatching ||
+    prevMountCycle.editorHighlightSelectionMatches !== editorHighlightSelectionMatches ||
+    prevMountCycle.editorInEditorFind !== editorInEditorFind ||
+    prevMountCycle.editorAutocomplete !== editorAutocomplete ||
+    prevMountCycle.editorAutoCloseLatexBeginEnd !== editorAutoCloseLatexBeginEnd ||
+    prevMountCycle.largeFileThresholdChars !== largeFileThresholdChars
+  ) {
+    setPrevMountCycle({
+      ytext,
+      provider,
+      activeFile,
+      maxTextFileSizeBytes,
+      canEdit,
+      canComment,
+      editorBraceMatching,
+      editorHighlightSelectionMatches,
+      editorInEditorFind,
+      editorAutocomplete,
+      editorAutoCloseLatexBeginEnd,
+      largeFileThresholdChars,
+    })
+    const nextIsLargeDoc = ytext.length >= largeFileThresholdChars
+    setLargeFileMode(nextIsLargeDoc)
+    setDeferredLoading(nextIsLargeDoc)
+  }
+
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -1361,7 +1443,6 @@ export function Editor({
     let mountedView: EditorView | null = null
     let mountedFloatingPanel: HTMLDivElement | null = null
     let cancelled = false
-    setLargeFileMode(isLargeDoc)
 
     const handleAwarenessChange = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
       const states = provider.awareness!.getStates()
@@ -1609,7 +1690,6 @@ export function Editor({
 
     let rafId: number | undefined
     if (isLargeDoc) {
-      setDeferredLoading(true)
       rafId = requestAnimationFrame(createView)
     } else {
       createView()
@@ -1622,7 +1702,8 @@ export function Editor({
       if (rafId !== undefined) {
         cancelAnimationFrame(rafId)
       }
-      setDeferredLoading(false)
+      // deferredLoading for the next cycle is set by the render-time
+      // adjustment above; resetting it here would clobber that value.
       const view = mountedView
       if (view) {
         const head = view.state.selection.main.head

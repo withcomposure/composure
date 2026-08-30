@@ -40,9 +40,17 @@ export function DiffView({
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<MergeView | EditorView | null>(null)
 
-  useEffect(() => {
+  // A new diff target immediately shows the loading state; the fetch itself
+  // runs in the effect below.
+  const [prevDiffKey, setPrevDiffKey] = useState<string | null>(null)
+  const diffKey = `${projectId}\u0000${commitSha}\u0000${filePath}\u0000${diffBase}`
+  if (prevDiffKey !== diffKey) {
+    setPrevDiffKey(diffKey)
     setLoading(true)
     setError(null)
+  }
+
+  useEffect(() => {
     void fetchFileDiff(projectId, commitSha, filePath, diffBase)
       .then(setDiff)
       .catch((err) => setError(getErrorMessage(err)))

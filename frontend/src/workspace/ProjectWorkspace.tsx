@@ -1,24 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent as ReactDragEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
-import { HocuspocusProvider } from "@hocuspocus/provider";
 import { Eye, FolderTree, History as HistoryIcon, MessageSquare, X } from "lucide-react";
-import MarkdownIt from "markdown-it";
-import DOMPurify from "dompurify";
-import Asciidoctor from "@asciidoctor/core";
-import {
-  CommentsPanel,
-  type CommentLineNumbers,
-} from "@/sidebar/CommentsPanel";
+import { CommentsPanel } from "@/sidebar/CommentsPanel";
 import { ChatPanel } from "@/sidebar/ChatPanel";
 import { FileTree } from "@/sidebar/FileTree";
-import { type FileTabsDropPayload } from "@/editor/FileTabs";
 
 import { HistoryPanel } from "@/sidebar/HistoryPanel";
 import { HtmlPreview } from "@/preview/HtmlPreview";
@@ -31,86 +16,31 @@ import { EditorPane } from "@/editor/EditorPane";
 import { PaneLayout } from "@/editor/PaneLayout";
 import { PopupDialog } from "@/components/PopupDialog";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useResizeDrag } from "@/hooks/use-resize-drag";
-import type {
-  AccessPerson,
-  ActiveCollaborator,
-  ConnectionState,
-  DiffWorkspaceTab,
-  EditorMode,
-  ProjectComment,
-  ProjectAccessResponse,
-  ShareRole,
-  SessionUser,
-  WorkspaceTab,
-} from "@/types";
-import {
-  parseFileMetadata,
-  withFileId,
-  type FileMetadata,
-} from "@/utils/file-metadata";
+import { useProjectSharing } from "@/hooks/use-project-sharing";
+import { useCollabSession } from "./hooks/use-collab-session";
+import { useProjectComments } from "./hooks/use-project-comments";
+import { useCompile } from "./hooks/use-compile";
+import { useHtmlPreview } from "./hooks/use-html-preview";
+import { useProjectFiles } from "./hooks/use-project-files";
+import { usePaneLayout } from "./hooks/use-pane-layout";
+import { useTextFileSizes } from "./hooks/use-text-file-sizes";
+import type { EditorMode, SessionUser, WorkspaceTab } from "@/types";
+import { parseFileMetadata, withFileId } from "@/utils/file-metadata";
 import {
   detectProjectFormatFromFilename,
   shouldScheduleAutoCompileForDocChange,
   type ProjectFormat,
 } from "@/utils/project-format";
-import {
-  ROOT_PANE_ID,
-  buildPersistedWorkspaceState,
-  defaultPersistedWorkspaceState,
-  getNextPaneIdCounter,
-  getNextSplitIdCounter,
-  parsePersistedWorkspaceState,
-  shouldEnableWorkspaceStatePersistence,
-  shouldReconcileWorkspaceFromFileMap,
-  shouldResetWorkspaceForProjectChange,
-  type EditorLayoutNode,
-  type EditorPaneState,
-  type SplitOrientation,
-} from "@/editor/workspace-state";
-import {
-  hasAwarenessCursor,
-  uint8ArrayToBase64,
-} from "@/utils/page-utils";
 import { restoreVersion } from "@/sidebar/history-api";
-import { collaborationWsUrl } from "@/utils/api-routing";
-import { apiFetch, apiUrl, getErrorMessage } from "@/utils/fetch";
+import { apiFetch, getErrorMessage } from "@/utils/fetch";
 import { WorkspaceProjectTitle } from "@/components/WorkspaceProjectTitle";
-import { makeProjectUrl, navigateToSettings } from "@/utils/route";
+import { navigateToSettings } from "@/utils/route";
 import {
-  applyDroppedPathsToPaneState,
-} from "@/editor/tab-drop-state";
-import {
-  buildDiffWorkspaceTabPath,
-  createDiffWorkspaceTab,
-  createFileWorkspaceTab,
   findWorkspaceTabByPath,
   isDiffWorkspaceTab,
-  isDiffWorkspaceTabPath,
   isFileWorkspaceTab,
-  promoteWorkspaceTab,
-  renameWorkspaceTabFilePath,
-  workspaceTabIsEphemeral,
-  workspaceTabFilePath,
   workspaceTabReferencesFile,
 } from "@/editor/workspace-tabs";
-import { evaluateUtf8Limit, formatBinarySize } from "@/utils/text-size";
-import {
-  buildSplitGeometry,
-  collectPaneIds,
-  computeDropZone,
-  dedupePaths,
-  insertSplitAtPane,
-  readDraggedFilePayload,
-  removePaneFromLayout,
-  type SplitDropZone,
-} from "./layout-utils";
-import {
-  createEditorCornerResizeHandler,
-  createEditorSplitResizeHandler,
-  createPreviewResizeHandler,
-  createSidebarResizeHandler,
-} from "./resize-handlers";
 
 interface ProjectWorkspaceProps {
   projectId: string;
@@ -148,14 +78,6 @@ interface ProjectWorkspaceProps {
 
 const cornerHitSizePx = 14;
 
-function pdfPreviewStorageKey(projectId: string): string {
-  return `composure:pdfUrl:${projectId}`;
-}
-
-function chatDocumentName(projectId: string): string {
-  return `${projectId}:chat`;
-}
-
 export function ProjectWorkspace({
   projectId,
   session,
@@ -187,55 +109,10 @@ export function ProjectWorkspace({
     principal,
   } = session;
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<"files" | "review" | "chat" | "history">(
-    "files",
-  );
-  const [activeFile, setActiveFile] = useState("");
-  const [activePaneId, setActivePaneId] = useState(ROOT_PANE_ID);
-  const [focusedEditorPaneId, setFocusedEditorPaneId] = useState<string | null>(
-    null,
-  );
-  const [paneStateById, setPaneStateById] = useState<
-    Record<string, EditorPaneState>
-  >({
-    [ROOT_PANE_ID]: { tabs: [], activePath: "", showSnippetToolbar: true },
-  });
-  const [editorLayout, setEditorLayout] = useState<EditorLayoutNode>({
-    kind: "pane",
-    paneId: ROOT_PANE_ID,
-  });
-  const [paneDropHint, setPaneDropHint] = useState<{
-    paneId: string;
-    zone: SplitDropZone;
-  } | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(260);
   const isMobileSidebarLayout = useIsMobile();
-  const [previewWidth, setPreviewWidth] = useState(520);
-  const [previewOpen, setPreviewOpen] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(() => {
-    try {
-      return sessionStorage.getItem(pdfPreviewStorageKey(projectId));
-    } catch {
-      return null;
-    }
-  });
-  const [compileError, setCompileError] = useState<string | null>(null);
-  const [compiling, setCompiling] = useState(false);
-  const [clearingCompileOutput, setClearingCompileOutput] = useState(false);
-  const [autoCompileEnabled, setAutoCompileEnabled] =
-    useState(autoCompileDefault);
-  const [markdownHtml, setMarkdownHtml] = useState("");
   const [rightPreviewPinnedFilePath, setRightPreviewPinnedFilePath] =
     useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("connecting");
-  const [chatConnectionState, setChatConnectionState] =
-    useState<ConnectionState>("connecting");
-  const [saving, setSaving] = useState(false);
-  const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReferenceLookup, setShowReferenceLookup] = useState(false);
   const [showDuplicateCitationDialog, setShowDuplicateCitationDialog] =
@@ -249,84 +126,102 @@ export function ProjectWorkspace({
     useState<"bibtex" | "biblatex">(referenceLookupFormat ?? "bibtex");
   const [lastFocusedEditorFile, setLastFocusedEditorFile] =
     useState<string>("");
-  const [comments, setComments] = useState<ProjectComment[]>([]);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<ShareRole>("view");
-  const [inviting, setInviting] = useState(false);
-  const [peopleWithAccess, setPeopleWithAccess] = useState<AccessPerson[]>([]);
-  const [linkEnabled, setLinkEnabled] = useState(false);
-  const [linkRole, setLinkRole] = useState<ShareRole>("view");
-  const [linkToken, setLinkToken] = useState<string | null>(null);
-  const [maxTextFileSizeBytes, setMaxTextFileSizeBytes] = useState<
-    number | "unlimited"
-  >(5 * 1024 * 1024);
-  const [largeFileThresholdChars, setLargeFileThresholdChars] =
-    useState(500_000);
-  const [chatHistoryRetentionDays, setChatHistoryRetentionDays] = useState<
-    number | "unlimited" | "off"
-  >("unlimited");
-  const [accessRole, setAccessRole] = useState<ShareRole | "owner" | null>(
-    null,
-  );
-  const [canViewChat, setCanViewChat] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("view");
-  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(
-    null,
-  );
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
-  const [commentLineNumbersById, setCommentLineNumbersById] = useState<
-    Record<string, CommentLineNumbers>
-  >({});
-  const [activeCommentRevision, setActiveCommentRevision] = useState(0);
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const [isResizingPreview, setIsResizingPreview] = useState(false);
-  const [activeEditors, setActiveEditors] = useState<ActiveCollaborator[]>([]);
-  const [focusCollaboratorRequest, setFocusCollaboratorRequest] = useState<{
-    clientId: number;
-    revision: number;
-  } | null>(null);
-  const [editorLayoutSurfaceSize, setEditorLayoutSurfaceSize] = useState({
-    width: 0,
-    height: 0,
-  });
-  const [hoveredCornerKey, setHoveredCornerKey] = useState<string | null>(null);
-  const [draggingCornerSplitIds, setDraggingCornerSplitIds] = useState<
-    [string, string] | null
-  >(null);
-  const [textByteSizeByPath, setTextByteSizeByPath] = useState<
-    Record<string, number>
-  >({});
-  const inFlightSaveCountRef = useRef(0);
-  const lastTextLimitPopupAtRef = useRef(0);
-  const lastAutoCompiledRevisionRef = useRef(0);
-  const autoCompileRevisionRef = useRef(0);
-  const autoCompileTimerRef = useRef<number | null>(null);
-  const runAutoCompileRef = useRef<() => void>(() => {});
   const lastFocusedEditorFileRef = useRef<string>("");
-  const paneIdCounterRef = useRef(2);
-  const splitIdCounterRef = useRef(1);
-  const previousProjectIdRef = useRef(projectId);
-  const ydocProjectIdRef = useRef(projectId);
-  const chatYdocProjectIdRef = useRef(projectId);
-  const markdownDebounceTimerRef = useRef<number | null>(null);
   const duplicateCitationDecisionResolverRef = useRef<
     ((allowDuplicate: boolean) => void) | null
   >(null);
-  const layoutRef = useRef<HTMLDivElement | null>(null);
-  const editorLayoutSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const sidebarWidthRef = useRef(sidebarWidth);
-  const [workspaceStateLoaded, setWorkspaceStateLoaded] = useState(false);
-  const lastPersistedWorkspaceStateRef = useRef<string | null>(null);
-  const [ydoc, setYdoc] = useState(() => new Y.Doc());
-  const [chatYdoc, setChatYdoc] = useState(() => new Y.Doc());
 
-  useEffect(() => {
+  const shareHeaders = useMemo<Record<string, string>>(
+    () =>
+      shareToken
+        ? { "X-Share-Token": shareToken }
+        : ({} as Record<string, string>),
+    [shareToken],
+  );
+
+  const {
+    peopleWithAccess,
+    linkEnabled,
+    linkRole,
+    accessRole,
+    canViewChat,
+    maxTextFileSizeBytes,
+    largeFileThresholdChars,
+    chatHistoryRetentionDays,
+    inviteEmail,
+    setInviteEmail,
+    inviteRole,
+    setInviteRole,
+    inviting,
+    setLinkRole,
+    inviteMember,
+    updateMemberRole,
+    setLinkSharing,
+    invalidateLinkSharing,
+    shareUrl,
+  } = useProjectSharing({
+    projectId,
+    shareToken,
+    shareHeaders,
+    onPopupAlert,
+  });
+
+  const bumpHistoryRefresh = useCallback(() => {
+    setHistoryRefreshKey((k) => k + 1);
+  }, []);
+
+  const {
+    ydoc,
+    chatYdoc,
+    provider,
+    chatProvider,
+    connectionState,
+    chatConnectionState,
+    initialSyncDone,
+    activeEditors,
+    focusCollaboratorRequest,
+    focusCollaborator,
+  } = useCollabSession({
+    projectId,
+    shareToken,
+    canOpenChat: canViewChat,
+    onHistoryUpdated: bumpHistoryRefresh,
+  });
+
+  // Server-provided project metadata wins whenever it (or the project)
+  // changes (previously an effect; the focused-file ref catches up via its
+  // sync effect below).
+  const [prevMetadataProps, setPrevMetadataProps] = useState({
+    projectId,
+    entrypoint,
+    defaultBibliographyFile,
+    referenceLookupFormat,
+  });
+  if (
+    prevMetadataProps.projectId !== projectId ||
+    prevMetadataProps.entrypoint !== entrypoint ||
+    prevMetadataProps.defaultBibliographyFile !== defaultBibliographyFile ||
+    prevMetadataProps.referenceLookupFormat !== referenceLookupFormat
+  ) {
+    setPrevMetadataProps({
+      projectId,
+      entrypoint,
+      defaultBibliographyFile,
+      referenceLookupFormat,
+    });
     setProjectEntrypoint(entrypoint.trim() || null);
     setProjectDefaultBibliographyFile(defaultBibliographyFile);
     setProjectReferenceLookupFormat(referenceLookupFormat ?? "bibtex");
     setLastFocusedEditorFile("");
-    lastFocusedEditorFileRef.current = "";
-  }, [projectId, entrypoint, defaultBibliographyFile, referenceLookupFormat]);
+  }
+
+  // The right-preview pin is per-project.
+  const [prevPinProjectId, setPrevPinProjectId] = useState(projectId);
+  if (prevPinProjectId !== projectId) {
+    setPrevPinProjectId(projectId);
+    setRightPreviewPinnedFilePath(null);
+  }
 
   useEffect(() => {
     lastFocusedEditorFileRef.current = lastFocusedEditorFile;
@@ -339,8 +234,6 @@ export function ProjectWorkspace({
     };
   }, []);
 
-  const activeCommentId = hoveredCommentId ?? selectedCommentId;
-
   const rememberLastFocusedEditorFile = useCallback((path: string) => {
     if (!path) {
       return;
@@ -352,270 +245,109 @@ export function ProjectWorkspace({
     setLastFocusedEditorFile(path);
   }, []);
 
-  const openTabs = useMemo(
-    () => paneStateById[activePaneId]?.tabs ?? [],
-    [paneStateById, activePaneId],
-  );
-  const activeTab = useMemo(
-    () => findWorkspaceTabByPath(openTabs, activeFile),
-    [openTabs, activeFile],
-  );
-  const activeDiffTab = useMemo<DiffWorkspaceTab | null>(
-    () => (isDiffWorkspaceTab(activeTab) ? activeTab : null),
-    [activeTab],
-  );
-  const activeFilePath = useMemo(() => {
-    if (activeTab) {
-      return workspaceTabFilePath(activeTab);
-    }
+  const {
+    fileMap,
+    textFilePaths,
+    allFilePaths,
+    assetInfoByPath,
+    availableFilePathList,
+  } = useProjectFiles({ ydoc, initialSyncDone });
 
-    return isDiffWorkspaceTabPath(activeFile) ? "" : activeFile;
-  }, [activeTab, activeFile]);
-
-  const setOpenTabs = useCallback(
-    (updater: WorkspaceTab[] | ((prev: WorkspaceTab[]) => WorkspaceTab[])) => {
-      setPaneStateById((prev) => {
-        const pane = prev[activePaneId] ?? {
-          tabs: [],
-          activePath: "",
-          showSnippetToolbar: true,
-        };
-        const nextTabs =
-          typeof updater === "function" ? updater(pane.tabs) : updater;
-        if (nextTabs === pane.tabs) {
-          return prev;
-        }
-        return {
-          ...prev,
-          [activePaneId]: {
-            ...pane,
-            tabs: nextTabs,
-          },
-        };
-      });
-    },
-    [activePaneId],
-  );
-
-  useEffect(() => {
-    const element = editorLayoutSurfaceRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateSize = () => {
-      const nextWidth = element.clientWidth;
-      const nextHeight = element.clientHeight;
-      setEditorLayoutSurfaceSize((prev) => {
-        if (prev.width === nextWidth && prev.height === nextHeight) {
-          return prev;
-        }
-        return { width: nextWidth, height: nextHeight };
-      });
-    };
-
-    updateSize();
-    const observer =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(updateSize)
-        : null;
-    observer?.observe(element);
-    window.addEventListener("resize", updateSize);
-
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", updateSize);
-    };
-  }, []);
-
-  const splitGeometry = useMemo(() => {
-    return buildSplitGeometry(
-      editorLayout,
-      editorLayoutSurfaceSize.width,
-      editorLayoutSurfaceSize.height,
-      {
-        includeLeftEdgeCorners: sidebarOpen && !isMobileSidebarLayout,
-        includeRightEdgeCorners: previewOpen,
-      },
-    );
-  }, [
-    editorLayout,
-    editorLayoutSurfaceSize.height,
-    editorLayoutSurfaceSize.width,
-    isMobileSidebarLayout,
-    previewOpen,
+  const {
     sidebarOpen,
-  ]);
-
-  const forcedActiveSplitIds = useMemo(() => {
-    const next = new Set<string>();
-
-    if (draggingCornerSplitIds) {
-      next.add(draggingCornerSplitIds[0]);
-      next.add(draggingCornerSplitIds[1]);
-    }
-
-    if (hoveredCornerKey) {
-      const hoveredCorner = splitGeometry.corners.find(
-        (corner) => corner.key === hoveredCornerKey,
-      );
-      if (hoveredCorner) {
-        if (hoveredCorner.kind === "internal") {
-          next.add(hoveredCorner.xSplitId);
-          next.add(hoveredCorner.ySplitId);
-        } else {
-          next.add(hoveredCorner.rowSplitId);
-        }
-      }
-    }
-
-    return next;
-  }, [draggingCornerSplitIds, hoveredCornerKey, splitGeometry.corners]);
-
-  const sidebarBoundaryResizeActive = useMemo(() => {
-    if (isResizingSidebar) {
-      return true;
-    }
-    if (!hoveredCornerKey) {
-      return false;
-    }
-    const hovered = splitGeometry.corners.find((c) => c.key === hoveredCornerKey);
-    return hovered?.kind === "leftEdge";
-  }, [hoveredCornerKey, isResizingSidebar, splitGeometry.corners]);
-
-  const previewBoundaryResizeActive = useMemo(() => {
-    if (isResizingPreview) {
-      return true;
-    }
-    if (!hoveredCornerKey) {
-      return false;
-    }
-    const hovered = splitGeometry.corners.find((c) => c.key === hoveredCornerKey);
-    return hovered?.kind === "rightEdge";
-  }, [hoveredCornerKey, isResizingPreview, splitGeometry.corners]);
-
-  useEffect(() => {
-    if (!hoveredCornerKey) {
-      return;
-    }
-
-    const hasHoveredCorner = splitGeometry.corners.some(
-      (corner) => corner.key === hoveredCornerKey,
-    );
-    if (!hasHoveredCorner) {
-      setHoveredCornerKey(null);
-    }
-  }, [hoveredCornerKey, splitGeometry.corners]);
-
-  const md = useMemo(
-    () => MarkdownIt({ html: false, linkify: true, typographer: true }),
-    [],
-  );
-  const adoc = useMemo(() => Asciidoctor(), []);
+    setSidebarOpen,
+    sidebarTab,
+    setSidebarTab,
+    sidebarWidth,
+    previewOpen,
+    setPreviewOpen,
+    previewWidth,
+    activeFile,
+    setActiveFile,
+    activePaneId,
+    focusedEditorPaneId,
+    paneStateById,
+    editorLayout,
+    paneDropHint,
+    isResizingSidebar,
+    isResizingPreview,
+    setHoveredCornerKey,
+    splitGeometry,
+    forcedActiveSplitIds,
+    sidebarBoundaryResizeActive,
+    previewBoundaryResizeActive,
+    layoutRef,
+    editorLayoutSurfaceRef,
+    openTabs,
+    activeTab,
+    activeDiffTab,
+    activeFilePath,
+    focusPane,
+    openFileInPane,
+    openFileFromTree,
+    openDiffTab,
+    activateTab,
+    promoteTab,
+    moveTab,
+    closeTab,
+    replaceDiffTabWithLiveFile,
+    handleDropPathsOnTabs,
+    togglePaneSnippetToolbar,
+    handlePaneDragOver,
+    handlePaneDragLeave,
+    handlePaneDrop,
+    handlePaneEditorFocusChange,
+    setActiveDiffModeForPane,
+    setActiveDiffBaseForPane,
+    resizeSidebar,
+    resizePreview,
+    resizeEditorSplit,
+    resizeEditorCorner,
+    applyFileRenameToPanes,
+    applyFileDeleteToPanes,
+    readPaneState,
+  } = usePaneLayout({
+    projectId,
+    shareHeaders,
+    allFilePaths,
+    initialSyncDone,
+    connectionState,
+    isMobileSidebarLayout,
+    onEditorFileFocused: rememberLastFocusedEditorFile,
+  });
 
   const projectFormat = useMemo<ProjectFormat>(() => {
     return detectProjectFormatFromFilename(activeFilePath) ?? "latex";
   }, [activeFilePath]);
 
-  useEffect(() => {
-    // Fast Refresh can re-run this component while staying on the same route.
-    // Keep the current Y.Doc unless the project ID actually changes.
-    if (
-      !shouldResetWorkspaceForProjectChange(ydocProjectIdRef.current, projectId)
-    ) {
-      return;
-    }
-
-    ydocProjectIdRef.current = projectId;
-    setYdoc(() => new Y.Doc());
-  }, [projectId]);
-
-  useEffect(() => {
-    if (
-      !shouldResetWorkspaceForProjectChange(
-        chatYdocProjectIdRef.current,
-        projectId,
-      )
-    ) {
-      return;
-    }
-
-    chatYdocProjectIdRef.current = projectId;
-    setChatYdoc(() => new Y.Doc());
-  }, [projectId]);
-
-  useEffect(() => {
-    setPaneStateById((prev) => {
-      const pane = prev[activePaneId];
-      if (!pane || pane.activePath === activeFile) {
-        return prev;
-      }
-      return {
-        ...prev,
-        [activePaneId]: {
-          ...pane,
-          activePath: activeFile,
-        },
-      };
-    });
-  }, [activePaneId, activeFile]);
-
-  useEffect(() => {
-    // Ignore same-project reruns (including Fast Refresh). Resetting here for
-    // an unchanged project would collapse panes/tabs and then persist that layout.
-    if (
-      !shouldResetWorkspaceForProjectChange(
-        previousProjectIdRef.current,
-        projectId,
-      )
-    ) {
-      return;
-    }
-
-    previousProjectIdRef.current = projectId;
-    const defaults = defaultPersistedWorkspaceState();
-    setInitialSyncDone(false);
-    setWorkspaceStateLoaded(false);
-    lastPersistedWorkspaceStateRef.current = null;
-    setActiveFile(defaults.activeFile);
-    setActivePaneId(defaults.activePaneId);
-    setPaneStateById(defaults.paneStateById);
-    setEditorLayout(defaults.editorLayout);
-    setSidebarOpen(defaults.sidebarOpen);
-    setSidebarTab(defaults.sidebarTab);
-    setSidebarWidth(defaults.sidebarWidth);
-    sidebarWidthRef.current = defaults.sidebarWidth;
-    setPreviewOpen(defaults.previewOpen);
-    setPreviewWidth(defaults.previewWidth);
-    setCanViewChat(false);
-    setChatHistoryRetentionDays("unlimited");
-    setRightPreviewPinnedFilePath(null);
-    setPaneDropHint(null);
-    paneIdCounterRef.current = 2;
-    splitIdCounterRef.current = 1;
-  }, [projectId]);
-
-  const fileMap = useMemo(() => ydoc.getMap<string>("files"), [ydoc]);
-  const [textFilePaths, setTextFilePaths] = useState<Set<string>>(new Set());
-  const [allFilePaths, setAllFilePaths] = useState<Set<string>>(new Set());
-  const [assetInfoByPath, setAssetInfoByPath] = useState<
-    Record<string, { storageKey?: string; mimeType?: string }>
-  >({});
   const openTabsRef = useRef<WorkspaceTab[]>([]);
-  const availableFilePathList = useMemo(
-    () =>
-      Array.from(allFilePaths).sort((left, right) => left.localeCompare(right)),
-    [allFilePaths],
-  );
-  const visibleTextFilePaths = useMemo(() => {
+  // Two-step memo keeps the array's identity stable while the SET of visible
+  // text files is unchanged, so the byte-size store below is not recreated
+  // (and its sizes not recomputed) by unrelated pane interactions.
+  const visibleTextFilePathsKey = useMemo(() => {
     const paths = new Set<string>();
     for (const pane of Object.values(paneStateById)) {
       if (pane.activePath && textFilePaths.has(pane.activePath)) {
         paths.add(pane.activePath);
       }
     }
-    return Array.from(paths);
+    return Array.from(paths).sort().join("\u0000");
   }, [paneStateById, textFilePaths]);
+  const visibleTextFilePaths = useMemo(
+    () =>
+      visibleTextFilePathsKey.length > 0
+        ? visibleTextFilePathsKey.split("\u0000")
+        : [],
+    [visibleTextFilePathsKey],
+  );
+
+  const { resolveTextFileSizeBytes, handleTextLimitExceeded } =
+    useTextFileSizes({
+      ydoc,
+      visibleTextFilePaths,
+      maxTextFileSizeBytes,
+      onPopupAlert,
+    });
 
   const activeRightPreviewFilePath = useMemo(() => {
     if (!activeFilePath || !activeTab || !isFileWorkspaceTab(activeTab)) {
@@ -667,304 +399,18 @@ export function ProjectWorkspace({
     openTabsRef.current = openTabs;
   }, [openTabs]);
 
-  useEffect(() => {
-    if (!rightPreviewPinnedFilePath) {
-      return;
-    }
-    if (!allFilePaths.has(rightPreviewPinnedFilePath)) {
-      setRightPreviewPinnedFilePath(null);
-    }
-  }, [allFilePaths, rightPreviewPinnedFilePath]);
+  // A pinned preview whose file vanished unpins itself.
+  if (
+    rightPreviewPinnedFilePath &&
+    !allFilePaths.has(rightPreviewPinnedFilePath)
+  ) {
+    setRightPreviewPinnedFilePath(null);
+  }
 
-  useEffect(() => {
-    if (maxTextFileSizeBytes === "unlimited") {
-      setTextByteSizeByPath({});
-      return;
-    }
-
-    const trackedPaths = new Set(visibleTextFilePaths);
-    setTextByteSizeByPath((prev) => {
-      let changed = false;
-      const next: Record<string, number> = {};
-      for (const [path, size] of Object.entries(prev)) {
-        if (trackedPaths.has(path)) {
-          next[path] = size;
-        } else {
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-
-    const observers: Array<{ text: Y.Text; observer: () => void }> = [];
-
-    const refreshPathSize = (filePath: string) => {
-      const text = ydoc.getText(`file:${filePath}`);
-      const { sizeBytes } = evaluateUtf8Limit(
-        text.length,
-        maxTextFileSizeBytes,
-        () => text.toString(),
-      );
-
-      setTextByteSizeByPath((prev) => {
-        if (prev[filePath] === sizeBytes) {
-          return prev;
-        }
-        return {
-          ...prev,
-          [filePath]: sizeBytes,
-        };
-      });
-    };
-
-    for (const filePath of visibleTextFilePaths) {
-      const text = ydoc.getText(`file:${filePath}`);
-      const observer = () => {
-        refreshPathSize(filePath);
-      };
-      text.observe(observer);
-      observers.push({ text, observer });
-      refreshPathSize(filePath);
-    }
-
-    return () => {
-      for (const { text, observer } of observers) {
-        text.unobserve(observer);
-      }
-    };
-  }, [ydoc, visibleTextFilePaths, maxTextFileSizeBytes]);
-
-  useEffect(() => {
-    if (
-      !shouldReconcileWorkspaceFromFileMap(initialSyncDone, connectionState)
-    ) {
-      return;
-    }
-
-    let nextActivePathForActivePane: string | null = null;
-
-    setPaneStateById((prev) => {
-      let changed = false;
-      const next: Record<string, EditorPaneState> = {};
-
-      for (const [paneId, paneState] of Object.entries(prev)) {
-        const filteredTabs = paneState.tabs.filter(
-          (tab) => isDiffWorkspaceTab(tab) || allFilePaths.has(tab.path),
-        );
-        const activePath =
-          paneState.activePath &&
-          filteredTabs.some((tab) => tab.path === paneState.activePath)
-            ? paneState.activePath
-            : (filteredTabs[0]?.path ?? "");
-
-        if (
-          filteredTabs.length !== paneState.tabs.length ||
-          activePath !== paneState.activePath
-        ) {
-          changed = true;
-          if (paneId === activePaneId && activePath !== activeFile) {
-            nextActivePathForActivePane = activePath;
-          }
-          next[paneId] = {
-            tabs: filteredTabs,
-            activePath,
-            showSnippetToolbar: paneState.showSnippetToolbar,
-          };
-          continue;
-        }
-
-        next[paneId] = paneState;
-      }
-
-      return changed ? next : prev;
-    });
-
-    if (nextActivePathForActivePane !== null) {
-      setActiveFile(nextActivePathForActivePane);
-    }
-  }, [
-    allFilePaths,
-    activePaneId,
-    activeFile,
-    connectionState,
-    initialSyncDone,
-  ]);
-
-  useEffect(() => {
-    if (paneStateById[activePaneId]) {
-      return;
-    }
-    const nextActivePaneId = collectPaneIds(editorLayout)[0] ?? ROOT_PANE_ID;
-    if (nextActivePaneId !== activePaneId) {
-      setActivePaneId(nextActivePaneId);
-      setActiveFile(paneStateById[nextActivePaneId]?.activePath ?? "");
-    }
-  }, [activePaneId, paneStateById, editorLayout]);
-
-  useEffect(() => {
-    let nextLayout = editorLayout;
-    let nextPaneStateById = paneStateById;
-    let paneIds = collectPaneIds(nextLayout);
-    let changed = false;
-
-    while (paneIds.length > 1) {
-      const emptyPaneId = paneIds.find(
-        (paneId) => (nextPaneStateById[paneId]?.tabs.length ?? 0) === 0,
-      );
-      if (!emptyPaneId) {
-        break;
-      }
-
-      const collapsed = removePaneFromLayout(nextLayout, emptyPaneId);
-      if (!collapsed) {
-        break;
-      }
-
-      const remainingPanes = { ...nextPaneStateById };
-      delete remainingPanes[emptyPaneId];
-      nextPaneStateById = remainingPanes;
-      nextLayout = collapsed;
-      paneIds = collectPaneIds(nextLayout);
-      changed = true;
-    }
-
-    if (!changed) {
-      return;
-    }
-
-    setEditorLayout(nextLayout);
-    setPaneStateById(nextPaneStateById);
-
-    if (!nextPaneStateById[activePaneId]) {
-      const fallbackPaneId = collectPaneIds(nextLayout)[0] ?? ROOT_PANE_ID;
-      setActivePaneId(fallbackPaneId);
-      setActiveFile(nextPaneStateById[fallbackPaneId]?.activePath ?? "");
-    }
-  }, [paneStateById, editorLayout, activePaneId]);
-
-  useEffect(() => {
-    if (!activeFile || !allFilePaths.has(activeFile)) return;
-    setOpenTabs((prev) => {
-      if (prev.some((tab) => tab.path === activeFile)) {
-        return prev;
-      }
-
-      const previewIndex = prev.findIndex(
-        (tab) => workspaceTabIsEphemeral(tab),
-      );
-      if (previewIndex !== -1) {
-        const next = [...prev];
-        next[previewIndex] = createFileWorkspaceTab(activeFile, true);
-        return next;
-      }
-
-      return [...prev, createFileWorkspaceTab(activeFile, true)];
-    });
-  }, [activeFile, allFilePaths, setOpenTabs]);
-
-  useEffect(() => {
-    const update = () => {
-      const nextTextPaths = new Set<string>();
-      const nextAllPaths = new Set<string>();
-      const nextAssetInfo: Record<
-        string,
-        { storageKey?: string; mimeType?: string }
-      > = {};
-      fileMap.forEach((raw: string, filePath: string) => {
-        const meta = parseFileMetadata(raw);
-        if (meta.type !== "folder") {
-          nextAllPaths.add(filePath);
-        }
-        if (meta.type === "text") {
-          nextTextPaths.add(filePath);
-        }
-        if (meta.type === "asset") {
-          nextAssetInfo[filePath] = {
-            storageKey: meta.storageKey,
-            mimeType: meta.mimeType,
-          };
-        }
-      });
-      setTextFilePaths(nextTextPaths);
-      setAllFilePaths(nextAllPaths);
-      setAssetInfoByPath(nextAssetInfo);
-    };
-
-    update();
-    fileMap.observe(update);
-    return () => fileMap.unobserve(update);
-  }, [fileMap]);
-
-  useEffect(() => {
-    if (!initialSyncDone) return;
-
-    const updates: Array<{ filePath: string; value: string }> = [];
-    fileMap.forEach((raw: string, filePath: string) => {
-      const normalized = JSON.stringify(
-        withFileId(parseFileMetadata(raw)) as FileMetadata,
-      );
-      if (raw !== normalized) {
-        updates.push({ filePath, value: normalized });
-      }
-    });
-
-    if (updates.length === 0) return;
-
-    ydoc.transact(() => {
-      for (const update of updates) {
-        fileMap.set(update.filePath, update.value);
-      }
-    }, "composure:normalize-file-metadata");
-  }, [fileMap, ydoc, initialSyncDone]);
-
-  useEffect(() => {
-    if (!initialSyncDone) return;
-
-    if (activeFile && openTabs.some((tab) => tab.path === activeFile)) {
-      return;
-    }
-
-    if (activeFile) {
-      const fallback =
-        openTabs.find(
-          (tab) => tab.kind === "diff" || allFilePaths.has(tab.path),
-        )?.path ?? "";
-      setActiveFile(fallback);
-    }
-  }, [initialSyncDone, activeFile, allFilePaths, openTabs]);
-
-  useEffect(() => {
-    setAutoCompileEnabled(autoCompileDefault);
-  }, [projectId, autoCompileDefault]);
-
-  useEffect(() => {
-    if (!initialSyncDone) {
-      return;
-    }
-
-    if (projectEntrypoint && !allFilePaths.has(projectEntrypoint)) {
-      setProjectEntrypoint(null);
-    }
-  }, [allFilePaths, initialSyncDone, projectEntrypoint]);
-
-  const focusCollaborator = useCallback((clientId: number) => {
-    setFocusCollaboratorRequest((prev) => ({
-      clientId,
-      revision: prev ? prev.revision + 1 : 1,
-    }));
-  }, []);
-
-  useEffect(() => {
-    sidebarWidthRef.current = sidebarWidth;
-  }, [sidebarWidth]);
-
-  const shareHeaders = useMemo<Record<string, string>>(
-    () =>
-      shareToken
-        ? { "X-Share-Token": shareToken }
-        : ({} as Record<string, string>),
-    [shareToken],
-  );
+  // Once synced, an entrypoint pointing at a deleted file is cleared.
+  if (initialSyncDone && projectEntrypoint && !allFilePaths.has(projectEntrypoint)) {
+    setProjectEntrypoint(null);
+  }
 
   const activeEntrypoint = useMemo(() => {
     if (!projectEntrypoint) {
@@ -1033,22 +479,35 @@ export function ProjectWorkspace({
     [patchProjectMetadata],
   );
 
+  // A default bibliography pointing at a deleted file is cleaned up on the
+  // server, then locally once the PATCH settles. The UI already ignores the
+  // stale value via activeDefaultBibliographyFile, and the in-flight ref
+  // prevents duplicate PATCHes while allFilePaths keeps changing.
+  const bibliographyCleanupPathRef = useRef<string | null>(null);
   useEffect(() => {
     if (!initialSyncDone) {
       return;
     }
 
-    if (
-      !projectDefaultBibliographyFile ||
-      allFilePaths.has(projectDefaultBibliographyFile)
-    ) {
+    const stalePath = projectDefaultBibliographyFile;
+    if (!stalePath || allFilePaths.has(stalePath)) {
+      return;
+    }
+    if (bibliographyCleanupPathRef.current === stalePath) {
       return;
     }
 
-    setProjectDefaultBibliographyFile(null);
-    void patchProjectMetadata({ defaultBibliographyFile: null }).catch(() => {
-      /* best-effort cleanup */
-    });
+    bibliographyCleanupPathRef.current = stalePath;
+    void patchProjectMetadata({ defaultBibliographyFile: null })
+      .catch(() => {
+        /* best-effort cleanup */
+      })
+      .finally(() => {
+        bibliographyCleanupPathRef.current = null;
+        setProjectDefaultBibliographyFile((prev) =>
+          prev === stalePath ? null : prev,
+        );
+      });
   }, [
     allFilePaths,
     initialSyncDone,
@@ -1213,75 +672,6 @@ export function ProjectWorkspace({
     ],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadWorkspaceState = async () => {
-      let loadSucceeded = false;
-
-      try {
-        const res = await apiFetch(`/projects/${projectId}/workspace-state`, {
-          headers: shareHeaders,
-        });
-
-        if (!res.ok) {
-          throw new Error(`status=${res.status}`);
-        }
-
-        const body = (await res.json()) as { state?: unknown };
-        loadSucceeded = true;
-        const parsed = parsePersistedWorkspaceState(body.state);
-        if (cancelled) {
-          return;
-        }
-
-        if (!parsed) {
-          lastPersistedWorkspaceStateRef.current = null;
-          return;
-        }
-
-        setSidebarOpen(parsed.sidebarOpen);
-        setSidebarTab(parsed.sidebarTab);
-        setSidebarWidth(parsed.sidebarWidth);
-        sidebarWidthRef.current = parsed.sidebarWidth;
-        setPreviewOpen(parsed.previewOpen);
-        setPreviewWidth(parsed.previewWidth);
-        setPaneStateById(parsed.paneStateById);
-        setEditorLayout(parsed.editorLayout);
-
-        const paneIds = collectPaneIds(parsed.editorLayout);
-        const nextActivePaneId = paneIds.includes(parsed.activePaneId)
-          ? parsed.activePaneId
-          : (paneIds[0] ?? ROOT_PANE_ID);
-        const nextActiveFile =
-          parsed.activeFile ||
-          parsed.paneStateById[nextActivePaneId]?.activePath ||
-          "";
-
-        setActivePaneId(nextActivePaneId);
-        setActiveFile(nextActiveFile);
-        paneIdCounterRef.current = getNextPaneIdCounter(
-          parsed.editorLayout,
-          parsed.paneStateById,
-        );
-        splitIdCounterRef.current = getNextSplitIdCounter(parsed.editorLayout);
-        lastPersistedWorkspaceStateRef.current = JSON.stringify(parsed);
-      } catch (err) {
-        console.warn(`[app] load-workspace-state-failed ${String(err)}`);
-      } finally {
-        if (shouldEnableWorkspaceStatePersistence(loadSucceeded, cancelled)) {
-          setWorkspaceStateLoaded(true);
-        }
-      }
-    };
-
-    void loadWorkspaceState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, shareHeaders]);
-
   const canComment =
     accessRole === "owner" || accessRole === "edit" || accessRole === "comment";
   const canEdit = accessRole === "owner" || accessRole === "edit";
@@ -1301,72 +691,25 @@ export function ProjectWorkspace({
         : editorMode;
   const canInteractWithComments = canCommentLive && effectiveMode !== "view";
 
-  const persistedWorkspaceState = useMemo(
-    () =>
-      buildPersistedWorkspaceState({
-        sidebarOpen,
-        sidebarTab,
-        sidebarWidth,
-        previewOpen,
-        previewWidth,
-        activePaneId,
-        activeFile,
-        paneStateById,
-        editorLayout,
-      }),
-    [
-      sidebarOpen,
-      sidebarTab,
-      sidebarWidth,
-      previewOpen,
-      previewWidth,
-      activePaneId,
-      activeFile,
-      paneStateById,
-      editorLayout,
-    ],
-  );
-
-  useEffect(() => {
-    if (!workspaceStateLoaded) {
-      return;
-    }
-
-    const serialized = JSON.stringify(persistedWorkspaceState);
-    if (serialized === lastPersistedWorkspaceStateRef.current) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const res = await apiFetch(
-            `/projects/${projectId}/workspace-state`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                ...shareHeaders,
-              },
-              body: JSON.stringify({ state: persistedWorkspaceState }),
-            },
-          );
-
-          if (!res.ok) {
-            throw new Error(`status=${res.status}`);
-          }
-
-          lastPersistedWorkspaceStateRef.current = serialized;
-        } catch (err) {
-          console.warn(`[app] save-workspace-state-failed ${String(err)}`);
-        }
-      })();
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [workspaceStateLoaded, persistedWorkspaceState, projectId, shareHeaders]);
+  const {
+    comments,
+    activeCommentId,
+    activeCommentRevision,
+    commentLineNumbersById,
+    activateComment,
+    hoverComment,
+    endHoverComment,
+    setCommentLineNumbersForFile,
+    createComment,
+    updateComment,
+    removeComment,
+  } = useProjectComments({
+    projectId,
+    shareHeaders,
+    ydoc,
+    canInteractWithComments,
+    activeFile,
+  });
 
   const handleRestoreVersion = useCallback(
     async (sha: string) => {
@@ -1380,7 +723,19 @@ export function ProjectWorkspace({
     [projectId, onPopupAlert],
   );
 
-  useEffect(() => {
+  // The editor mode tracks live permissions: downgraded when they drop,
+  // upgraded to edit when they arrive (previously an effect; runs once on
+  // mount and then whenever the live capabilities change).
+  const [prevModeCaps, setPrevModeCaps] = useState<{
+    canEditLive: boolean;
+    canCommentLive: boolean;
+  } | null>(null);
+  if (
+    prevModeCaps === null ||
+    prevModeCaps.canEditLive !== canEditLive ||
+    prevModeCaps.canCommentLive !== canCommentLive
+  ) {
+    setPrevModeCaps({ canEditLive, canCommentLive });
     setEditorMode((prev) => {
       if (prev === "edit" && !canEditLive) {
         return canCommentLive ? "comment" : "view";
@@ -1393,296 +748,18 @@ export function ProjectWorkspace({
       }
       return prev;
     });
-  }, [canEditLive, canCommentLive]);
+  }
 
-  useEffect(() => {
-    setSelectedCommentId(null);
-    setHoveredCommentId(null);
-    setActiveCommentRevision((prev) => prev + 1);
-  }, [activeFile]);
-
-  useEffect(() => {
-    setActiveCommentRevision((prev) => prev + 1);
-  }, [activeCommentId]);
-
-  useEffect(() => {
-    setCommentLineNumbersById((prev) => {
-      const validIds = new Set(comments.map((comment) => comment.id));
-      let changed = false;
-      const next: Record<string, CommentLineNumbers> = {};
-
-      for (const [commentId, lines] of Object.entries(prev)) {
-        if (validIds.has(commentId)) {
-          next[commentId] = lines;
-        } else {
-          changed = true;
-        }
-      }
-
-      return changed ? next : prev;
-    });
-  }, [comments]);
-
-  const beginSaving = useCallback(() => {
-    inFlightSaveCountRef.current += 1;
-    setSaving(true);
-  }, []);
-
-  const endSaving = useCallback(() => {
-    inFlightSaveCountRef.current = Math.max(
-      0,
-      inFlightSaveCountRef.current - 1,
-    );
-    if (inFlightSaveCountRef.current === 0) {
-      setSaving(false);
-    }
-  }, []);
-
-  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
-  const [chatProvider, setChatProvider] = useState<HocuspocusProvider | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const wsUrl = collaborationWsUrl(shareToken);
-
-    setConnectionState("connecting");
-
-    console.info(
-      `[app] creating provider projectId=${projectId} wsUrl=${wsUrl}`,
-    );
-
-    const prov = new HocuspocusProvider({
-      url: wsUrl,
-      name: projectId,
-      document: ydoc,
-      onOpen: () => console.info(`[app] ws-open projectId=${projectId}`),
-      onClose: ({ event }) => {
-        console.info(
-          `[app] ws-close projectId=${projectId} code=${event.code}`,
-        );
-        setConnectionState("disconnected");
-      },
-      onConnect: () => {
-        console.info(`[app] provider-connected projectId=${projectId}`);
-        setConnectionState("connected");
-      },
-      onDisconnect: () => {
-        console.info(`[app] provider-disconnected projectId=${projectId}`);
-        setConnectionState("disconnected");
-      },
-      onAuthenticated: () =>
-        console.info(`[app] provider-authenticated projectId=${projectId}`),
-      onAuthenticationFailed: ({ reason }: { reason: string }) => {
-        console.error(
-          `[app] provider-auth-FAILED projectId=${projectId} reason=${reason}`,
-        );
-        setConnectionState("disconnected");
-      },
-      onSynced: ({ state }) => {
-        console.info(
-          `[app] provider-synced projectId=${projectId} state=${state}`,
-        );
-        if (state) setInitialSyncDone(true);
-      },
-      onStatus: ({ status }) => {
-        console.info(
-          `[app] provider-status projectId=${projectId} status=${status}`,
-        );
-        if (
-          status === "connected" ||
-          status === "connecting" ||
-          status === "disconnected"
-        ) {
-          setConnectionState(status);
-        }
-      },
-      onMessage: (payload: unknown) => {
-        const event =
-          (payload as { event?: MessageEvent }).event ??
-          (payload as MessageEvent);
-        const bytes =
-          typeof event.data === "string"
-            ? event.data.length
-            : event.data instanceof ArrayBuffer
-              ? event.data.byteLength
-              : 0;
-        console.info(
-          `[app] provider-incoming-message projectId=${projectId} bytes=${bytes}`,
-        );
-      },
-    });
-
-    setProvider(prov);
-
-    const handleStateless = ({ payload }: { payload: string }) => {
-      try {
-        const msg = JSON.parse(payload);
-        if (msg.type === "history-updated") {
-          setHistoryRefreshKey((k) => k + 1);
-        }
-      } catch {
-        /* ignore malformed payloads */
-      }
-    };
-    prov.on("stateless", handleStateless);
-
-    return () => {
-      prov.off("stateless", handleStateless);
-      setConnectionState("connecting");
-      prov.destroy();
-    };
-  }, [projectId, shareToken, ydoc]);
-
-  useEffect(() => {
-    if (!canOpenChat) {
-      setChatProvider(null);
-      setChatConnectionState("disconnected");
-      return;
-    }
-
-    const wsUrl = collaborationWsUrl(shareToken);
-    const documentName = chatDocumentName(projectId);
-
-    setChatConnectionState("connecting");
-    console.info(
-      `[chat] creating provider projectId=${projectId} document=${documentName} wsUrl=${wsUrl}`,
-    );
-
-    const prov = new HocuspocusProvider({
-      url: wsUrl,
-      name: documentName,
-      document: chatYdoc,
-      onConnect: () => {
-        console.info(`[chat] provider-connected projectId=${projectId}`);
-        setChatConnectionState("connected");
-      },
-      onDisconnect: () => {
-        console.info(`[chat] provider-disconnected projectId=${projectId}`);
-        setChatConnectionState("disconnected");
-      },
-      onAuthenticationFailed: ({ reason }: { reason: string }) => {
-        console.error(
-          `[chat] provider-auth-FAILED projectId=${projectId} reason=${reason}`,
-        );
-        setChatConnectionState("disconnected");
-      },
-      onStatus: ({ status }) => {
-        if (
-          status === "connected" ||
-          status === "connecting" ||
-          status === "disconnected"
-        ) {
-          setChatConnectionState(status);
-        }
-      },
-    });
-
-    setChatProvider(prov);
-
-    return () => {
-      setChatProvider(null);
-      setChatConnectionState("connecting");
-      prov.destroy();
-    };
-  }, [canOpenChat, chatYdoc, projectId, shareToken]);
-
-  useEffect(() => {
-    return () => {
-      ydoc.destroy();
-    };
-  }, [ydoc]);
-
-  useEffect(() => {
-    return () => {
-      chatYdoc.destroy();
-    };
-  }, [chatYdoc]);
-
-  const loadAccess = useCallback(async () => {
-    try {
-      const res = await apiFetch(`/projects/${projectId}/access`, {
-        headers: shareHeaders,
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to load project access");
-      }
-
-      const body = (await res.json()) as ProjectAccessResponse;
-      setPeopleWithAccess(body.people);
-      setLinkEnabled(body.linkSharing.enabled);
-      setLinkRole(body.linkSharing.role ?? "view");
-      setLinkToken(body.linkSharing.token);
-      setAccessRole(body.currentRole);
-      setCanViewChat(body.canViewChat);
-      setMaxTextFileSizeBytes(body.maxTextFileSizeBytes);
-      setLargeFileThresholdChars(body.largeFileThresholdChars);
-      setChatHistoryRetentionDays(body.chatHistoryRetentionDays);
-    } catch (err) {
-      console.warn(`[app] load-access-failed ${String(err)}`);
-    }
-  }, [projectId, shareHeaders]);
-
-  const commentsSyncMap = useMemo(
-    () => ydoc.getMap<string>("comments-sync"),
-    [ydoc],
-  );
-
-  const signalCommentsChanged = useCallback(
-    (action: "create" | "update" | "delete") => {
-      ydoc.transact(() => {
-        commentsSyncMap.set(
-          "lastChange",
-          `${Date.now()}:${Math.random().toString(36).slice(2)}:${action}`,
-        );
-      }, "composure:comments-changed");
-    },
-    [commentsSyncMap, ydoc],
-  );
-
-  const loadComments = useCallback(async () => {
-    try {
-      const res = await apiFetch(`/projects/${projectId}/comments`, {
-        headers: shareHeaders,
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to load comments");
-      }
-
-      const body = (await res.json()) as ProjectComment[];
-      setComments(body);
-    } catch (err) {
-      console.warn(`[app] load-comments-failed ${String(err)}`);
-    }
-  }, [projectId, shareHeaders]);
-
-  useEffect(() => {
-    void loadAccess();
-    void loadComments();
-  }, [loadAccess, loadComments]);
-
-  useEffect(() => {
-    if (!canOpenChat && sidebarTab === "chat") {
-      setSidebarTab("files");
-    }
-  }, [canOpenChat, sidebarTab]);
-
-  useEffect(() => {
-    const handleCommentsSync = () => {
-      void loadComments();
-    };
-
-    commentsSyncMap.observe(handleCommentsSync);
-    return () => {
-      commentsSyncMap.unobserve(handleCommentsSync);
-    };
-  }, [commentsSyncMap, loadComments]);
+  // Losing chat access closes the chat tab.
+  if (!canOpenChat && sidebarTab === "chat") {
+    setSidebarTab("files");
+  }
 
   const activeFileRef = useRef("");
-  activeFileRef.current =
-    activeTab && isFileWorkspaceTab(activeTab) ? activeTab.path : "";
+  useEffect(() => {
+    activeFileRef.current =
+      activeTab && isFileWorkspaceTab(activeTab) ? activeTab.path : "";
+  });
 
   // Follow renames/moves: when the active file is deleted and a new key is
   // added in the same Yjs transaction (rename/move), switch to the new path
@@ -1735,633 +812,7 @@ export function ProjectWorkspace({
 
     fileMap.observe(handler);
     return () => fileMap.unobserve(handler);
-  }, [fileMap, initialSyncDone]);
-
-  const createPaneId = useCallback(() => {
-    const paneId = `pane-${paneIdCounterRef.current}`;
-    paneIdCounterRef.current += 1;
-    return paneId;
-  }, []);
-
-  const createSplitId = useCallback(() => {
-    const splitId = `split-${splitIdCounterRef.current}`;
-    splitIdCounterRef.current += 1;
-    return splitId;
-  }, []);
-
-  const openFileInPane = useCallback(
-    (paneId: string, path: string, mode: "ephemeral" | "persistent") => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId] ?? {
-          tabs: [],
-          activePath: "",
-          showSnippetToolbar: true,
-        };
-        const existingIndex = pane.tabs.findIndex((tab) => tab.path === path);
-        let nextTabs = pane.tabs;
-
-        if (existingIndex !== -1) {
-          const existingTab = pane.tabs[existingIndex];
-          if (
-            mode === "persistent" &&
-            isFileWorkspaceTab(existingTab) &&
-            existingTab.isEphemeral
-          ) {
-            nextTabs = [...pane.tabs];
-            nextTabs[existingIndex] = createFileWorkspaceTab(path, false);
-          }
-        } else if (mode === "ephemeral") {
-          const previewIndex = pane.tabs.findIndex(
-            (tab) => workspaceTabIsEphemeral(tab),
-          );
-          if (previewIndex !== -1) {
-            nextTabs = [...pane.tabs];
-            nextTabs[previewIndex] = createFileWorkspaceTab(path, true);
-          } else {
-            nextTabs = [...pane.tabs, createFileWorkspaceTab(path, true)];
-          }
-        } else {
-          nextTabs = [...pane.tabs, createFileWorkspaceTab(path, false)];
-        }
-
-        if (nextTabs === pane.tabs && pane.activePath === path) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [paneId]: {
-            tabs: nextTabs,
-            activePath: path,
-            showSnippetToolbar: pane.showSnippetToolbar,
-          },
-        };
-      });
-    },
-    [],
-  );
-
-  const focusPane = useCallback(
-    (paneId: string, preferredPath?: string) => {
-      setActivePaneId(paneId);
-      if (preferredPath !== undefined) {
-        setActiveFile(preferredPath);
-        return;
-      }
-      setActiveFile(paneStateById[paneId]?.activePath ?? "");
-    },
-    [paneStateById],
-  );
-
-  const handlePaneEditorFocusChange = useCallback(
-    (paneId: string, isFocused: boolean) => {
-      setFocusedEditorPaneId((current) => {
-        if (isFocused) {
-          return paneId;
-        }
-        return current === paneId ? null : current;
-      });
-
-      if (isFocused) {
-        const focusedTab = findWorkspaceTabByPath(
-          paneStateById[paneId]?.tabs ?? [],
-          paneStateById[paneId]?.activePath ?? "",
-        );
-        const focusedPath = focusedTab ? workspaceTabFilePath(focusedTab) : "";
-        if (focusedPath.length > 0) {
-          rememberLastFocusedEditorFile(focusedPath);
-        }
-      }
-    },
-    [paneStateById, rememberLastFocusedEditorFile],
-  );
-
-  const openDiffTab = useCallback(
-    (
-      sha: string,
-      filePath: string,
-      mode: "ephemeral" | "persistent" = "ephemeral",
-      paneId = activePaneId,
-    ) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId] ?? {
-          tabs: [],
-          activePath: "",
-          showSnippetToolbar: true,
-        };
-
-        const existingIndex = pane.tabs.findIndex(
-          (tab) =>
-            isDiffWorkspaceTab(tab) &&
-            tab.commitSha === sha &&
-            tab.filePath === filePath,
-        );
-
-        let nextTabs = pane.tabs;
-        let nextActivePath = "";
-
-        if (existingIndex !== -1) {
-          const existingTab = pane.tabs[existingIndex];
-          nextActivePath = existingTab.path;
-
-          if (mode === "persistent" && existingTab.isEphemeral) {
-            nextTabs = [...pane.tabs];
-            nextTabs[existingIndex] = promoteWorkspaceTab(existingTab);
-          }
-        } else {
-          const nextDiffTab = createDiffWorkspaceTab({
-            commitSha: sha,
-            filePath,
-            isEphemeral: mode === "ephemeral",
-          });
-          nextActivePath = nextDiffTab.path;
-
-          if (mode === "ephemeral") {
-            const previewIndex = pane.tabs.findIndex((tab) =>
-              workspaceTabIsEphemeral(tab),
-            );
-            if (previewIndex !== -1) {
-              nextTabs = [...pane.tabs];
-              nextTabs[previewIndex] = nextDiffTab;
-            } else {
-              nextTabs = [...pane.tabs, nextDiffTab];
-            }
-          } else {
-            nextTabs = [...pane.tabs, nextDiffTab];
-          }
-        }
-
-        if (nextTabs === pane.tabs && pane.activePath === nextActivePath) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [paneId]: {
-            ...pane,
-            tabs: nextTabs,
-            activePath: nextActivePath,
-          },
-        };
-      });
-
-      focusPane(paneId, buildDiffWorkspaceTabPath(sha, filePath));
-    },
-    [activePaneId, focusPane],
-  );
-
-  const openFileFromTree = useCallback(
-    (path: string, mode: "ephemeral" | "persistent") => {
-      openFileInPane(activePaneId, path, mode);
-      focusPane(activePaneId, path);
-    },
-    [activePaneId, openFileInPane, focusPane],
-  );
-
-  const activateTab = useCallback(
-    (paneId: string, path: string) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane || pane.activePath === path) return prev;
-        return {
-          ...prev,
-          [paneId]: {
-            ...pane,
-            activePath: path,
-          },
-        };
-      });
-      focusPane(paneId, path);
-      const selectedTab = findWorkspaceTabByPath(
-        paneStateById[paneId]?.tabs ?? [],
-        path,
-      );
-      rememberLastFocusedEditorFile(
-        selectedTab ? workspaceTabFilePath(selectedTab) : path,
-      );
-    },
-    [focusPane, paneStateById, rememberLastFocusedEditorFile],
-  );
-
-  const promoteTab = useCallback(
-    (paneId: string, path: string) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane) return prev;
-        const tabIndex = pane.tabs.findIndex((tab) => tab.path === path);
-        const tab = tabIndex === -1 ? null : pane.tabs[tabIndex];
-        if (!tab || !workspaceTabIsEphemeral(tab)) {
-          return prev;
-        }
-
-        const nextTabs = [...pane.tabs];
-        nextTabs[tabIndex] = promoteWorkspaceTab(tab);
-
-        return {
-          ...prev,
-          [paneId]: {
-            tabs: nextTabs,
-            activePath: path,
-            showSnippetToolbar: pane.showSnippetToolbar,
-          },
-        };
-      });
-      focusPane(paneId, path);
-    },
-    [focusPane],
-  );
-
-  const moveTab = useCallback(
-    (paneId: string, path: string, targetIndex: number) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane) return prev;
-
-        const sourceIndex = pane.tabs.findIndex((tab) => tab.path === path);
-        if (sourceIndex === -1) {
-          return prev;
-        }
-
-        const nextTabs = [...pane.tabs];
-        const [moved] = nextTabs.splice(sourceIndex, 1);
-        let insertAt = targetIndex;
-        if (insertAt > sourceIndex) {
-          insertAt -= 1;
-        }
-        insertAt = Math.max(0, Math.min(insertAt, nextTabs.length));
-        nextTabs.splice(
-          insertAt,
-          0,
-          promoteWorkspaceTab(moved),
-        );
-
-        return {
-          ...prev,
-          [paneId]: {
-            tabs: nextTabs,
-            activePath: path,
-            showSnippetToolbar: pane.showSnippetToolbar,
-          },
-        };
-      });
-      focusPane(paneId, path);
-    },
-    [focusPane],
-  );
-
-  const replaceDiffTabWithLiveFile = useCallback(
-    (paneId: string, diffTabPath: string, filePath: string) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane || !pane.tabs.some((tab) => tab.path === diffTabPath)) {
-          return prev;
-        }
-
-        const nextTabs = pane.tabs.filter((tab) => tab.path !== diffTabPath);
-        const nextActivePath =
-          pane.activePath === diffTabPath ? (nextTabs[0]?.path ?? "") : pane.activePath;
-
-        return {
-          ...prev,
-          [paneId]: {
-            ...pane,
-            tabs: nextTabs,
-            activePath: nextActivePath,
-          },
-        };
-      });
-
-      openFileInPane(paneId, filePath, "persistent");
-      focusPane(paneId, filePath);
-    },
-    [focusPane, openFileInPane],
-  );
-
-  const closeTab = useCallback(
-    (paneId: string, path: string) => {
-      let nextActivePath: string | null = null;
-
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane) return prev;
-
-        const closeIndex = pane.tabs.findIndex((tab) => tab.path === path);
-        if (closeIndex === -1) {
-          return prev;
-        }
-
-        const nextTabs = pane.tabs.filter((tab) => tab.path !== path);
-        const paneActivePath =
-          pane.activePath === path
-            ? (nextTabs[closeIndex]?.path ??
-              nextTabs[closeIndex - 1]?.path ??
-              "")
-            : pane.activePath;
-        nextActivePath = paneActivePath;
-
-        return {
-          ...prev,
-          [paneId]: {
-            tabs: nextTabs,
-            activePath: paneActivePath,
-            showSnippetToolbar: pane.showSnippetToolbar,
-          },
-        };
-      });
-
-      if (nextActivePath !== null && paneId === activePaneId) {
-        setActiveFile(nextActivePath);
-      }
-    },
-    [activePaneId],
-  );
-
-  const normalizeDroppedPaths = useCallback(
-    (
-      paths: string[],
-      fromTabBar: boolean,
-      sourcePaneId: string | null,
-    ): string[] => {
-      const uniquePaths = dedupePaths(paths);
-      if (uniquePaths.length === 0) {
-        return [];
-      }
-
-      if (!fromTabBar) {
-        return uniquePaths.filter((path) => allFilePaths.has(path));
-      }
-
-      const sourcePane = sourcePaneId ? paneStateById[sourcePaneId] : null;
-      if (sourcePane) {
-        const sourcePaths = new Set(sourcePane.tabs.map((tab) => tab.path));
-        return uniquePaths.filter((path) => sourcePaths.has(path));
-      }
-
-      return uniquePaths.filter((path) => allFilePaths.has(path));
-    },
-    [allFilePaths, paneStateById],
-  );
-
-  const handleDropPathsOnTabs = useCallback(
-    (paneId: string, payload: FileTabsDropPayload) => {
-      const paths = normalizeDroppedPaths(
-        payload.paths,
-        payload.fromTabBar,
-        payload.sourcePaneId,
-      );
-      if (paths.length === 0) {
-        return;
-      }
-
-      setPaneStateById((prev) => {
-        return applyDroppedPathsToPaneState(prev, paneId, paths, {
-          fromTabBar: payload.fromTabBar,
-          sourcePaneId: payload.sourcePaneId,
-          targetIndex: payload.targetIndex,
-        });
-      });
-
-      focusPane(paneId, paths[paths.length - 1]);
-    },
-    [focusPane, normalizeDroppedPaths],
-  );
-
-  const togglePaneSnippetToolbar = useCallback((paneId: string) => {
-    setPaneStateById((prev) => {
-      const pane = prev[paneId] ?? {
-        tabs: [],
-        activePath: "",
-        showSnippetToolbar: true,
-      };
-      return {
-        ...prev,
-        [paneId]: {
-          ...pane,
-          showSnippetToolbar: !pane.showSnippetToolbar,
-        },
-      };
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!initialSyncDone) return;
-
-    ydoc.transact(() => {
-      fileMap.forEach((mapContent, filePath) => {
-        const metadata = parseFileMetadata(mapContent);
-        if (metadata.type !== "text") {
-          return;
-        }
-
-        const key = `file:${filePath}`;
-        if (!ydoc.share.has(key)) {
-          const text = ydoc.getText(key);
-          let legacyContent = "";
-          try {
-            const parsed = JSON.parse(mapContent);
-            if (!(parsed && typeof parsed === "object" && "type" in parsed)) {
-              legacyContent = mapContent;
-            }
-          } catch {
-            legacyContent = mapContent;
-          }
-
-          if (legacyContent) {
-            text.insert(0, legacyContent);
-          }
-          console.info(
-            `[app] initialized-ytext key=${key} fromMapContent=${legacyContent.length}`,
-          );
-        }
-      });
-    }, "composure:sync-file-map-to-texts");
-  }, [fileMap, ydoc, initialSyncDone]);
-
-  useEffect(() => {
-    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      const originLabel =
-        origin === provider
-          ? "provider(remote)"
-          : origin === null || origin === undefined
-            ? "unknown"
-            : typeof origin === "string"
-              ? origin
-              : ((origin as { constructor?: { name?: string } })?.constructor
-                  ?.name ?? String(origin));
-      console.info(
-        `[app] ydoc-update bytes=${update.length} origin=${originLabel} sharedTypes=${ydoc.share.size}`,
-      );
-    };
-
-    ydoc.on("update", onDocUpdate);
-    return () => {
-      ydoc.off("update", onDocUpdate);
-    };
-  }, [ydoc, provider]);
-
-  useEffect(() => {
-    const awareness = provider?.awareness;
-    if (!awareness) return;
-
-    const update = () => {
-      const states = awareness.getStates();
-      const localId = awareness.clientID;
-      const seen = new Map<string, ActiveCollaborator>();
-
-      states.forEach((state: Record<string, unknown>, clientId: number) => {
-        if (clientId === localId) return;
-        const user = state.user as
-          | {
-              name?: string;
-              color?: string;
-              userId?: string;
-              guestId?: string;
-              profileImageUrl?: string;
-            }
-          | undefined;
-        if (!user) return;
-        const key = user.userId ?? user.guestId ?? `c:${clientId}`;
-        const next = {
-          clientId,
-          name: user.name ?? "Guest",
-          color: user.color ?? "#6366f1",
-          userId: user.userId ?? null,
-          profileImageUrl: user.profileImageUrl ?? null,
-          hasCursor: hasAwarenessCursor((state as { cursor?: unknown }).cursor),
-        };
-
-        const existing = seen.get(key);
-        if (!existing || (!existing.hasCursor && next.hasCursor)) {
-          seen.set(key, next);
-        }
-      });
-
-      // Awareness fires on every remote cursor move; only re-render when the
-      // collaborator list itself actually changed.
-      setActiveEditors((prev) => {
-        const next = Array.from(seen.values());
-        const unchanged =
-          prev.length === next.length &&
-          prev.every((p, i) => {
-            const n = next[i];
-            return (
-              p.clientId === n.clientId &&
-              p.name === n.name &&
-              p.color === n.color &&
-              p.userId === n.userId &&
-              p.profileImageUrl === n.profileImageUrl &&
-              p.hasCursor === n.hasCursor
-            );
-          });
-        return unchanged ? prev : next;
-      });
-    };
-
-    awareness.on("change", update);
-    update();
-
-    return () => {
-      awareness.off("change", update);
-    };
-  }, [provider]);
-
-  const persistSnapshot = useCallback(
-    async (reason: "manual" | "autosave" | "compile") => {
-      const documentUpdateBase64 = uint8ArrayToBase64(
-        Y.encodeStateAsUpdate(ydoc),
-      );
-
-      if (!canEdit) {
-        throw new Error("You do not have edit permissions for this project");
-      }
-
-      const res = await apiFetch(`/save/${projectId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...shareHeaders,
-        },
-        body: JSON.stringify({ documentUpdateBase64, reason }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Save failed" }));
-        throw new Error(String(err.error ?? "Save failed"));
-      }
-
-      const body = await res.json();
-      console.info(
-        `[app] save-success projectId=${projectId} bytes=${String(body.bytes ?? "n/a")} reason=${reason}`,
-      );
-    },
-    [projectId, ydoc, canEdit, shareHeaders],
-  );
-
-  const handleSave = useCallback(async () => {
-    beginSaving();
-    try {
-      await persistSnapshot("manual");
-      setHistoryRefreshKey((k) => k + 1);
-    } catch (err) {
-      console.error(`[app] manual-save-failed ${String(err)}`);
-      onPopupAlert(getErrorMessage(err), "Save failed");
-    } finally {
-      endSaving();
-    }
-  }, [persistSnapshot, beginSaving, endSaving, onPopupAlert]);
-
-  const clearCompileOutputLocally = useCallback(() => {
-    setPdfUrl((prev) => {
-      if (prev?.startsWith("blob:")) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
-
-    try {
-      sessionStorage.removeItem(pdfPreviewStorageKey(projectId));
-    } catch {
-      // Ignore storage failures in private mode or constrained environments.
-    }
-  }, [projectId]);
-
-  const handleClearCompileOutput = useCallback(async () => {
-    if (clearingCompileOutput) {
-      return;
-    }
-
-    setClearingCompileOutput(true);
-    try {
-      const res = await apiFetch(
-        `/projects/${encodeURIComponent(projectId)}/preview.pdf`,
-        {
-          method: "DELETE",
-          headers: shareHeaders,
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(async () => {
-          const fallback = await res.text().catch(() => "");
-          return { error: fallback || "Failed to clear compiled output" };
-        });
-        throw new Error(String(err.error ?? "Failed to clear compiled output"));
-      }
-
-      clearCompileOutputLocally();
-      setCompileError(null);
-    } catch (err) {
-      onPopupAlert(getErrorMessage(err), "Clear output failed");
-    } finally {
-      setClearingCompileOutput(false);
-    }
-  }, [
-    clearingCompileOutput,
-    projectId,
-    shareHeaders,
-    clearCompileOutputLocally,
-    onPopupAlert,
-  ]);
+  }, [fileMap, initialSyncDone, setActiveFile]);
 
   const compileDefaultRootFile = useMemo(() => {
     if (activeEntrypoint) {
@@ -2391,847 +842,48 @@ export function ProjectWorkspace({
     ],
   );
 
-  const handleCompile = useCallback(
-    async (options?: {
-      isAutoCompile?: boolean;
-      target?: "default" | "current";
-    }) => {
-      const isAutoCompile = options?.isAutoCompile ?? false;
-      const target = options?.target ?? "default";
-
-      // Cancel any pending auto-compile timer by marking the current revision as handled.
-      lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
-
-      const isDiffCompile = activeDiffTab != null && target === "default";
-      const rootFile = isDiffCompile
-        ? activeDiffTab.filePath
-        : target === "current"
-          ? compileCurrentFile
-          : compileDefaultRootFile;
-
-      if (!rootFile) {
-        setCompileError(
-          target === "current"
-            ? "Open or select a file before compiling."
-            : "Create or select a file before compiling.",
-        );
-        return;
-      }
-
-      setCompiling(true);
-      setCompileError(null);
-      try {
-        if (!isDiffCompile) {
-          const shouldSave = autoSaveOnCompile && !isAutoCompile;
-          if (shouldSave) {
-            await persistSnapshot("compile").catch((err) => {
-              console.warn(`[app] compile-pre-save-failed ${String(err)}`);
-            });
-          }
-        }
-
-        const compileBody: Record<string, unknown> = {
-          projectId,
-          rootFile,
-          responseMode: "metadata",
-        };
-
-        if (isDiffCompile) {
-          compileBody.commitSha = activeDiffTab.commitSha;
-        } else {
-          compileBody.documentUpdateBase64 = uint8ArrayToBase64(
-            Y.encodeStateAsUpdate(ydoc),
-          );
-        }
-
-        console.info(
-          `[app] compile-request projectId=${projectId} rootFile=${rootFile}${isDiffCompile ? ` commitSha=${activeDiffTab.commitSha}` : ""}`,
-        );
-        const res = await apiFetch("/compile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...shareHeaders,
-          },
-          body: JSON.stringify(compileBody),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(async () => {
-            const fallback = await res.text().catch(() => "");
-            return { error: fallback || "Compilation failed" };
-          });
-          console.warn(
-            `[app] compile-failed status=${res.status} error=${String(err.error ?? "unknown")}`,
-          );
-          setCompileError(err.error || "Compilation failed");
-          return;
-        }
-        const contentType = res.headers.get("content-type") ?? "";
-        const compileIdHeader = res.headers.get("x-compile-id") ?? undefined;
-        let compileId = compileIdHeader;
-        if (contentType.includes("application/json")) {
-          const body = (await res
-            .json()
-            .catch(() => ({}) as { compileId?: string })) as {
-            compileId?: string;
-          };
-          if (typeof body.compileId === "string" && body.compileId.length > 0) {
-            compileId = body.compileId;
-          }
-        }
-
-        const previewParams = new URLSearchParams();
-        previewParams.set("v", compileId ?? String(Date.now()));
-        if (shareToken) {
-          previewParams.set("shareToken", shareToken);
-        }
-        const url = apiUrl(
-          `/projects/${encodeURIComponent(projectId)}/preview.pdf?${previewParams.toString()}`,
-        );
-        console.info(
-          `[app] compile-success compileId=${String(compileId ?? "none")} previewUrl=${url}`,
-        );
-        setPdfUrl((prev) => {
-          if (prev?.startsWith("blob:")) {
-            URL.revokeObjectURL(prev);
-          }
-          return url;
-        });
-        try {
-          sessionStorage.setItem(pdfPreviewStorageKey(projectId), url);
-        } catch {
-          /* quota */
-        }
-        setHistoryRefreshKey((k) => k + 1);
-      } catch (e: unknown) {
-        console.error(`[app] compile-network-error ${String(e)}`);
-        setCompileError(e instanceof Error ? e.message : "Network error");
-      } finally {
-        setCompiling(false);
-      }
-    },
-    [
-      projectId,
-      compileDefaultRootFile,
-      activeDiffTab,
-      ydoc,
-      persistSnapshot,
-      shareHeaders,
-      shareToken,
-      autoSaveOnCompile,
-      compileCurrentFile,
-    ],
-  );
-
-  const handleCompileCurrentFile = useCallback(() => {
-    void handleCompile({ target: "current" });
-  }, [handleCompile]);
-
-  const canCompileCurrentFile = useMemo(
-    () => compileCurrentFile.length > 0,
-    [compileCurrentFile],
-  );
-
-  const handleExport = useCallback(
-    async (format: string) => {
-      const rootFile = activeDiffTab?.filePath ?? activeFilePath;
-      if (!rootFile) return;
-      setExporting(true);
-      try {
-        if (autoSaveOnExport && !activeDiffTab && canEdit) {
-          await persistSnapshot("compile").catch((err) => {
-            console.warn(`[app] export-pre-save-failed ${String(err)}`);
-          });
-        }
-        const exportBody: Record<string, unknown> = { format, rootFile };
-        if (activeDiffTab) {
-          exportBody.commitSha = activeDiffTab.commitSha;
-        }
-        const res = await apiFetch(
-          `/export/${encodeURIComponent(projectId)}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...shareHeaders,
-            },
-            body: JSON.stringify(exportBody),
-          },
-        );
-        if (!res.ok) {
-          const err = await res
-            .json()
-            .catch(() => ({ error: "Export failed" }));
-          onPopupAlert(err.error || "Export failed", "Export Error");
-          return;
-        }
-        const blob = await res.blob();
-        const disposition = res.headers.get("content-disposition") ?? "";
-        const filenameMatch = /filename="?([^";\n]+)"?/.exec(disposition);
-        const filename = filenameMatch?.[1] ?? `export.${format}`;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        if (autoSaveOnExport) setHistoryRefreshKey((k) => k + 1);
-      } catch (e: unknown) {
-        onPopupAlert(
-          e instanceof Error ? e.message : "Export failed",
-          "Export Error",
-        );
-      } finally {
-        setExporting(false);
-      }
-    },
-    [
-      projectId,
-      activeDiffTab,
-      activeFilePath,
-      shareHeaders,
-      onPopupAlert,
-      autoSaveOnExport,
-      canEdit,
-      persistSnapshot,
-    ],
-  );
-
-  // Auto-compile scheduling lives entirely in refs and a timer: bumping React
-  // state per keystroke re-rendered the whole workspace tree.
-  useEffect(() => {
-    runAutoCompileRef.current = () => {
-      if (
-        !autoCompileEnabled ||
-        !canEdit ||
-        !initialSyncDone ||
-        !autoCompileScheduleEligible
-      )
-        return;
-      // While a compile runs, leave the pending revision in place; the effect
-      // watching `compiling` below reschedules once it finishes.
-      if (compiling) return;
-      if (autoCompileRevisionRef.current <= lastAutoCompiledRevisionRef.current)
-        return;
-      lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
-      void handleCompile({ isAutoCompile: true });
-    };
-  });
-
-  const scheduleAutoCompile = useCallback(() => {
-    if (autoCompileTimerRef.current !== null) {
-      window.clearTimeout(autoCompileTimerRef.current);
-    }
-    autoCompileTimerRef.current = window.setTimeout(() => {
-      autoCompileTimerRef.current = null;
-      runAutoCompileRef.current();
-    }, autoCompileTimeoutSeconds * 1000);
-  }, [autoCompileTimeoutSeconds]);
-
-  useEffect(() => {
-    const onDocUpdate = (_update: Uint8Array, origin: unknown) => {
-      if (
-        !autoCompileEnabled ||
-        !canEdit ||
-        !initialSyncDone ||
-        !autoCompileScheduleEligible
-      )
-        return;
-      if (origin === provider) return;
-      if (typeof origin === "string" && origin.startsWith("composure:")) return;
-      autoCompileRevisionRef.current += 1;
-      scheduleAutoCompile();
-    };
-
-    ydoc.on("update", onDocUpdate);
-    // Changes that arrived while this effect was unsubscribed still need a run.
-    if (autoCompileRevisionRef.current > lastAutoCompiledRevisionRef.current) {
-      scheduleAutoCompile();
-    }
-    return () => {
-      ydoc.off("update", onDocUpdate);
-      if (autoCompileTimerRef.current !== null) {
-        window.clearTimeout(autoCompileTimerRef.current);
-        autoCompileTimerRef.current = null;
-      }
-    };
-  }, [
+  const {
+    pdfUrl,
+    compileError,
+    compiling,
+    clearingCompileOutput,
+    autoCompileEnabled,
+    setAutoCompileEnabled,
+    exporting,
+    saving,
+    handleSave,
+    handleCompile,
+    handleCompileCurrentFile,
+    canCompileCurrentFile,
+    handleExport,
+    handleClearCompileOutput,
+  } = useCompile({
+    projectId,
+    shareToken,
+    shareHeaders,
     ydoc,
     provider,
-    autoCompileEnabled,
     canEdit,
     initialSyncDone,
+    autoCompileDefault,
+    autoCompileTimeoutSeconds,
+    autoSaveOnCompile,
+    autoSaveOnExport,
+    activeDiffTab,
+    activeFilePath,
+    compileCurrentFile,
+    compileDefaultRootFile,
     autoCompileScheduleEligible,
-    scheduleAutoCompile,
-  ]);
+    onHistoryChanged: bumpHistoryRefresh,
+    onPopupAlert,
+  });
 
-  // When a compile finishes, edits typed in the meantime get a fresh debounce
-  // window (matching the previous state-driven behavior).
-  useEffect(() => {
-    if (compiling) return;
-    if (autoCompileRevisionRef.current > lastAutoCompiledRevisionRef.current) {
-      scheduleAutoCompile();
-    }
-  }, [compiling, scheduleAutoCompile]);
-
-  // Live Markdown/AsciiDoc preview: render on doc changes with 300ms debounce
-  useEffect(() => {
-    if (
-      (rightPreviewFormat !== "markdown" && rightPreviewFormat !== "asciidoc") ||
-      !rightPreviewFilePath ||
-      !initialSyncDone
-    )
-      return;
-
-    const renderPreview = () => {
-      const textKey = `file:${rightPreviewFilePath}`;
-      const text = ydoc.getText(textKey).toString();
-      if (rightPreviewFormat === "markdown") {
-        setMarkdownHtml(md.render(text));
-      } else {
-        // Asciidoctor passes raw-HTML passthrough blocks (`++++`, `pass:[]`)
-        // through unescaped in every safe mode, and the preview HTML is also
-        // opened as a same-origin blob document via "Open in new tab" — so
-        // unsanitized output here is stored XSS with app-origin script access.
-        setMarkdownHtml(
-          DOMPurify.sanitize(
-            adoc.convert(text, { safe: "safe", standalone: false }) as string,
-          ),
-        );
-      }
-    };
-
-    // Initial render
-    renderPreview();
-
-    const onDocUpdate = () => {
-      if (markdownDebounceTimerRef.current !== null) {
-        window.clearTimeout(markdownDebounceTimerRef.current);
-      }
-      markdownDebounceTimerRef.current = window.setTimeout(() => {
-        markdownDebounceTimerRef.current = null;
-        renderPreview();
-      }, 300);
-    };
-
-    ydoc.on("update", onDocUpdate);
-    return () => {
-      ydoc.off("update", onDocUpdate);
-      if (markdownDebounceTimerRef.current !== null) {
-        window.clearTimeout(markdownDebounceTimerRef.current);
-        markdownDebounceTimerRef.current = null;
-      }
-    };
-  }, [
+  const markdownHtml = useHtmlPreview({
     ydoc,
     rightPreviewFilePath,
     rightPreviewFormat,
     initialSyncDone,
-    md,
-    adoc,
-  ]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.shiftKey || event.altKey) {
-        return;
-      }
-
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-cz-comment-input="true"]')) {
-        return;
-      }
-
-      if (target?.closest("[data-cz-project-title-edit]")) {
-        return;
-      }
-
-      const isFormInput =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        Boolean(target?.isContentEditable);
-
-      if (isFormInput && !target?.closest(".cm-editor")) {
-        return;
-      }
-
-      const isCtrlEnter =
-        event.key === "Enter" && event.ctrlKey && !event.metaKey;
-      const isCompileSave =
-        event.key.toLowerCase() === "s" && (event.ctrlKey || event.metaKey);
-      if (!isCtrlEnter && !isCompileSave) {
-        return;
-      }
-
-      event.preventDefault();
-      void handleCompile();
-    };
-
-    window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, { capture: true });
-    };
-  }, [handleCompile]);
-
-  const createComment = useCallback(
-    async (input: {
-      filePath: string;
-      startLine: number | null;
-      endLine: number | null;
-      parentCommentId: string | null;
-      body: string;
-    }) => {
-      if (!canInteractWithComments) {
-        throw new Error("Comment actions are disabled in view mode");
-      }
-
-      const res = await apiFetch(`/projects/${projectId}/comments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...shareHeaders,
-        },
-        body: JSON.stringify(input),
-      });
-
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: "Failed to create comment" }));
-        throw new Error(String(err.error ?? "Failed to create comment"));
-      }
-
-      const created = (await res.json()) as ProjectComment;
-      setComments((prev) => [...prev, created]);
-      signalCommentsChanged("create");
-    },
-    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
-  );
-
-  const updateComment = useCallback(
-    async (commentId: string, body: string) => {
-      if (!canInteractWithComments) {
-        throw new Error("Comment actions are disabled in view mode");
-      }
-
-      const res = await apiFetch(
-        `/projects/${projectId}/comments/${commentId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...shareHeaders,
-          },
-          body: JSON.stringify({ body }),
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: "Failed to update comment" }));
-        throw new Error(String(err.error ?? "Failed to update comment"));
-      }
-
-      const updated = (await res.json()) as ProjectComment;
-      setComments((prev) =>
-        prev.map((comment) => (comment.id === updated.id ? updated : comment)),
-      );
-      signalCommentsChanged("update");
-    },
-    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
-  );
-
-  const removeComment = useCallback(
-    async (commentId: string) => {
-      if (!canInteractWithComments) {
-        throw new Error("Comment actions are disabled in view mode");
-      }
-
-      const res = await apiFetch(
-        `/projects/${projectId}/comments/${commentId}`,
-        {
-          method: "DELETE",
-          headers: shareHeaders,
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: "Failed to delete comment" }));
-        throw new Error(String(err.error ?? "Failed to delete comment"));
-      }
-
-      setComments((prev) => {
-        const getDescendantIds = (parentId: string): Set<string> => {
-          const directChildren = prev.filter(
-            (c) => c.parentCommentId === parentId,
-          );
-          const ids = new Set(directChildren.map((c) => c.id));
-          directChildren.forEach((child) => {
-            getDescendantIds(child.id).forEach((id) => ids.add(id));
-          });
-          return ids;
-        };
-
-        const toRemove = new Set([commentId, ...getDescendantIds(commentId)]);
-        return prev.filter((c) => !toRemove.has(c.id));
-      });
-      signalCommentsChanged("delete");
-    },
-    [canInteractWithComments, projectId, shareHeaders, signalCommentsChanged],
-  );
-
-  const inviteMember = useCallback(async () => {
-    const email = inviteEmail.trim();
-    if (!email) return;
-
-    setInviting(true);
-    try {
-      const res = await apiFetch(`/projects/${projectId}/members`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...shareHeaders,
-        },
-        body: JSON.stringify({ email, role: inviteRole }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Invite failed" }));
-        throw new Error(String(err.error ?? "Invite failed"));
-      }
-
-      setInviteEmail("");
-      await loadAccess();
-    } catch (err) {
-      onPopupAlert(getErrorMessage(err), "Invite failed");
-    } finally {
-      setInviting(false);
-    }
-  }, [
-    inviteEmail,
-    inviteRole,
-    projectId,
-    shareHeaders,
-    loadAccess,
-    onPopupAlert,
-  ]);
-
-  const updateMemberRole = useCallback(
-    async (memberId: string, role: ShareRole | "remove") => {
-      const encodedMemberId = encodeURIComponent(memberId);
-      const res = await apiFetch(`/projects/${projectId}/members/${encodedMemberId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...shareHeaders,
-        },
-        body: JSON.stringify(role === "remove" ? { remove: true } : { role }),
-      });
-
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: "Failed to update member" }));
-        onPopupAlert(
-          String(err.error ?? "Failed to update member"),
-          "Update failed",
-        );
-        return;
-      }
-
-      await loadAccess();
-    },
-    [projectId, shareHeaders, loadAccess, onPopupAlert],
-  );
-
-  const setLinkSharing = useCallback(
-    async (enabled: boolean, role: ShareRole) => {
-      const res = await apiFetch(`/projects/${projectId}/link-sharing`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...shareHeaders,
-        },
-        body: JSON.stringify({ enabled, role }),
-      });
-
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: "Failed to update link sharing" }));
-        onPopupAlert(
-          String(err.error ?? "Failed to update link sharing"),
-          "Update failed",
-        );
-        return;
-      }
-
-      const body = (await res.json()) as {
-        enabled: boolean;
-        role: ShareRole | null;
-        token: string | null;
-      };
-      setLinkEnabled(body.enabled);
-      setLinkRole(body.role ?? "view");
-      setLinkToken(body.token);
-    },
-    [projectId, shareHeaders, onPopupAlert],
-  );
-
-  const invalidateLinkSharing = useCallback(async () => {
-    const res = await apiFetch(`/projects/${projectId}/link-sharing`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...shareHeaders,
-      },
-      body: JSON.stringify({ invalidate: true }),
-    });
-
-    if (!res.ok) {
-      const err = await res
-        .json()
-        .catch(() => ({ error: "Failed to rotate link" }));
-      onPopupAlert(
-        String(err.error ?? "Failed to rotate link"),
-        "Rotate failed",
-      );
-      return;
-    }
-
-    const body = (await res.json()) as {
-      enabled: boolean;
-      role: ShareRole | null;
-      token: string | null;
-    };
-    setLinkEnabled(body.enabled);
-    setLinkRole(body.role ?? "view");
-    setLinkToken(body.token);
-  }, [projectId, shareHeaders, onPopupAlert]);
-
-  const startResizeDrag = useResizeDrag();
-
-  const resizeSidebar = useMemo(
-    () =>
-      createSidebarResizeHandler({
-        startResizeDrag,
-        sidebarWidthRef,
-        setIsResizingSidebar,
-        setSidebarWidth,
-        setSidebarOpen,
-      }),
-    [startResizeDrag],
-  );
-
-  const resizePreview = useMemo(
-    () =>
-      createPreviewResizeHandler({
-        startResizeDrag,
-        previewWidth,
-        layoutRef,
-        setIsResizingPreview,
-        setPreviewWidth,
-        setPreviewOpen,
-      }),
-    [previewWidth, startResizeDrag],
-  );
-
-  const resizeEditorSplit = useMemo(
-    () =>
-      createEditorSplitResizeHandler({
-        startResizeDrag,
-        editorLayout,
-        setEditorLayout,
-      }),
-    [editorLayout, startResizeDrag],
-  );
-
-  const resizeEditorCorner = useMemo(
-    () =>
-      createEditorCornerResizeHandler({
-        startResizeDrag,
-        editorLayout,
-        splitGeometryById: splitGeometry.byId,
-        setEditorLayout,
-        setHoveredCornerKey,
-        setDraggingCornerSplitIds,
-        sidebarEdgeResize:
-          sidebarOpen && !isMobileSidebarLayout
-            ? {
-                sidebarWidthRef,
-                setIsResizingSidebar,
-                setSidebarWidth,
-                setSidebarOpen,
-              }
-            : undefined,
-        previewEdgeResize: previewOpen
-          ? {
-              getPreviewWidth: () => previewWidth,
-              layoutRef,
-              setIsResizingPreview,
-              setPreviewWidth,
-              setPreviewOpen,
-            }
-          : undefined,
-      }),
-    [
-      editorLayout,
-      isMobileSidebarLayout,
-      previewOpen,
-      previewWidth,
-      sidebarOpen,
-      splitGeometry.byId,
-      startResizeDrag,
-    ],
-  );
-
-  const openDroppedPathsInPane = useCallback(
-    (
-      paneId: string,
-      paths: string[],
-      fromTabBar: boolean,
-      sourcePaneId: string | null,
-    ) => {
-      const validPaths = normalizeDroppedPaths(
-        paths,
-        fromTabBar,
-        sourcePaneId,
-      );
-      if (validPaths.length === 0) {
-        return;
-      }
-
-      setPaneStateById((prev) => {
-        return applyDroppedPathsToPaneState(prev, paneId, validPaths, {
-          fromTabBar,
-          sourcePaneId,
-        });
-      });
-
-      focusPane(paneId, validPaths[validPaths.length - 1]);
-    },
-    [focusPane, normalizeDroppedPaths],
-  );
-
-  const splitPaneWithDroppedPaths = useCallback(
-    (
-      targetPaneId: string,
-      orientation: SplitOrientation,
-      paths: string[],
-      fromTabBar: boolean,
-      sourcePaneId: string | null,
-    ) => {
-      const validPaths = normalizeDroppedPaths(
-        paths,
-        fromTabBar,
-        sourcePaneId,
-      );
-      if (validPaths.length === 0) {
-        return;
-      }
-
-      const newPaneId = createPaneId();
-      const splitId = createSplitId();
-
-      setPaneStateById((prev) => {
-        const next = {
-          ...prev,
-          [newPaneId]: {
-            tabs: [],
-            activePath: "",
-            showSnippetToolbar: true,
-          },
-        };
-
-        return applyDroppedPathsToPaneState(next, newPaneId, validPaths, {
-          fromTabBar,
-          sourcePaneId,
-        });
-      });
-
-      setEditorLayout((prev) =>
-        insertSplitAtPane(prev, targetPaneId, newPaneId, splitId, orientation),
-      );
-      focusPane(newPaneId, validPaths[validPaths.length - 1]);
-    },
-    [createPaneId, createSplitId, focusPane, normalizeDroppedPaths],
-  );
-
-  const handlePaneDragOver = useCallback(
-    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-      const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths);
-      if (!payload) {
-        return;
-      }
-
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-
-      const rect = event.currentTarget.getBoundingClientRect();
-      const zone = computeDropZone(rect, event.clientX, event.clientY);
-      setPaneDropHint((prev) => {
-        if (prev?.paneId === paneId && prev.zone === zone) {
-          return prev;
-        }
-        return { paneId, zone };
-      });
-    },
-    [allFilePaths],
-  );
-
-  const handlePaneDragLeave = useCallback(
-    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-      const nextTarget = event.relatedTarget;
-      if (
-        nextTarget instanceof Node &&
-        event.currentTarget.contains(nextTarget)
-      ) {
-        return;
-      }
-      setPaneDropHint((prev) => (prev?.paneId === paneId ? null : prev));
-    },
-    [],
-  );
-
-  const handlePaneDrop = useCallback(
-    (event: ReactDragEvent<HTMLDivElement>, paneId: string) => {
-      const payload = readDraggedFilePayload(event.dataTransfer, allFilePaths);
-      if (!payload) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      const rect = event.currentTarget.getBoundingClientRect();
-      const zone = computeDropZone(rect, event.clientX, event.clientY);
-      setPaneDropHint(null);
-
-      if (zone === "center") {
-        openDroppedPathsInPane(
-          paneId,
-          payload.paths,
-          payload.fromTabBar,
-          payload.sourcePaneId,
-        );
-        return;
-      }
-
-      const orientation: SplitOrientation =
-        zone === "right" ? "horizontal" : "vertical";
-      splitPaneWithDroppedPaths(
-        paneId,
-        orientation,
-        payload.paths,
-        payload.fromTabBar,
-        payload.sourcePaneId,
-      );
-    },
-    [allFilePaths, openDroppedPathsInPane, splitPaneWithDroppedPaths],
-  );
+  });
 
   const renameFile = useCallback(
     (path: string, nextPath: string) => {
@@ -3264,11 +916,7 @@ export function ProjectWorkspace({
         }, "composure:rename-file");
       }
 
-      if (activeTab && workspaceTabReferencesFile(activeTab, path)) {
-        setActiveFile(
-          renameWorkspaceTabFilePath(activeTab, path, trimmed).path,
-        );
-      }
+      applyFileRenameToPanes(path, trimmed);
       if (projectEntrypoint === path) {
         setProjectEntrypoint(trimmed);
         void patchProjectMetadata({ rootFile: trimmed }).catch(() => {
@@ -3284,45 +932,12 @@ export function ProjectWorkspace({
       if (lastFocusedEditorFileRef.current === path) {
         rememberLastFocusedEditorFile(trimmed);
       }
-      setPaneStateById((prev) => {
-        let changed = false;
-        const next: Record<string, EditorPaneState> = {};
-
-        for (const [paneId, paneState] of Object.entries(prev)) {
-          const nextTabs = paneState.tabs.map((tab) =>
-            renameWorkspaceTabFilePath(tab, path, trimmed),
-          );
-          const activeTabInPane = findWorkspaceTabByPath(
-            paneState.tabs,
-            paneState.activePath,
-          );
-          const nextActivePath =
-            activeTabInPane && workspaceTabReferencesFile(activeTabInPane, path)
-              ? renameWorkspaceTabFilePath(activeTabInPane, path, trimmed).path
-              : paneState.activePath;
-          if (
-            nextActivePath !== paneState.activePath ||
-            nextTabs.some((tab, index) => tab !== paneState.tabs[index])
-          ) {
-            changed = true;
-            next[paneId] = {
-              tabs: nextTabs,
-              activePath: nextActivePath,
-              showSnippetToolbar: paneState.showSnippetToolbar,
-            };
-          } else {
-            next[paneId] = paneState;
-          }
-        }
-
-        return changed ? next : prev;
-      });
       return true;
     },
     [
       fileMap,
       ydoc,
-      activeTab,
+      applyFileRenameToPanes,
       patchProjectMetadata,
       projectDefaultBibliographyFile,
       projectEntrypoint,
@@ -3368,66 +983,8 @@ export function ProjectWorkspace({
         }, "composure:delete-file");
       }
 
-      let nextActiveForCurrentPane = "";
-      setPaneStateById((prev) => {
-        let changed = false;
-        const next: Record<string, EditorPaneState> = {};
+      applyFileDeleteToPanes(path, fallbackFromTabs, remainingFiles[0] ?? "");
 
-        for (const [paneId, paneState] of Object.entries(prev)) {
-          const closeIndex = paneState.tabs.findIndex(
-            (tab) => workspaceTabReferencesFile(tab, path),
-          );
-          const nextTabs =
-            closeIndex === -1
-              ? paneState.tabs
-              : paneState.tabs.filter(
-                (tab) => !workspaceTabReferencesFile(tab, path),
-              );
-          const activeTabInPane = findWorkspaceTabByPath(
-            paneState.tabs,
-            paneState.activePath,
-          );
-          const nextActivePath =
-            activeTabInPane && workspaceTabReferencesFile(activeTabInPane, path)
-              ? (nextTabs[closeIndex]?.path ??
-                nextTabs[closeIndex - 1]?.path ??
-                "")
-              : paneState.activePath;
-
-          if (
-            paneId === activePaneId &&
-            activeTabInPane &&
-            workspaceTabReferencesFile(activeTabInPane, path)
-          ) {
-            nextActiveForCurrentPane = nextActivePath;
-          }
-
-          if (
-            nextTabs !== paneState.tabs ||
-            nextActivePath !== paneState.activePath
-          ) {
-            changed = true;
-            next[paneId] = {
-              tabs: nextTabs,
-              activePath: nextActivePath,
-              showSnippetToolbar: paneState.showSnippetToolbar,
-            };
-          } else {
-            next[paneId] = paneState;
-          }
-        }
-
-        return changed ? next : prev;
-      });
-
-      if (activeTab && workspaceTabReferencesFile(activeTab, path)) {
-        setActiveFile(
-          nextActiveForCurrentPane ||
-            fallbackFromTabs ||
-            remainingFiles[0] ||
-            "",
-        );
-      }
       if (projectEntrypoint === path) {
         setProjectEntrypoint(null);
       }
@@ -3446,110 +1003,58 @@ export function ProjectWorkspace({
     [
       fileMap,
       ydoc,
-      activeTab,
       openTabs,
-      activePaneId,
+      applyFileDeleteToPanes,
       patchProjectMetadata,
       projectDefaultBibliographyFile,
       projectEntrypoint,
     ],
   );
 
-  const resolveTextFileSizeBytes = useCallback(
-    (filePath: string): number => {
-      const cached = textByteSizeByPath[filePath];
-      if (typeof cached === "number") {
-        return cached;
-      }
+  const hasProjectEntries = fileMap.size > 0;
 
-      if (maxTextFileSizeBytes === "unlimited") {
-        return 0;
-      }
+  const handlePaneHistoryRestored = useCallback(
+    (paneId: string, restoredFilePath: string) => {
+      bumpHistoryRefresh();
 
-      const text = ydoc.getText(`file:${filePath}`);
-      return evaluateUtf8Limit(text.length, maxTextFileSizeBytes, () =>
-        text.toString(),
-      ).sizeBytes;
-    },
-    [textByteSizeByPath, maxTextFileSizeBytes, ydoc],
-  );
-
-  const handleTextLimitExceeded = useCallback(
-    (input: { filePath: string; sizeBytes: number; limitBytes: number }) => {
-      const now = Date.now();
-      if (now - lastTextLimitPopupAtRef.current < 750) {
+      const pane = readPaneState(paneId);
+      const activeTabInPane = pane
+        ? findWorkspaceTabByPath(pane.tabs, pane.activePath)
+        : null;
+      if (activeTabInPane && isDiffWorkspaceTab(activeTabInPane)) {
+        replaceDiffTabWithLiveFile(
+          paneId,
+          activeTabInPane.path,
+          restoredFilePath,
+        );
         return;
       }
-      lastTextLimitPopupAtRef.current = now;
 
-      onPopupAlert(
-        `Cannot apply edit to "${input.filePath}" because it would exceed the ${formatBinarySize(input.limitBytes)} text file limit (attempted size: ~${formatBinarySize(input.sizeBytes)}).`,
-        "Text File Limit Reached",
-      );
+      openFileInPane(paneId, restoredFilePath, "persistent");
+      focusPane(paneId, restoredFilePath);
     },
-    [onPopupAlert],
+    [
+      bumpHistoryRefresh,
+      readPaneState,
+      replaceDiffTabWithLiveFile,
+      openFileInPane,
+      focusPane,
+    ],
   );
 
-  const updateActiveDiffTabInPane = useCallback(
-    (
-      paneId: string,
-      updater: (tab: DiffWorkspaceTab) => DiffWorkspaceTab,
-    ) => {
-      setPaneStateById((prev) => {
-        const pane = prev[paneId];
-        if (!pane) {
-          return prev;
-        }
-
-        const activeTabInPane = findWorkspaceTabByPath(
-          pane.tabs,
-          pane.activePath,
-        );
-        if (!activeTabInPane || !isDiffWorkspaceTab(activeTabInPane)) {
-          return prev;
-        }
-
-        const nextActiveDiffTab = updater(activeTabInPane);
-        if (nextActiveDiffTab === activeTabInPane) {
-          return prev;
-        }
-
-        const nextTabs = pane.tabs.map((tab) =>
-          tab.path === activeTabInPane.path ? nextActiveDiffTab : tab,
-        );
-
-        return {
-          ...prev,
-          [paneId]: {
-            ...pane,
-            tabs: nextTabs,
-          },
-        };
-      });
+  const handleTreeSelect = useCallback(
+    (path: string) => {
+      openFileFromTree(path, "ephemeral");
     },
-    [],
+    [openFileFromTree],
   );
 
-  const setActiveDiffModeForPane = useCallback(
-    (paneId: string, mode: "side-by-side" | "inline") => {
-      updateActiveDiffTabInPane(paneId, (tab) =>
-        tab.diffMode === mode ? tab : { ...tab, diffMode: mode },
-      );
+  const handleTreeSelectPersistent = useCallback(
+    (path: string) => {
+      openFileFromTree(path, "persistent");
     },
-    [updateActiveDiffTabInPane],
+    [openFileFromTree],
   );
-
-  const setActiveDiffBaseForPane = useCallback(
-    (paneId: string, base: "parent" | "current") => {
-      updateActiveDiffTabInPane(paneId, (tab) =>
-        tab.diffBase === base ? tab : { ...tab, diffBase: base },
-      );
-    },
-    [updateActiveDiffTabInPane],
-  );
-
-  const shareUrl = `${window.location.origin}${makeProjectUrl(projectId, linkToken ?? shareToken)}`;
-  const hasProjectEntries = fileMap.size > 0;
 
   const renderPane = (paneId: string) => {
     const paneState = paneStateById[paneId] ?? {
@@ -3602,23 +1107,9 @@ export function ProjectWorkspace({
         shareToken={shareToken}
         activeDiffTab={paneActiveDiffTab}
         canEdit={canEdit}
-        onActiveDiffModeChange={(mode) => setActiveDiffModeForPane(paneId, mode)}
-        onActiveDiffBaseChange={(base) => setActiveDiffBaseForPane(paneId, base)}
-        onHistoryRestored={(restoredFilePath) => {
-          setHistoryRefreshKey((k) => k + 1);
-
-          if (paneActiveDiffTab) {
-            replaceDiffTabWithLiveFile(
-              paneId,
-              paneActiveDiffTab.path,
-              restoredFilePath,
-            );
-            return;
-          }
-
-          openFileInPane(paneId, restoredFilePath, "persistent");
-          focusPane(paneId, restoredFilePath);
-        }}
+        onActiveDiffModeChange={setActiveDiffModeForPane}
+        onActiveDiffBaseChange={setActiveDiffBaseForPane}
+        onHistoryRestored={handlePaneHistoryRestored}
         onPopupAlert={onPopupAlert}
         paneActiveFile={paneActiveFile}
         paneHasActiveTextFile={paneHasActiveTextFile}
@@ -3649,22 +1140,7 @@ export function ProjectWorkspace({
         editorAutoCloseLatexBeginEnd={editorAutoCloseLatexBeginEnd}
         onCreateComment={createComment}
         onTextLimitExceeded={handleTextLimitExceeded}
-        onCommentLineNumbersChange={(nextFileLineNumbers) => {
-          setCommentLineNumbersById((prev) => {
-            const next = { ...prev };
-            for (const comment of comments) {
-              if (comment.filePath === paneActiveFile) {
-                delete next[comment.id];
-              }
-            }
-            for (const [commentId, lines] of Object.entries(
-              nextFileLineNumbers,
-            )) {
-              next[commentId] = lines;
-            }
-            return next;
-          });
-        }}
+        onCommentLineNumbersChange={setCommentLineNumbersForFile}
         onFocusPane={focusPane}
         onActivateTab={activateTab}
         onCloseTab={closeTab}
@@ -3780,12 +1256,8 @@ export function ProjectWorkspace({
             defaultBibliographyPath={activeDefaultBibliographyFile}
             onSetEntrypoint={handleSetEntrypoint}
             onSetDefaultBibliography={handleSetDefaultBibliography}
-            onSelect={(path) => {
-              openFileFromTree(path, "ephemeral");
-            }}
-            onSelectPersistent={(path) => {
-              openFileFromTree(path, "persistent");
-            }}
+            onSelect={handleTreeSelect}
+            onSelectPersistent={handleTreeSelectPersistent}
             onRename={renameFile}
             onDelete={deleteFile}
           />
@@ -3796,17 +1268,9 @@ export function ProjectWorkspace({
             commentLineNumbersById={commentLineNumbersById}
             canComment={canInteractWithComments}
             canModerate={accessRole === "owner" && canInteractWithComments}
-            onActivateComment={(commentId) => {
-              setSelectedCommentId(commentId);
-              setHoveredCommentId(null);
-              setActiveCommentRevision((prev) => prev + 1);
-            }}
-            onHoverComment={(commentId) => {
-              setHoveredCommentId(commentId);
-            }}
-            onHoverCommentEnd={() => {
-              setHoveredCommentId(null);
-            }}
+            onActivateComment={activateComment}
+            onHoverComment={hoverComment}
+            onHoverCommentEnd={endHoverComment}
             principalUserId={principal.userId}
             principalGuestId={principal.guestId}
             onReplyComment={createComment}

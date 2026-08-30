@@ -259,17 +259,23 @@ export default function App() {
     }
   }, [])
 
-  const loadAuthSessions = useCallback(async () => {
+  // Logged-out renders clear the list synchronously (the loader below only
+  // runs while authenticated).
+  if (!session?.authenticated && authSessions.length > 0) {
+    setAuthSessions([])
+  }
+
+  const loadAuthSessions = useCallback(() => {
     if (!session?.authenticated) {
-      setAuthSessions([])
-      return
+      return Promise.resolve()
     }
-    try {
-      const body = await fetchJson<{ sessions: SessionSummary[] }>('/auth/sessions')
-      setAuthSessions(body.sessions)
-    } catch {
-      setAuthSessions([])
-    }
+    return fetchJson<{ sessions: SessionSummary[] }>('/auth/sessions')
+      .then((body) => {
+        setAuthSessions(body.sessions)
+      })
+      .catch(() => {
+        setAuthSessions([])
+      })
   }, [session?.authenticated])
 
   const loadTemplates = useCallback(async () => {
@@ -347,31 +353,44 @@ export default function App() {
   const dashboardPrincipalKey = useMemo(() => getDashboardPrincipalKey(session), [session])
   const isAuthenticated = Boolean(session?.authenticated)
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return
-    }
-
-    setDashboardSortBy(preferences.dashboardSortBy)
-    setDashboardLayout(preferences.dashboardLayout)
-    setPinnedProjectIds(preferences.pinnedProjectIds)
-  }, [
-    isAuthenticated,
-    preferences.dashboardSortBy,
-    preferences.dashboardLayout,
-    preferences.pinnedProjectIds,
-  ])
-
-  useEffect(() => {
+  // Account preferences drive the dashboard settings while signed in;
+  // the per-principal localStorage copy takes over when signed out
+  // (previously two effects keyed on the same values).
+  const [prevDashboardPrefsKey, setPrevDashboardPrefsKey] = useState<{
+    isAuthenticated: boolean
+    dashboardSortBy: SortBy
+    dashboardLayout: DashboardLayout
+    pinnedProjectIds: string[]
+    dashboardPrincipalKey: string
+  } | null>(null)
+  if (
+    prevDashboardPrefsKey === null ||
+    prevDashboardPrefsKey.isAuthenticated !== isAuthenticated ||
+    (isAuthenticated &&
+      (prevDashboardPrefsKey.dashboardSortBy !== preferences.dashboardSortBy ||
+        prevDashboardPrefsKey.dashboardLayout !== preferences.dashboardLayout ||
+        prevDashboardPrefsKey.pinnedProjectIds !== preferences.pinnedProjectIds)) ||
+    (!isAuthenticated &&
+      prevDashboardPrefsKey.dashboardPrincipalKey !== dashboardPrincipalKey)
+  ) {
+    setPrevDashboardPrefsKey({
+      isAuthenticated,
+      dashboardSortBy: preferences.dashboardSortBy,
+      dashboardLayout: preferences.dashboardLayout,
+      pinnedProjectIds: preferences.pinnedProjectIds,
+      dashboardPrincipalKey,
+    })
     if (isAuthenticated) {
-      return
+      setDashboardSortBy(preferences.dashboardSortBy)
+      setDashboardLayout(preferences.dashboardLayout)
+      setPinnedProjectIds(preferences.pinnedProjectIds)
+    } else {
+      const next = loadDashboardPreferences(dashboardPrincipalKey)
+      setDashboardSortBy(next.sortBy)
+      setDashboardLayout(next.layout)
+      setPinnedProjectIds(next.pinnedProjectIds)
     }
-
-    const next = loadDashboardPreferences(dashboardPrincipalKey)
-    setDashboardSortBy(next.sortBy)
-    setDashboardLayout(next.layout)
-    setPinnedProjectIds(next.pinnedProjectIds)
-  }, [dashboardPrincipalKey, isAuthenticated])
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -385,13 +404,25 @@ export default function App() {
     })
   }, [dashboardPrincipalKey, dashboardSortBy, dashboardLayout, pinnedProjectIds, isAuthenticated])
 
-  useEffect(() => {
+  // Pins for projects that disappeared are pruned when the lists change
+  // (keyed on list identity like the old effect, so pins loaded from
+  // preferences survive until the project lists actually arrive).
+  const [prevPinPruneLists, setPrevPinPruneLists] = useState<{
+    projects: typeof projects
+    sharedProjects: typeof sharedProjects
+  } | null>(null)
+  if (
+    prevPinPruneLists === null ||
+    prevPinPruneLists.projects !== projects ||
+    prevPinPruneLists.sharedProjects !== sharedProjects
+  ) {
+    setPrevPinPruneLists({ projects, sharedProjects })
     const allIds = new Set([...projects, ...sharedProjects].map((project) => project.id))
     setPinnedProjectIds((prev) => {
       const next = prev.filter((id) => allIds.has(id))
       return next.length === prev.length ? prev : next
     })
-  }, [projects, sharedProjects])
+  }
 
   useEffect(() => {
     applyTheme(preferences.theme ?? DEFAULT_THEME_ID, preferences.appearance)
@@ -427,26 +458,45 @@ export default function App() {
       })
   }, [route, loadRecents, sessionLoading])
 
+  // Seed workspace metadata from the already-loaded project lists and mark
+  // the metadata fetch below as in flight (previously the synchronous head
+  // of the fetch effect; keyed on the same values as its dependency array).
+  const [prevMetadataFetchKey, setPrevMetadataFetchKey] = useState<{
+    knownProjectsById: typeof knownProjectsById
+    route: RouteState
+    sessionLoading: boolean
+  } | null>(null)
+  if (
+    prevMetadataFetchKey === null ||
+    prevMetadataFetchKey.knownProjectsById !== knownProjectsById ||
+    prevMetadataFetchKey.route !== route ||
+    prevMetadataFetchKey.sessionLoading !== sessionLoading
+  ) {
+    setPrevMetadataFetchKey({ knownProjectsById, route, sessionLoading })
+    if (!sessionLoading && route.kind === 'project') {
+      const projectId = route.projectId
+      const known = knownProjectsById.get(projectId)
+      if (known) {
+        setProjectMetadataById((prev) => (
+          prev[projectId]
+            ? prev
+            : {
+                ...prev,
+                [projectId]: known,
+              }
+        ))
+      }
+      setProjectMetadataLoadingId(projectId)
+    }
+  }
+
   useEffect(() => {
     if (sessionLoading || route.kind !== 'project') {
       return
     }
 
     const projectId = route.projectId
-    const known = knownProjectsById.get(projectId)
-    if (known) {
-      setProjectMetadataById((prev) => (
-        prev[projectId]
-          ? prev
-          : {
-              ...prev,
-              [projectId]: known,
-            }
-      ))
-    }
-
     let cancelled = false
-    setProjectMetadataLoadingId(projectId)
 
     void apiFetch(`/projects/${projectId}/metadata`, {
       headers: route.shareToken ? { 'X-Share-Token': route.shareToken } : undefined,
@@ -481,15 +531,26 @@ export default function App() {
     }
   }, [knownProjectsById, route, sessionLoading])
 
-  useEffect(() => {
+  // Route changes reset the password-reset prefill state synchronously; the
+  // token lookup itself stays in the effect below.
+  const [prevPasswordResetRoute, setPrevPasswordResetRoute] =
+    useState<RouteState | null>(null)
+  if (prevPasswordResetRoute !== route) {
+    setPrevPasswordResetRoute(route)
     if (route.kind !== 'reset-password') {
       setPasswordResetEmail(null)
       setPasswordResetLoading(false)
+    } else {
+      setPasswordResetLoading(true)
+      setAuthEntryError(null)
+    }
+  }
+
+  useEffect(() => {
+    if (route.kind !== 'reset-password') {
       return
     }
 
-    setPasswordResetLoading(true)
-    setAuthEntryError(null)
     void fetchJson<{ email: string }>(`/auth/password-reset/${encodeURIComponent(route.token)}`)
       .then((body) => {
         setPasswordResetEmail(body.email)
@@ -789,7 +850,15 @@ export default function App() {
     setPopupInput('')
   }, [])
 
-  useEffect(() => {
+  // OAuth/auth callback query params are consumed on entry (and on route
+  // changes, matching the old effect's dependencies): the popups are raised
+  // synchronously here, and the handled params are stripped from the URL by
+  // the effect below.
+  const [prevAuthCallbackRouteKind, setPrevAuthCallbackRouteKind] = useState<
+    string | null
+  >(null)
+  if (prevAuthCallbackRouteKind !== route.kind) {
+    setPrevAuthCallbackRouteKind(route.kind)
     const params = new URLSearchParams(window.location.search)
     const authError = params.get('auth_error')
     const linkedProvider = params.get('oauth_linked')
@@ -797,96 +866,89 @@ export default function App() {
     const pendingProvider = params.get('oauth_provider')
     const pendingIntent = params.get('oauth_intent')
 
-    if (!authError && !linkedProvider && !pendingToken) {
-      return
-    }
-
-    const clearHandledParams = (): void => {
-      params.delete('auth_error')
-      params.delete('oauth_linked')
-      params.delete('oauth_pending')
-      params.delete('oauth_provider')
-      params.delete('oauth_intent')
-      const nextQuery = params.toString()
-      const nextUrl = `${window.location.pathname}${nextQuery.length > 0 ? `?${nextQuery}` : ''}${window.location.hash}`
-      history.replaceState(null, '', nextUrl)
-    }
-
     if (authError) {
       openAlertPopup(
         authErrorMessages[authError] ?? 'Authentication provider action failed. Please try again.',
         'Authentication Error',
       )
-      clearHandledParams()
-      return
-    }
-
-    if (pendingToken) {
+    } else if (pendingToken) {
       if ((pendingIntent !== 'login' && pendingIntent !== 'link') || !pendingProvider) {
         openAlertPopup('Authentication callback data was incomplete. Please retry the sign-in flow.', 'Authentication Error')
-        clearHandledParams()
-        return
-      }
+      } else {
+        const pendingProviderName = providerLabel(pendingProvider)
+        setPopup({
+          kind: 'confirm',
+          title: pendingIntent === 'link' ? 'Link Login Provider' : 'Confirm Sign In',
+          message: pendingIntent === 'link'
+            ? `Link ${pendingProviderName} to this Composure account?`
+            : `Continue signing in with ${pendingProviderName}?`,
+          confirmLabel: pendingIntent === 'link'
+            ? `Link ${pendingProviderName}`
+            : `Continue with ${pendingProviderName}`,
+          onConfirm: async () => {
+            const response = await fetchJson<{
+              ok: boolean
+              intent: 'login' | 'link'
+              provider: string
+              requiresProfileCompletion?: boolean
+              completionToken?: string
+              displayName?: string | null
+            }>('/auth/oauth/confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: pendingToken }),
+            })
 
-      const pendingProviderName = providerLabel(pendingProvider)
-      setPopup({
-        kind: 'confirm',
-        title: pendingIntent === 'link' ? 'Link Login Provider' : 'Confirm Sign In',
-        message: pendingIntent === 'link'
-          ? `Link ${pendingProviderName} to this Composure account?`
-          : `Continue signing in with ${pendingProviderName}?`,
-        confirmLabel: pendingIntent === 'link'
-          ? `Link ${pendingProviderName}`
-          : `Continue with ${pendingProviderName}`,
-        onConfirm: async () => {
-          const response = await fetchJson<{
-            ok: boolean
-            intent: 'login' | 'link'
-            provider: string
-            requiresProfileCompletion?: boolean
-            completionToken?: string
-            displayName?: string | null
-          }>('/auth/oauth/confirm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: pendingToken }),
-          })
+            if (pendingIntent === 'login' && response.requiresProfileCompletion) {
+              if (!response.completionToken) {
+                throw new Error('Profile completion token was missing. Please restart sign-in.')
+              }
 
-          if (pendingIntent === 'login' && response.requiresProfileCompletion) {
-            if (!response.completionToken) {
-              throw new Error('Profile completion token was missing. Please restart sign-in.')
+              setOAuthProfileCompletion({
+                token: response.completionToken,
+                provider: pendingProvider,
+                displayName: typeof response.displayName === 'string' ? response.displayName : null,
+              })
+              setOAuthProfileError(null)
+              setAuthEntryError(null)
+              setAuthEntryMode('login')
+              revokeAuthEntry()
+              navigateToProjects()
+              return
             }
 
-            setOAuthProfileCompletion({
-              token: response.completionToken,
-              provider: pendingProvider,
-              displayName: typeof response.displayName === 'string' ? response.displayName : null,
-            })
-            setOAuthProfileError(null)
-            setAuthEntryError(null)
-            setAuthEntryMode('login')
-            revokeAuthEntry()
-            navigateToProjects()
-            return
-          }
-
-          const nextPath = pendingIntent === 'link'
-            ? `/settings?oauth_linked=${encodeURIComponent(pendingProvider)}`
-            : '/'
-          window.location.assign(nextPath)
-        },
-      })
-      setPopupInput('')
-      clearHandledParams()
-      return
-    }
-
-    if (linkedProvider) {
+            const nextPath = pendingIntent === 'link'
+              ? `/settings?oauth_linked=${encodeURIComponent(pendingProvider)}`
+              : '/'
+            window.location.assign(nextPath)
+          },
+        })
+        setPopupInput('')
+      }
+    } else if (linkedProvider) {
       openAlertPopup(`${providerLabel(linkedProvider)} linked successfully.`, 'Login Provider Linked')
-      clearHandledParams()
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (
+      !params.get('auth_error') &&
+      !params.get('oauth_linked') &&
+      !params.get('oauth_pending')
+    ) {
       return
     }
-  }, [openAlertPopup, revokeAuthEntry, route.kind])
+
+    params.delete('auth_error')
+    params.delete('oauth_linked')
+    params.delete('oauth_pending')
+    params.delete('oauth_provider')
+    params.delete('oauth_intent')
+    const nextQuery = params.toString()
+    const nextUrl = `${window.location.pathname}${nextQuery.length > 0 ? `?${nextQuery}` : ''}${window.location.hash}`
+    history.replaceState(null, '', nextUrl)
+  }, [route.kind])
 
   const closePopup = useCallback(() => {
     if (popupBusy) return

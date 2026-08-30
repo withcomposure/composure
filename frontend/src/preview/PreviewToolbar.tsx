@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, ExternalLink, Moon, Pin, Sun } from 'lucide-react'
 
 interface PreviewPageIndicator {
@@ -45,19 +45,43 @@ export function PreviewToolbar({
   const [pageFocused, setPageFocused] = useState(false)
   const [zoomFocused, setZoomFocused] = useState(false)
 
-  useEffect(() => {
-    if (!pageIndicator) {
-      setPageDraft('')
-      return
-    }
-    setPageDraft(String(pageIndicator.currentPage))
-  }, [pageIndicator?.currentPage, pageIndicator?.totalPages, pageFocused])
+  // The page draft resyncs from the indicator whenever the shown page, the
+  // page count, or the input's focus changes (previously an effect keyed on
+  // exactly those values).
+  const [prevPageSync, setPrevPageSync] = useState<{
+    currentPage: number | undefined
+    totalPages: number | undefined
+    pageFocused: boolean
+  } | null>(null)
+  if (
+    prevPageSync === null ||
+    prevPageSync.currentPage !== pageIndicator?.currentPage ||
+    prevPageSync.totalPages !== pageIndicator?.totalPages ||
+    prevPageSync.pageFocused !== pageFocused
+  ) {
+    setPrevPageSync({
+      currentPage: pageIndicator?.currentPage,
+      totalPages: pageIndicator?.totalPages,
+      pageFocused,
+    })
+    setPageDraft(pageIndicator ? String(pageIndicator.currentPage) : '')
+  }
 
   const roundedZoomPercent = Math.round(scale * 100)
 
-  useEffect(() => {
+  // Same resync for the zoom draft.
+  const [prevZoomSync, setPrevZoomSync] = useState<{
+    roundedZoomPercent: number
+    zoomFocused: boolean
+  } | null>(null)
+  if (
+    prevZoomSync === null ||
+    prevZoomSync.roundedZoomPercent !== roundedZoomPercent ||
+    prevZoomSync.zoomFocused !== zoomFocused
+  ) {
+    setPrevZoomSync({ roundedZoomPercent, zoomFocused })
     setZoomDraft(String(roundedZoomPercent))
-  }, [roundedZoomPercent, zoomFocused])
+  }
 
   useLayoutEffect(() => {
     const gainedFocus = zoomFocused && !zoomHadFocusRef.current
