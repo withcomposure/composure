@@ -13,6 +13,7 @@ import { useSectionObserver } from '@/hooks/use-section-observer'
 import { THEMES } from '@/themes/themes'
 import type { AuthSession, SessionSummary, UserPreferences } from '@/types'
 import { fetchJson, getErrorMessage } from '@/utils/fetch'
+import { validatePassword } from '@/utils/password'
 import { oauthIntentUrl } from '@/utils/oauth'
 import { isPasskeyCancellation, registerPasskey } from '@/utils/passkey'
 import { PROVIDER_LABELS } from '@/utils/auth-providers'
@@ -221,8 +222,9 @@ export function SettingsView({
       return
     }
 
-    if (password.length < 8) {
-      setPasswordDialogError('Password must be at least 8 characters.')
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setPasswordDialogError(passwordError)
       return
     }
     if (password !== confirm) {

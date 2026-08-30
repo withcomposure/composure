@@ -17,10 +17,3 @@ export const roleOptions: Array<{ value: RoleOption; label: string; icon: typeof
   { value: 'user', label: 'User', icon: User },
   { value: 'admin', label: 'Admin', icon: Crown },
 ]
-
-export function validatePassword(password: string): string | null {
-  if (password.trim().length < 8) {
-    return 'Password must be at least 8 characters.'
-  }
-  return null
-}

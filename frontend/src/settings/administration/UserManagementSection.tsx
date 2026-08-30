@@ -5,7 +5,8 @@ import { PopupDialog } from '@/components/PopupDialog'
 import { UserFormModal } from '../UserFormModal'
 import { fetchJson, getErrorMessage } from '@/utils/fetch'
 import { fmtTime } from '@/utils/format-time'
-import { roleOptions, validatePassword, type AdminUser, type RoleOption } from './admin-types'
+import { roleOptions, type AdminUser, type RoleOption } from './admin-types'
+import { validatePassword } from '@/utils/password'
 
 interface PasswordResetLinkRecord {
   token: string
