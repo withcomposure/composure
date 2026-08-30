@@ -54,7 +54,7 @@ import {
   parseUrlEnv,
 } from './env.js'
 import { createUid } from './ids.js'
-import { hashPassword, verifyPassword } from './auth/password.js'
+import { hashPassword, passwordMeetsPolicy, verifyPassword } from './auth/password.js'
 import { isValidEmail } from './security.js'
 import {
   getRefreshTokenTtlSeconds,
@@ -602,7 +602,7 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
     return
   }
 
-  if (password.length < 8) {
+  if (!passwordMeetsPolicy(password)) {
     reply.status(400).send({ error: 'Password must be at least 8 characters' })
     return
   }
@@ -839,7 +839,7 @@ export async function changePasswordRoute(
   const currentPassword = String(req.body?.currentPassword ?? '')
   const newPassword = String(req.body?.newPassword ?? '')
 
-  if (newPassword.length < 8) {
+  if (!passwordMeetsPolicy(newPassword)) {
     reply.status(400).send({ error: 'New password must be at least 8 characters' })
     return
   }
@@ -1165,7 +1165,7 @@ export async function applyPasswordResetRoute(
     return
   }
 
-  if (newPassword.length < 8) {
+  if (!passwordMeetsPolicy(newPassword)) {
     reply.status(400).send({ error: 'New password must be at least 8 characters' })
     return
   }

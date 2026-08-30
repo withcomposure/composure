@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import nodemailer from 'nodemailer'
 import { setMaxConcurrentPerCompiler } from './compile-dispatch.js'
-import { hashPassword } from './auth/password.js'
+import { hashPassword, passwordMeetsPolicy } from './auth/password.js'
 import {
   countAdminUsers,
   createInviteToken,
@@ -165,7 +165,7 @@ export async function createAdminUserRoute(
     return
   }
 
-  if (password.length < 8) {
+  if (!passwordMeetsPolicy(password)) {
     reply.status(400).send({ error: 'Temporary password must be at least 8 characters.' })
     return
   }
@@ -253,7 +253,7 @@ export async function updateAdminUserRoute(
   }
 
   if (typeof req.body?.newPassword === 'string' && req.body.newPassword.length > 0) {
-    if (req.body.newPassword.length < 8) {
+    if (!passwordMeetsPolicy(req.body.newPassword)) {
       reply.status(400).send({ error: 'New password must be at least 8 characters.' })
       return
     }

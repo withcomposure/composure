@@ -25,3 +25,12 @@ export async function verifyPassword(password: string, passwordHash: string | nu
   if (hash.length !== expected.length) return false
   return crypto.timingSafeEqual(hash, expected)
 }
+
+/**
+ * Password policy shared by every signup/reset/admin flow: at least 8
+ * characters after trimming surrounding whitespace, so padding cannot
+ * satisfy the minimum. Mirrored by frontend/src/utils/password.ts.
+ */
+export function passwordMeetsPolicy(password: string): boolean {
+  return password.trim().length >= 8
+}
