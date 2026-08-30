@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
-import { spawn } from 'child_process'
 import type { Renderer, CompileContext, CompileOutput } from './types.js'
+import { runCommand } from './run-command.js'
 
 const typstCache = process.env.TYPST_CACHE ?? '/var/composure/caches/typst'
 
@@ -12,83 +12,45 @@ export const typstRenderer: Renderer = {
     return path.extname(rootFile).toLowerCase() === '.typ'
   },
 
-  compile(ctx: CompileContext): Promise<CompileOutput> {
-    return new Promise((resolve) => {
-      const pdfName = path.basename(ctx.rootFile).replace(/\.[^./]+$/, '.pdf')
-      const pdfPath = path.join(ctx.outDir, pdfName)
+  async compile(ctx: CompileContext): Promise<CompileOutput> {
+    const pdfName = path.basename(ctx.rootFile).replace(/\.[^./]+$/, '.pdf')
+    const pdfPath = path.join(ctx.outDir, pdfName)
 
-      const proc = spawn(
-        'typst',
-        ['compile', ctx.rootFile, pdfPath, '--root', ctx.srcDir],
-        {
-          cwd: ctx.srcDir,
-          env: {
-            ...process.env,
-            TYPST_CACHE_DIR: typstCache,
-          },
-        },
-      )
-
-      let stdout = ''
-      let stderr = ''
-      let timedOut = false
-
-      proc.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString()
-      })
-      proc.stderr?.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString()
-      })
-
-      const timeout = setTimeout(() => {
-        timedOut = true
-        proc.kill('SIGKILL')
-      }, ctx.timeoutMs)
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout)
-
-        if (timedOut) {
-          resolve({
-            success: false,
-            outputs: [],
-            error: `Compilation timed out (${ctx.timeoutMs}ms)`,
-            log: stdout + stderr,
-          })
-          return
-        }
-
-        const log = stdout + stderr
-        if (code !== 0) {
-          resolve({
-            success: false,
-            outputs: [],
-            error: stderr || `Typst exited with code ${code}`,
-            log,
-          })
-          return
-        }
-
-        if (!fs.existsSync(pdfPath)) {
-          resolve({ success: false, outputs: [], error: 'PDF not generated', log })
-          return
-        }
-
-        resolve({
-          success: true,
-          outputs: [{
-            filename: pdfName,
-            mimeType: 'application/pdf',
-            data: fs.readFileSync(pdfPath),
-          }],
-          log,
-        })
-      })
-
-      proc.on('error', (err) => {
-        clearTimeout(timeout)
-        resolve({ success: false, outputs: [], error: `Failed to start typst: ${err.message}` })
-      })
+    // `--` terminates option parsing so a rootFile starting with `-` cannot inject flags.
+    const result = await runCommand({
+      bin: 'typst',
+      args: ['compile', '--root', ctx.srcDir, '--', ctx.rootFile, pdfPath],
+      cwd: ctx.srcDir,
+      env: {
+        ...process.env,
+        TYPST_CACHE_DIR: typstCache,
+      },
+      timeoutMs: ctx.timeoutMs,
     })
+
+    const log = result.stdout + result.stderr
+
+    if (result.spawnError) {
+      return { success: false, outputs: [], error: `Failed to start typst: ${result.spawnError}` }
+    }
+    if (result.timedOut) {
+      return { success: false, outputs: [], error: `Compilation timed out (${ctx.timeoutMs}ms)`, log }
+    }
+    if (result.code !== 0) {
+      return { success: false, outputs: [], error: result.stderr || `Typst exited with code ${result.code}`, log }
+    }
+    if (!fs.existsSync(pdfPath)) {
+      return { success: false, outputs: [], error: 'PDF not generated', log }
+    }
+
+    return {
+      success: true,
+      outputs: [{
+        filename: pdfName,
+        mimeType: 'application/pdf',
+        data: fs.readFileSync(pdfPath),
+      }],
+      log,
+    }
   },
 }

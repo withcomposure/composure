@@ -25,7 +25,9 @@ import {
   GUEST_COOKIE_NAME,
   enforceInviteOnlySignupGate,
   issueAuthCookies,
+  shouldUseSecureCookies,
 } from '../auth.js'
+import type { preHandlerHookHandler } from 'fastify'
 import { inferRequestOrigin } from '../env.js'
 import { runWithIdentityContext } from '../db/index.js'
 import { isValidEmail } from '../security.js'
@@ -88,6 +90,53 @@ export function verifyState(token: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Login-flow browser binding
+//
+// The signed state is not, by itself, tied to the browser that started the
+// flow, which allows login CSRF / session fixation: an attacker completes the
+// provider step and feeds the resulting callback (or the pending token that
+// rides back in the redirect URL) to a victim, logging them into the
+// attacker's account. We bind the flow by setting a random nonce cookie at
+// login-init, carrying only its hash through the state → pending → profile
+// tokens, and requiring the cookie to match at both the callback and the final
+// confirm/complete step. The `link` intent is already bound via req.authUser.
+// ---------------------------------------------------------------------------
+
+const OAUTH_LOGIN_NONCE_COOKIE = 'oauth_login_nonce'
+const OAUTH_LOGIN_NONCE_TTL_SEC = 10 * 60
+
+function hashLoginNonce(nonce: string): string {
+  return crypto.createHash('sha256').update(nonce).digest('base64url')
+}
+
+/** Set the nonce cookie and return its hash to embed in the signed state. */
+function issueLoginNonce(req: FastifyRequest, reply: FastifyReply): string {
+  const nonce = crypto.randomBytes(32).toString('base64url')
+  reply.setCookie(OAUTH_LOGIN_NONCE_COOKIE, nonce, {
+    httpOnly: true,
+    // Lax so it survives the provider's top-level GET redirect back to us.
+    sameSite: 'lax',
+    secure: shouldUseSecureCookies(req),
+    path: '/',
+    maxAge: OAUTH_LOGIN_NONCE_TTL_SEC,
+  })
+  return hashLoginNonce(nonce)
+}
+
+function loginNonceMatches(req: FastifyRequest, expectedHash: unknown): boolean {
+  if (typeof expectedHash !== 'string' || expectedHash.length === 0) return false
+  const cookie = req.cookies?.[OAUTH_LOGIN_NONCE_COOKIE]
+  if (typeof cookie !== 'string' || cookie.length === 0) return false
+  const actual = Buffer.from(hashLoginNonce(cookie))
+  const expected = Buffer.from(expectedHash)
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
+}
+
+function clearLoginNonce(reply: FastifyReply): void {
+  reply.clearCookie(OAUTH_LOGIN_NONCE_COOKIE, { path: '/' })
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +363,8 @@ export interface OAuthRoutesOptions {
   backendUrl: string | null
   frontendUrl: string | null
   trustedFrontendOrigins?: ReadonlySet<string>
+  /** Rate limit applied to the unauthenticated confirm/complete-profile POSTs. */
+  confirmRateLimit?: preHandlerHookHandler
 }
 
 export function registerOAuthRoutes(
@@ -325,7 +376,9 @@ export function registerOAuthRoutes(
     backendUrl,
     frontendUrl,
     trustedFrontendOrigins = new Set<string>(),
+    confirmRateLimit,
   } = opts
+  const confirmRouteOptions = confirmRateLimit ? { preHandler: confirmRateLimit } : {}
   const configuredFrontendOrigin = normalizeHttpOrigin(frontendUrl)
 
   function isAllowedFrontendOrigin(req: FastifyRequest, origin: string | null): origin is string {
@@ -495,7 +548,8 @@ export function registerOAuthRoutes(
     } | undefined
     const inviteToken = parseInviteToken(query?.invite_token ?? query?.inviteToken)
     const frontendOrigin = resolveFrontendOriginForInit(req)
-    const state = signState({ intent: 'login', provider, frontendOrigin, inviteToken, ts: Date.now() })
+    const loginNonceHash = issueLoginNonce(req, reply)
+    const state = signState({ intent: 'login', provider, frontendOrigin, inviteToken, loginNonceHash, ts: Date.now() })
     const url = strategy.authorizeUrl(state, callbackUrl(req, provider), config.client_id)
     reply.redirect(url)
   })
@@ -571,6 +625,12 @@ export function registerOAuthRoutes(
       return
     }
 
+    // Bind the login flow to the browser that initiated it (see nonce helpers).
+    if (intent === 'login' && !loginNonceMatches(req, statePayload.loginNonceHash)) {
+      redirectWithAuthError(req, reply, statePayload, 'login_session_mismatch')
+      return
+    }
+
     const strategy = strategies[provider]
     if (!strategy) {
       redirectWithAuthError(req, reply, statePayload, 'unknown_provider')
@@ -638,6 +698,9 @@ export function registerOAuthRoutes(
     }
     if (intent === 'link') {
       pendingPayload.userId = typeof statePayload.userId === 'string' ? statePayload.userId : null
+    } else {
+      // Carry the browser binding forward to the confirm step.
+      pendingPayload.loginNonceHash = statePayload.loginNonceHash
     }
 
     const pendingToken = signState(pendingPayload)
@@ -651,7 +714,7 @@ export function registerOAuthRoutes(
   })
 
   // POST /auth/oauth/confirm — finalize OAuth login or linking after explicit user confirmation
-  app.post(apiPath('/auth/oauth/confirm'), async (req, reply) => {
+  app.post(apiPath('/auth/oauth/confirm'), confirmRouteOptions, async (req, reply) => {
     const body = req.body as { token?: string } | undefined
     const token = typeof body?.token === 'string' ? body.token.trim() : ''
     if (!token) {
@@ -676,6 +739,12 @@ export function registerOAuthRoutes(
     const providerId = typeof pendingPayload.providerId === 'string' ? pendingPayload.providerId : null
     if ((intent !== 'login' && intent !== 'link') || !provider || !providerId) {
       sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    // Login confirmation must come from the browser that started the flow.
+    if (intent === 'login' && !loginNonceMatches(req, pendingPayload.loginNonceHash)) {
+      sendOAuthConfirmError(reply, 401, 'login_session_mismatch')
       return
     }
 
@@ -756,6 +825,7 @@ export function registerOAuthRoutes(
           providerId,
           displayName: providerDisplayName,
           inviteToken: stateInviteToken,
+          loginNonceHash: pendingPayload.loginNonceHash,
           ts: Date.now(),
         }
         const completionToken = signState(completionPayload)
@@ -814,6 +884,7 @@ export function registerOAuthRoutes(
       await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(stateInviteToken))
     }
 
+    clearLoginNonce(reply)
     await issueOAuthAuthCookies(req, reply, resolved.user.id)
     await migrateGuestData(req, reply, resolved.user.id)
 
@@ -830,7 +901,7 @@ export function registerOAuthRoutes(
   })
 
   // POST /auth/oauth/complete-profile — finalize email collection for providers without trusted email claims.
-  app.post(apiPath('/auth/oauth/complete-profile'), async (req, reply) => {
+  app.post(apiPath('/auth/oauth/complete-profile'), confirmRouteOptions, async (req, reply) => {
     const body = req.body as { token?: string; email?: string } | undefined
     const token = typeof body?.token === 'string' ? body.token.trim() : ''
     if (!token) {
@@ -854,6 +925,12 @@ export function registerOAuthRoutes(
     const providerId = typeof pendingPayload.providerId === 'string' ? pendingPayload.providerId : null
     if (!provider || !providerId) {
       sendOAuthConfirmError(reply, 400, 'invalid_state')
+      return
+    }
+
+    // Same browser binding as the confirm step (this also finalizes a login).
+    if (!loginNonceMatches(req, pendingPayload.loginNonceHash)) {
+      sendOAuthConfirmError(reply, 401, 'login_session_mismatch')
       return
     }
 
@@ -901,6 +978,7 @@ export function registerOAuthRoutes(
       await runWithIdentityContext(null, 'system', async () => await markInviteTokenUsed(inviteToken))
     }
 
+    clearLoginNonce(reply)
     await issueOAuthAuthCookies(req, reply, resolved.user.id)
     await migrateGuestData(req, reply, resolved.user.id)
 

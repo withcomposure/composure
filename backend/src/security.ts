@@ -32,6 +32,16 @@ export function isPathWithin(baseDir: string, candidatePath: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
+/**
+ * True when any path segment begins with '-'. Such a name could be parsed as a
+ * command-line flag when passed to a compiler (pandoc/tectonic/typst). The
+ * renderers also use a `--` terminator; this is a second layer that rejects the
+ * input outright with a clear error instead of silently neutralizing it.
+ */
+export function hasLeadingDashSegment(relativePath: string): boolean {
+  return relativePath.split('/').some((segment) => segment.startsWith('-'))
+}
+
 export function isValidProjectId(id: string): boolean {
   return uidLikePattern.test(id)
 }

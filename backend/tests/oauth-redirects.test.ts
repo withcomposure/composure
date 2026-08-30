@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { FastifyInstance } from 'fastify'
 import { describe, expect, it, vi } from 'vitest'
 import { signState } from '../src/auth/oauth.js'
@@ -75,6 +76,23 @@ function extractStateFromAuthorizeRedirect(location: string | undefined): string
 function asCookieList(header: string | string[] | undefined): string[] {
   if (!header) return []
   return (Array.isArray(header) ? header : [header]).filter((cookie): cookie is string => typeof cookie === 'string')
+}
+
+// The login flow is bound to the initiating browser via a nonce cookie set at
+// login-init; its hash travels in the signed state and is re-checked at the
+// callback and confirm steps. These tests craft the callback directly, so they
+// supply a matching (nonce cookie, loginNonceHash) pair.
+function makeLoginNonce(): { loginNonceHash: string; cookieHeader: string } {
+  const nonce = crypto.randomBytes(16).toString('base64url')
+  const loginNonceHash = crypto.createHash('sha256').update(nonce).digest('base64url')
+  return { loginNonceHash, cookieHeader: `oauth_login_nonce=${nonce}` }
+}
+
+/** Pull the nonce cookie set by a real login-init redirect, to forward through the flow. */
+function loginNonceCookieFrom(setCookie: string | string[] | undefined): string {
+  const cookie = asCookieList(setCookie).find((c) => c.startsWith('oauth_login_nonce='))
+  expect(cookie).toBeTruthy()
+  return (cookie as string).split(';')[0]
 }
 
 function extractPendingTokenFromRedirect(location: string | undefined): string {
@@ -309,10 +327,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'github', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
 
       expect(callback.statusCode).toBe(302)
@@ -360,10 +380,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'github', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
 
       expect(callback.statusCode).toBe(302)
@@ -373,6 +395,7 @@ describe('oauth redirect targets', () => {
         method: 'POST',
         url: '/api/v1/auth/oauth/confirm',
         payload: { token: pendingToken },
+        headers: { cookie: cookieHeader },
       })
       expect(confirm.statusCode).toBe(403)
       expect((confirm.json() as { error: string }).error).toMatch(/invite-only/i)
@@ -425,10 +448,12 @@ describe('oauth redirect targets', () => {
       })
       expect(start.statusCode).toBe(302)
       const state = extractStateFromAuthorizeRedirect(start.headers.location)
+      const cookieHeader = loginNonceCookieFrom(start.headers['set-cookie'])
 
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
 
       expect(callback.statusCode).toBe(302)
@@ -438,6 +463,7 @@ describe('oauth redirect targets', () => {
         method: 'POST',
         url: '/api/v1/auth/oauth/confirm',
         payload: { token: pendingToken },
+        headers: { cookie: cookieHeader },
       })
       expect(confirm.statusCode).toBe(200)
       const cookies = asCookieList(confirm.headers['set-cookie'])
@@ -553,10 +579,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'github', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
       expect(callback.statusCode).toBe(302)
       const redirected = new URL(callback.headers.location as string, 'http://localhost')
@@ -597,10 +625,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'orcid', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'orcid', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/orcid/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
 
       expect(callback.statusCode).toBe(302)
@@ -610,6 +640,7 @@ describe('oauth redirect targets', () => {
         method: 'POST',
         url: '/api/v1/auth/oauth/confirm',
         payload: { token: pendingToken },
+        headers: { cookie: cookieHeader },
       })
 
       expect(confirm.statusCode).toBe(200)
@@ -633,6 +664,7 @@ describe('oauth redirect targets', () => {
           token: confirmBody.completionToken,
           email: 'orcid-user@test.com',
         },
+        headers: { cookie: cookieHeader },
       })
 
       expect(complete.statusCode).toBe(200)
@@ -682,10 +714,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'github', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
       expect(callback.statusCode).toBe(302)
       const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
@@ -694,6 +728,7 @@ describe('oauth redirect targets', () => {
         method: 'POST',
         url: '/api/v1/auth/oauth/confirm',
         payload: { token: pendingToken },
+        headers: { cookie: cookieHeader },
       })
       expect(confirm.statusCode).toBe(409)
       expect((confirm.json() as { error: string }).error).toMatch(/already exists/i)
@@ -735,10 +770,12 @@ describe('oauth redirect targets', () => {
         }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const state = signState({ intent: 'login', provider: 'github', ts: Date.now() })
+      const { loginNonceHash, cookieHeader } = makeLoginNonce()
+      const state = signState({ intent: 'login', provider: 'github', loginNonceHash, ts: Date.now() })
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/via/github/callback?code=ok&state=${encodeURIComponent(state)}`,
+        headers: { cookie: cookieHeader },
       })
       expect(callback.statusCode).toBe(302)
       const pendingToken = extractPendingTokenFromRedirect(callback.headers.location)
@@ -747,6 +784,7 @@ describe('oauth redirect targets', () => {
         method: 'POST',
         url: '/api/v1/auth/oauth/confirm',
         payload: { token: pendingToken },
+        headers: { cookie: cookieHeader },
       })
       expect(confirm.statusCode).toBe(200)
 

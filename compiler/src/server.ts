@@ -1,10 +1,11 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import crypto from 'crypto'
 import { pipeline } from 'stream/promises'
 import Fastify, { type FastifyRequest } from 'fastify'
 import * as Y from 'yjs'
-import { normalizeRelativePath, isPathWithin, sanitizeCompileLog as _sanitizeCompileLog, syncProjectSource } from './utils.js'
+import { normalizeRelativePath, isPathWithin, hasLeadingDashSegment, sanitizeCompileLog as _sanitizeCompileLog, syncProjectSource } from './utils.js'
 import { selectRenderer } from './renderers/index.js'
 import { pandocRenderer, type PandocCompileContext } from './renderers/pandoc.js'
 import { createUid } from './ids.js'
@@ -20,6 +21,34 @@ const maxConcurrentProjects = Math.max(
   1,
   Number.parseInt(process.env.MAX_CONCURRENT_PROJECTS ?? String(Math.max(1, os.cpus().length)), 10),
 )
+
+// Shared secret the backend must present on every request. When set, all
+// endpoints except /health require a matching X-Compiler-Secret header.
+const sharedSecret = process.env.COMPILER_SHARED_SECRET ?? ''
+// Default to loopback so an accidental deploy is never reachable off-host.
+const bindHost = process.env.COMPILER_HOST ?? '127.0.0.1'
+
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost'
+}
+
+/** Constant-time string compare that also guards against length leaks. */
+function secretMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
+}
+
+// Fail closed: reaching the compiler across a network without a shared secret
+// means anything on that network can compile/export/preview in any workspace.
+if (!isLoopbackHost(bindHost) && !sharedSecret) {
+  console.error(
+    `[compiler] refusing to start: COMPILER_HOST=${bindHost} is not loopback and COMPILER_SHARED_SECRET is unset. ` +
+      'Set a shared secret (and configure the backend with the same value) or bind to 127.0.0.1.',
+  )
+  process.exit(1)
+}
 
 function sanitizeCompileLog(log: string | undefined, projectDir: string): string | undefined {
   return _sanitizeCompileLog(log, projectDir, compileDir, tectonicCache, typstCache)
@@ -464,6 +493,17 @@ async function drainProjectQueue(projectId: string, firstPayload: CompilePayload
 
 const app = Fastify({ logger: false, bodyLimit: 10 * 1024 * 1024 })
 
+// Require the shared secret on every request except the health check.
+app.addHook('onRequest', async (req, reply) => {
+  if (!sharedSecret) return // loopback-only deployment; bind guard enforces this
+  const requestPath = req.url.split('?', 1)[0]
+  if (requestPath === '/health') return
+  const provided = req.headers['x-compiler-secret']
+  if (typeof provided !== 'string' || !secretMatches(provided, sharedSecret)) {
+    reply.status(401).send({ error: 'unauthorized' })
+  }
+})
+
 app.get('/health', async () => ({
   status: 'ok',
   uptime: process.uptime(),
@@ -493,7 +533,7 @@ app.post('/compile', {
   }
 
   const safeRootFile = normalizeRelativePath(rootFile)
-  if (!safeRootFile) {
+  if (!safeRootFile || hasLeadingDashSegment(safeRootFile)) {
     reply.status(400).send({ error: 'Invalid root file path' })
     return
   }
@@ -551,7 +591,7 @@ app.post('/export', {
   }
 
   const safeRootFile = normalizeRelativePath(rootFile)
-  if (!safeRootFile) {
+  if (!safeRootFile || hasLeadingDashSegment(safeRootFile)) {
     reply.status(400).send({ error: 'Invalid root file path' })
     return
   }
@@ -767,7 +807,7 @@ app.delete('/projects/:projectId/preview.pdf', {
   reply.status(204).send()
 })
 
-await app.listen({ host: '0.0.0.0', port: port })
+await app.listen({ host: bindHost, port: port })
 console.info(
   `[compiler] listening port=${port} compileDir=${compileDir} tectonicCache=${tectonicCache} typstCache=${typstCache} maxConcurrentProjects=${maxConcurrentProjects}`,
 )

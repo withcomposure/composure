@@ -41,6 +41,8 @@ import {
   putExcalidrawLibraryRoute,
   updatePreferencesRoute,
   updateProfileRoute,
+  type AuthBody,
+  type ResetPasswordBody,
 } from './auth.js'
 import {
   createAdminUserRoute,
@@ -104,6 +106,13 @@ import {
 } from './sharing.js'
 import { isProductionEnv, normalizeOriginHeader, parseBooleanEnv, parseTrustedOrigins, parseUrlEnv } from './env.js'
 import { isValidProjectId, normalizeRelativePath } from './security.js'
+import {
+  FixedWindowRateLimiter,
+  clientIpKey,
+  normalizeEmailForKey,
+  rateLimitPreHandler,
+  resolveTrustProxy,
+} from './rate-limit.js'
 import {
   commitSnapshot,
   createSnapshot,
@@ -182,6 +191,24 @@ export interface BuildAppOptions {
   resetAutoCommitTimer?: (projectId: string) => void
 }
 
+// Enforcing CSP applied to all app responses (the SPA document included).
+// 'unsafe-inline'/'unsafe-eval' are required: the app uses pervasive React
+// inline styles plus runtime <style> injection for theming, and pdf.js needs
+// eval. Everything else is locked down — no plugins, no framing, self-only base
+// and form targets.
+const APP_CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ')
+
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const { hocuspocus = null, isProduction = isProductionEnv(process.env.NODE_ENV), resetAutoCommitTimer } = options
   const shouldServeFrontend = parseBooleanEnv(process.env.SERVE_FRONTEND, isProduction)
@@ -195,6 +222,51 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: false,
     bodyLimit: 10 * 1024 * 1024,
+    // Resolve the real client IP for rate limiting. Configure TRUST_PROXY to
+    // name your proxy hop(s); it defaults to trusting nothing.
+    trustProxy: resolveTrustProxy(process.env.TRUST_PROXY),
+  })
+
+  // Per-process rate limiting for unauthenticated auth endpoints. See
+  // rate-limit.ts for the single-instance caveat.
+  const authRateLimiter = new FixedWindowRateLimiter()
+  const RL_WINDOW_MS = 15 * 60 * 1000
+
+  const loginRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
+    const ip = clientIpKey(req.ip)
+    const email = normalizeEmailForKey((req.body as { email?: unknown } | undefined)?.email)
+    return [
+      // Tight: one host guessing one account's password.
+      { key: `login:ip+email:${ip}:${email}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
+      // Looser email axis: a botnet spreading attempts on one account across many IPs.
+      { key: `login:email:${email}`, rule: { max: 20, windowMs: RL_WINDOW_MS } },
+      // IP axis: credential stuffing many accounts from one host.
+      { key: `login:ip:${ip}`, rule: { max: 50, windowMs: RL_WINDOW_MS } },
+    ]
+  })
+
+  const signupRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
+    const ip = clientIpKey(req.ip)
+    const email = normalizeEmailForKey((req.body as { email?: unknown } | undefined)?.email)
+    return [
+      { key: `signup:ip:${ip}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
+      { key: `signup:email:${email}`, rule: { max: 5, windowMs: RL_WINDOW_MS } },
+    ]
+  })
+
+  const passwordResetRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
+    const ip = clientIpKey(req.ip)
+    const token = String((req.params as { token?: string } | undefined)?.token ?? '')
+    return [
+      { key: `pwreset:ip:${ip}`, rule: { max: 20, windowMs: RL_WINDOW_MS } },
+      { key: `pwreset:token:${token}`, rule: { max: 10, windowMs: RL_WINDOW_MS } },
+    ]
+  })
+
+  // Looser than login: a provider hiccup can trigger legitimate confirm retries.
+  const oauthConfirmRateLimit = rateLimitPreHandler(authRateLimiter, (req) => {
+    const ip = clientIpKey(req.ip)
+    return [{ key: `oauth-confirm:ip:${ip}`, rule: { max: 60, windowMs: RL_WINDOW_MS } }]
   })
 
   await app.register(fastifyCors, {
@@ -221,6 +293,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.addHook('preHandler', authHook)
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff')
+    reply.header('X-Frame-Options', 'DENY')
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+    // Routes that need a stricter policy (e.g. the sandboxed /assets responses)
+    // set their own CSP; don't override it here.
+    if (!reply.getHeader('content-security-policy')) {
+      reply.header('Content-Security-Policy', APP_CONTENT_SECURITY_POLICY)
+    }
     return payload
   })
   app.addHook('preHandler', async (req, reply) => {
@@ -306,6 +385,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
     reply.type(mimeTypes[ext] ?? 'application/octet-stream')
 
+    // Only raster images and PDFs are ever rendered inline by the frontend
+    // (via <img> and pdf.js). Everything else — notably SVG, which can carry
+    // <script> that would run in our origin if navigated to directly — is
+    // forced to download. The sandbox CSP is defence-in-depth: it neutralises
+    // script execution should any asset be opened as a top-level document.
+    const inlineSafeExts = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'pdf'])
+    const disposition = inlineSafeExts.has(ext) ? 'inline' : 'attachment'
+    reply.header('Content-Disposition', `${disposition}; filename="${storageKey}"`)
+    reply.header('Content-Security-Policy', "sandbox; default-src 'none'")
+
     // If you don't return reply.send(), Fastify resolves the async's undefined 
     // return and can finalize the response before the stream finishes piping
     return reply.send(stream)
@@ -313,7 +402,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Auth routes
   app.get(apiPath('/auth/session'), authSessionRoute)
-  app.post(apiPath('/auth/signup'), {
+  app.post<{ Body: AuthBody }>(apiPath('/auth/signup'), {
+    preHandler: signupRateLimit,
     schema: {
       body: {
         type: 'object',
@@ -328,7 +418,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       },
     },
   }, signupRoute)
-  app.post(apiPath('/auth/login'), {
+  app.post<{ Body: AuthBody }>(apiPath('/auth/login'), {
+    preHandler: loginRateLimit,
     schema: {
       body: {
         type: 'object',
@@ -343,7 +434,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   }, loginRoute)
   app.post(apiPath('/auth/logout'), logoutRoute)
   app.get(apiPath('/auth/password-reset/:token'), getPasswordResetTokenRoute)
-  app.post(apiPath('/auth/password-reset/:token'), applyPasswordResetRoute)
+  app.post<{ Params: { token?: string }; Body: ResetPasswordBody }>(
+    apiPath('/auth/password-reset/:token'),
+    { preHandler: passwordResetRateLimit },
+    applyPasswordResetRoute,
+  )
   app.patch(apiPath('/auth/profile'), {
     schema: {
       body: {
@@ -420,6 +515,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     backendUrl,
     frontendUrl,
     trustedFrontendOrigins: trustedOrigins,
+    confirmRateLimit: oauthConfirmRateLimit,
   })
 
   // Passkey (WebAuthn) routes

@@ -37,6 +37,14 @@ interface ClearPreviewDispatchInput {
 
 const compilerTimeoutMs = Number.parseInt(process.env.COMPILER_TIMEOUT_MS ?? '45000', 10)
 
+// Shared secret presented to the compiler service on every request. Must match
+// COMPILER_SHARED_SECRET on the compiler side. Empty = loopback-only deployment.
+const compilerSharedSecret = process.env.COMPILER_SHARED_SECRET ?? ''
+
+function compilerAuthHeaders(): Record<string, string> {
+  return compilerSharedSecret ? { 'X-Compiler-Secret': compilerSharedSecret } : {}
+}
+
 // ---------------------------------------------------------------------------
 // Per-compiler semaphore for concurrency limiting
 // ---------------------------------------------------------------------------
@@ -190,6 +198,7 @@ export async function dispatchCompile(input: DispatchInput): Promise<void> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...compilerAuthHeaders(),
         },
         body: JSON.stringify(input.payload),
         signal: AbortSignal.timeout(compilerTimeoutMs),
@@ -254,6 +263,7 @@ export async function dispatchPreview(input: PreviewDispatchInput): Promise<void
     response = await fetch(target, {
       method: 'GET',
       headers: {
+        ...compilerAuthHeaders(),
         ...(input.rangeHeader ? { Range: input.rangeHeader } : {}),
         ...(input.ifNoneMatchHeader ? { 'If-None-Match': input.ifNoneMatchHeader } : {}),
         ...(input.ifModifiedSinceHeader ? { 'If-Modified-Since': input.ifModifiedSinceHeader } : {}),
@@ -337,6 +347,7 @@ export async function dispatchClearPreview(input: ClearPreviewDispatchInput): Pr
   try {
     response = await fetch(target, {
       method: 'DELETE',
+      headers: compilerAuthHeaders(),
       signal: AbortSignal.timeout(compilerTimeoutMs),
     })
   } catch (err) {
@@ -385,7 +396,7 @@ export async function dispatchExport(input: ExportDispatchInput): Promise<void> 
     try {
       response = await fetch(target, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...compilerAuthHeaders() },
         body: JSON.stringify({
           projectId: input.projectId,
           rootFile: input.rootFile,

@@ -575,7 +575,7 @@ export async function authSessionRoute(req: FastifyRequest): Promise<AuthSession
   return await makeSessionPayload(req)
 }
 
-interface AuthBody {
+export interface AuthBody {
   email?: string
   password?: string
   displayName?: string
@@ -1183,7 +1183,7 @@ export async function getPasswordResetTokenRoute(
   reply.send({ email: reset.email, expiresAt: reset.expiresAt })
 }
 
-interface ResetPasswordBody {
+export interface ResetPasswordBody {
   newPassword?: string
 }
 

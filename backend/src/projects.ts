@@ -23,13 +23,15 @@ import {
 } from './db/index.js'
 import { getShareTokenFromRequest } from './sharing.js'
 import { createUid } from './ids.js'
-import { isValidProjectId, normalizeRelativePath } from './security.js'
+import { hasLeadingDashSegment, isValidProjectId, normalizeRelativePath } from './security.js'
 import { instantiateTemplateById, listProjectTemplates } from './templates.js'
 import { assetStore } from './storage.js'
 import * as Y from 'yjs'
 
 function sanitizeRootFile(rootFile: unknown): string {
-  return normalizeRelativePath(rootFile) ?? 'main.tex'
+  const normalized = normalizeRelativePath(rootFile)
+  if (!normalized || hasLeadingDashSegment(normalized)) return 'main.tex'
+  return normalized
 }
 
 function sanitizeDefaultBibliographyFile(defaultBibliographyFile: unknown): string | null {
@@ -283,7 +285,7 @@ export async function patchProjectMetadataRoute(
       normalizedRootFile = ''
     } else {
       const nextRootFile = normalizeRelativePath(body.rootFile)
-      if (!nextRootFile) {
+      if (!nextRootFile || hasLeadingDashSegment(nextRootFile)) {
         reply.status(400).send({ error: 'Invalid rootFile path' })
         return
       }

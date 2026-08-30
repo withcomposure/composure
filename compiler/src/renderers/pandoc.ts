@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
-import { spawn } from 'child_process'
 import type { Renderer, CompileContext, CompileOutput } from './types.js'
+import { runCommand } from './run-command.js'
 
 const outputFormatToExt: Record<string, string> = {
   pdf: '.pdf',
@@ -31,7 +31,7 @@ export const pandocRenderer: Renderer = {
     return false
   },
 
-  compile(ctx: CompileContext): Promise<CompileOutput> {
+  async compile(ctx: CompileContext): Promise<CompileOutput> {
     const pandocCtx = ctx as PandocCompileContext
     const format = pandocCtx.outputFormat ?? 'pdf'
 
@@ -40,7 +40,10 @@ export const pandocRenderer: Renderer = {
     const outputName = path.basename(ctx.rootFile).replace(/\.[^./]+$/, ext)
     const outputPath = path.join(ctx.outDir, outputName)
 
-    const pandocArgs = [ctx.rootFile, '-o', outputPath]
+    // All options first, then `--`, then the user-controlled input file. The
+    // terminator prevents a rootFile like `--lua-filter=evil.lua` from being
+    // parsed as a pandoc option (which could execute arbitrary code).
+    const pandocArgs = ['-o', outputPath]
 
     if (format === 'html') {
       pandocArgs.push('--standalone')
@@ -55,66 +58,35 @@ export const pandocRenderer: Renderer = {
       }
     }
 
-    return new Promise((resolve) => {
-      const proc = spawn('pandoc', pandocArgs, {
-        cwd: ctx.srcDir,
-      })
+    pandocArgs.push('--', ctx.rootFile)
 
-      let stdout = ''
-      let stderr = ''
-      let timedOut = false
-
-      proc.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString()
-      })
-      proc.stderr?.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString()
-      })
-
-      const timeout = setTimeout(() => {
-        timedOut = true
-        proc.kill('SIGKILL')
-      }, ctx.timeoutMs)
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout)
-
-        if (timedOut) {
-          resolve({
-            success: false,
-            outputs: [],
-            error: `Pandoc timed out (${ctx.timeoutMs}ms)`,
-            log: stdout + stderr,
-          })
-          return
-        }
-
-        const log = stdout + stderr
-        if (code !== 0 || !fs.existsSync(outputPath)) {
-          resolve({
-            success: false,
-            outputs: [],
-            error: stderr || `Pandoc exited with code ${code}`,
-            log,
-          })
-          return
-        }
-
-        resolve({
-          success: true,
-          outputs: [{
-            filename: outputName,
-            mimeType: mime,
-            data: fs.readFileSync(outputPath),
-          }],
-          log,
-        })
-      })
-
-      proc.on('error', (err) => {
-        clearTimeout(timeout)
-        resolve({ success: false, outputs: [], error: `Failed to start pandoc: ${err.message}` })
-      })
+    const result = await runCommand({
+      bin: 'pandoc',
+      args: pandocArgs,
+      cwd: ctx.srcDir,
+      timeoutMs: ctx.timeoutMs,
     })
+
+    const log = result.stdout + result.stderr
+
+    if (result.spawnError) {
+      return { success: false, outputs: [], error: `Failed to start pandoc: ${result.spawnError}` }
+    }
+    if (result.timedOut) {
+      return { success: false, outputs: [], error: `Pandoc timed out (${ctx.timeoutMs}ms)`, log }
+    }
+    if (result.code !== 0 || !fs.existsSync(outputPath)) {
+      return { success: false, outputs: [], error: result.stderr || `Pandoc exited with code ${result.code}`, log }
+    }
+
+    return {
+      success: true,
+      outputs: [{
+        filename: outputName,
+        mimeType: mime,
+        data: fs.readFileSync(outputPath),
+      }],
+      log,
+    }
   },
 }

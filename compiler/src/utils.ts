@@ -22,6 +22,15 @@ export function normalizeRelativePath(input: unknown): string | null {
 }
 
 /**
+ * True when any path segment begins with '-'. Such a name could be parsed as a
+ * command-line flag by a compiler. Renderers also pass user paths after a `--`
+ * terminator; this rejects the input outright as a second layer.
+ */
+export function hasLeadingDashSegment(relativePath: string): boolean {
+  return relativePath.split('/').some((segment) => segment.startsWith('-'))
+}
+
+/**
  * True when candidate path stays inside baseDir (or equals it).
  */
 export function isPathWithin(baseDir: string, candidatePath: string): boolean {
