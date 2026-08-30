@@ -139,7 +139,7 @@ export function WorkspaceProjectTitle({
 
       {editing ? (
         <form
-          className={`${fillWidth ? "grid w-full pr-3" : "inline-grid w-max shrink overflow-x-auto"} max-w-full font-inherit`}
+          className={`${fillWidth ? "grid w-full" : "inline-grid w-max shrink overflow-x-auto"} max-w-full font-inherit`}
           data-cz-project-title-edit=""
           onSubmit={(e) => {
             e.preventDefault();
@@ -167,7 +167,7 @@ export function WorkspaceProjectTitle({
           />
         </form>
       ) : (
-        <span className={fillWidth ? "min-w-0 flex-1 pr-3" : "min-w-0 max-w-full"}>
+        <span className={fillWidth ? "min-w-0 flex-1" : "min-w-0 max-w-full"}>
           {canRename && onRename ? (
             <button
               type="button"
