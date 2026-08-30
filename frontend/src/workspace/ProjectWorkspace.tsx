@@ -34,7 +34,7 @@ import {
 import { restoreVersion } from "@/sidebar/history-api";
 import { apiFetch, getErrorMessage } from "@/utils/fetch";
 import { WorkspaceProjectTitle } from "@/components/WorkspaceProjectTitle";
-import { navigateToSettings } from "@/utils/route";
+import { navigateToProjects, navigateToSettings } from "@/utils/route";
 import {
   findWorkspaceTabByPath,
   isDiffWorkspaceTab,
@@ -1186,6 +1186,7 @@ export function ProjectWorkspace({
             className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-cz-text"
             title={projectTitle}
             canRename={canEdit}
+            onBack={navigateToProjects}
             fillWidth
             onRename={onRenameProject}
             onRenameError={(message) => onPopupAlert(message, "Rename failed")}
