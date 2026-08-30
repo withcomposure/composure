@@ -82,3 +82,42 @@ export function isPrivateOrLocalHostname(hostname: string): boolean {
   if (a === 192 && b === 168) return true
   return false
 }
+
+/**
+ * True when an already-resolved IP address must not be connected to from a
+ * server-side request (private, loopback, link-local, CGNAT, multicast,
+ * unspecified). Unlike isPrivateOrLocalHostname this takes an address from a
+ * DNS answer, so anything unparseable is treated as blocked.
+ */
+export function isPrivateOrReservedAddress(address: string): boolean {
+  let host = address.trim().toLowerCase()
+  if (!host) return true
+
+  // IPv4-mapped IPv6 — validate the embedded IPv4 instead
+  if (host.startsWith('::ffff:') && host.includes('.')) {
+    host = host.slice('::ffff:'.length)
+  }
+
+  if (host.includes(':')) {
+    if (host === '::' || host === '::1') return true
+    if (host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true
+    return false
+  }
+
+  const parts = host.split('.').map((part) => Number.parseInt(part, 10))
+  const isIpv4 = parts.length === 4 && parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
+  if (!isIpv4) return true
+
+  const [a, b] = parts
+  if (a === 0) return true
+  if (a === 10) return true
+  if (a === 100 && b >= 64 && b <= 127) return true
+  if (a === 127) return true
+  if (a === 169 && b === 254) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 0) return true
+  if (a === 192 && b === 168) return true
+  if (a === 198 && (b === 18 || b === 19)) return true
+  if (a >= 224) return true
+  return false
+}

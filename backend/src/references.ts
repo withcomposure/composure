@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { clientIpKey } from './rate-limit.js'
 
 type ReferenceSource = 'arxiv' | 'crossref' | 'pubmed' | 'openalex'
 type ReferenceSearchField = 'all' | 'title' | 'author' | 'abstract' | 'doi'
@@ -41,6 +42,29 @@ const minClientIntervalBySourceMs: Record<ReferenceSource, number> = {
 }
 
 const lastReferenceRequestByClientAndSource = new Map<string, number>()
+
+export function resetReferenceThrottleForTests(): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('resetReferenceThrottleForTests is only available in test mode.')
+  }
+  lastReferenceRequestByClientAndSource.clear()
+}
+
+// Entries older than every source interval can never throttle again; sweep
+// them lazily so the map stays bounded.
+const throttleSweepIntervalMs = 60_000
+let lastThrottleSweepAt = 0
+
+function sweepThrottleMap(now: number): void {
+  if (now - lastThrottleSweepAt < throttleSweepIntervalMs) return
+  lastThrottleSweepAt = now
+  const maxIntervalMs = Math.max(...Object.values(minClientIntervalBySourceMs))
+  for (const [key, last] of lastReferenceRequestByClientAndSource) {
+    if (now - last > maxIntervalMs) {
+      lastReferenceRequestByClientAndSource.delete(key)
+    }
+  }
+}
 
 function asObject(raw: unknown): Record<string, unknown> | null {
   return typeof raw === 'object' && raw != null ? raw as Record<string, unknown> : null
@@ -196,11 +220,10 @@ function parseMaxResults(raw: string | number | undefined): number {
 }
 
 function referenceClientKey(req: FastifyRequest): string {
-  const forwardedFor = req.headers['x-forwarded-for']
-  if (typeof forwardedFor === 'string' && forwardedFor.trim().length > 0) {
-    return forwardedFor.split(',')[0].trim().toLowerCase()
-  }
-  return String(req.ip ?? 'unknown').toLowerCase()
+  // req.ip already honors TRUST_PROXY; reading X-Forwarded-For directly here
+  // let any client mint a fresh throttle bucket per request with a spoofed
+  // header.
+  return clientIpKey(String(req.ip ?? 'unknown')).toLowerCase()
 }
 
 function sourceDisplayLabel(source: ReferenceSource): string {
@@ -214,6 +237,7 @@ function shouldThrottleSource(req: FastifyRequest, source: ReferenceSource): { t
   const key = `${source}:${referenceClientKey(req)}`
   const intervalMs = minClientIntervalBySourceMs[source]
   const now = Date.now()
+  sweepThrottleMap(now)
   const last = lastReferenceRequestByClientAndSource.get(key)
   if (typeof last === 'number' && now - last < intervalMs) {
     return { throttled: true, intervalMs }

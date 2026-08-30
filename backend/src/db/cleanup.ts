@@ -1,6 +1,8 @@
 import type postgres from 'postgres'
 import { assetStore } from '../storage.js'
+import { deleteProjectRepo } from '../history.js'
 import { getServerSettingValue } from './admin.js'
+import { deleteProjectRows } from './projects.js'
 
 const defaultTrashRetentionDays = 30
 
@@ -32,17 +34,13 @@ async function runTrashPurge(database: postgres.Sql): Promise<void> {
 
   await database.begin(async (tx) => {
     for (const id of ids) {
-      await tx`DELETE FROM documents WHERE name = ${id}`
-      await tx`DELETE FROM project_comments WHERE project_id = ${id}`
-      await tx`DELETE FROM project_members WHERE project_id = ${id}`
-      await tx`DELETE FROM share_tokens WHERE project_id = ${id}`
-      await tx`DELETE FROM project_recents WHERE project_id = ${id}`
-      await tx`DELETE FROM projects WHERE id = ${id}`
+      await deleteProjectRows(tx, id)
     }
   })
 
   for (const id of ids) {
     assetStore.deleteProject(id)
+    await deleteProjectRepo(id)
   }
 
   console.info(`[cleanup] purged expired trash projects count=${ids.length}`)

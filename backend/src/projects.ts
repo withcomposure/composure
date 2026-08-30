@@ -26,6 +26,7 @@ import { createUid } from './ids.js'
 import { hasLeadingDashSegment, isValidProjectId, normalizeRelativePath } from './security.js'
 import { instantiateTemplateById, listProjectTemplates } from './templates.js'
 import { assetStore } from './storage.js'
+import { deleteProjectRepo } from './history.js'
 import * as Y from 'yjs'
 
 function sanitizeRootFile(rootFile: unknown): string {
@@ -57,8 +58,7 @@ export async function getProjectMetadataRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  const access = await canAccessProjectWithRole(projectId, req.principal, 'view', shareToken)
+  const access = await canAccessProjectWithRole(projectId, req.principal, 'view')
   if (!access.ok) {
     reply.status(403).send({ error: 'Forbidden' })
     return
@@ -100,7 +100,7 @@ export async function markProjectOpenedRoute(
   }
 
   const shareToken = getShareTokenFromRequest(req)
-  const access = await canAccessProjectWithRole(projectId, req.principal, 'view', shareToken)
+  const access = await canAccessProjectWithRole(projectId, req.principal, 'view')
   if (!access.ok) {
     reply.status(403).send({ error: 'Forbidden' })
     return
@@ -440,5 +440,6 @@ export async function permanentDeleteProjectRoute(
 
   await permanentDeleteProject(projectId)
   assetStore.deleteProject(projectId)
+  await deleteProjectRepo(projectId)
   reply.send({ ok: true })
 }

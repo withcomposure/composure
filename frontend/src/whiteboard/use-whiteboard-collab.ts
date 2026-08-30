@@ -14,10 +14,10 @@ import type { ExcalidrawElement, OrderedExcalidrawElement } from '@excalidraw/ex
 import type { ConnectionState } from '@/types'
 import { collaborationWsUrl } from '@/utils/api-routing'
 
-const ELEMENTS_MAP_KEY = 'excalidraw.elements'
-const ELEMENT_ORDER_KEY = 'excalidraw.elementOrder'
-const FILES_MAP_KEY = 'excalidraw.files'
-const APP_STATE_MAP_KEY = 'excalidraw.appState'
+const elementsMapKey = 'excalidraw.elements'
+const elementOrderKey = 'excalidraw.elementOrder'
+const filesMapKey = 'excalidraw.files'
+const appStateMapKey = 'excalidraw.appState'
 
 const persistedAppStateKeys = [
   'viewBackgroundColor',
@@ -251,10 +251,10 @@ export interface WhiteboardPresenceUser {
 }
 
 export function readWhiteboardSceneFromYDoc(ydoc: Y.Doc): WhiteboardSceneData {
-  const elementsMap = ydoc.getMap<string>(ELEMENTS_MAP_KEY)
-  const elementOrder = ydoc.getArray<string>(ELEMENT_ORDER_KEY).toArray()
-  const filesMap = ydoc.getMap<string>(FILES_MAP_KEY)
-  const appStateMap = ydoc.getMap<string>(APP_STATE_MAP_KEY)
+  const elementsMap = ydoc.getMap<string>(elementsMapKey)
+  const elementOrder = ydoc.getArray<string>(elementOrderKey).toArray()
+  const filesMap = ydoc.getMap<string>(filesMapKey)
+  const appStateMap = ydoc.getMap<string>(appStateMapKey)
 
   const elementsById = new Map<string, OrderedExcalidrawElement>()
   for (const [elementId, rawValue] of elementsMap.entries()) {
@@ -309,10 +309,10 @@ export function writeWhiteboardSceneToYDoc(
   },
   origin: string,
 ): void {
-  const elementsMap = ydoc.getMap<string>(ELEMENTS_MAP_KEY)
-  const elementOrder = ydoc.getArray<string>(ELEMENT_ORDER_KEY)
-  const filesMap = ydoc.getMap<string>(FILES_MAP_KEY)
-  const appStateMap = ydoc.getMap<string>(APP_STATE_MAP_KEY)
+  const elementsMap = ydoc.getMap<string>(elementsMapKey)
+  const elementOrder = ydoc.getArray<string>(elementOrderKey)
+  const filesMap = ydoc.getMap<string>(filesMapKey)
+  const appStateMap = ydoc.getMap<string>(appStateMapKey)
 
   const persistedAppState = pickPersistedAppState(scene.appState)
 
@@ -373,10 +373,10 @@ export function writeWhiteboardSceneToYDoc(
 }
 
 function hasStructuredWhiteboardState(ydoc: Y.Doc): boolean {
-  const elementsMap = ydoc.getMap<string>(ELEMENTS_MAP_KEY)
-  const filesMap = ydoc.getMap<string>(FILES_MAP_KEY)
-  const appStateMap = ydoc.getMap<string>(APP_STATE_MAP_KEY)
-  const elementOrder = ydoc.getArray<string>(ELEMENT_ORDER_KEY)
+  const elementsMap = ydoc.getMap<string>(elementsMapKey)
+  const filesMap = ydoc.getMap<string>(filesMapKey)
+  const appStateMap = ydoc.getMap<string>(appStateMapKey)
+  const elementOrder = ydoc.getArray<string>(elementOrderKey)
   return elementsMap.size > 0 || filesMap.size > 0 || appStateMap.size > 0 || elementOrder.length > 0
 }
 
@@ -707,10 +707,10 @@ export function useWhiteboardCollab(options: WhiteboardCollabOptions): Whiteboar
       return
     }
 
-    const elementsMap = ydoc.getMap<string>(ELEMENTS_MAP_KEY)
-    const elementOrder = ydoc.getArray<string>(ELEMENT_ORDER_KEY)
-    const filesMap = ydoc.getMap<string>(FILES_MAP_KEY)
-    const appStateMap = ydoc.getMap<string>(APP_STATE_MAP_KEY)
+    const elementsMap = ydoc.getMap<string>(elementsMapKey)
+    const elementOrder = ydoc.getArray<string>(elementOrderKey)
+    const filesMap = ydoc.getMap<string>(filesMapKey)
+    const appStateMap = ydoc.getMap<string>(appStateMapKey)
 
     const applyFromDoc = () => {
       const scene = readWhiteboardSceneFromYDoc(ydoc)

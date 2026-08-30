@@ -12,7 +12,6 @@ import {
   loadDocument,
   storeDocument,
   touchProjectActivity,
-  ensureProjectAccess,
   canAccessProjectWithRole,
   createJob,
   markJobRunning,
@@ -96,7 +95,6 @@ import {
   addProjectCommentRoute,
   deleteProjectCommentRoute,
   getProjectAccessRoute,
-  getShareTokenFromRequest,
   inviteProjectMemberRoute,
   listProjectCommentsRoute,
   patchProjectCommentRoute,
@@ -125,6 +123,7 @@ import {
   restoreToCommit,
 } from './history.js'
 import { findTextSizeViolation, textSizeViolationMessage } from './text-size-limit.js'
+import { summarizeDocState } from './files.js'
 import {
   pathMatchesPrefix,
   pathnameFromRawUrl,
@@ -135,32 +134,12 @@ import { registerPasskeyRoutes } from './auth/passkeys.js'
 import { beginRequestContext } from './db/request-context.js'
 import { getJwksResponse } from './auth/jwt.js'
 
-function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
-  const filesMap = doc.getMap<string>('files')
-  let fileTextCount = 0
-  for (const key of doc.share.keys()) {
-    if (key.startsWith('file:')) {
-      fileTextCount++
-    }
-  }
-  return { filesMapCount: filesMap.size, fileTextCount }
-}
-
 async function canAccessProjectForRequest(
   req: FastifyRequest,
   projectId: string,
   requiredRole: ProjectRole,
-  createIfMissing: boolean,
 ): Promise<boolean> {
-  if (createIfMissing && requiredRole === 'owner') {
-    const access = await ensureProjectAccess(projectId, req.principal, true)
-    if (!access.ok) {
-      return false
-    }
-  }
-
-  const shareToken = getShareTokenFromRequest(req)
-  const roleAccess = await canAccessProjectWithRole(projectId, req.principal, requiredRole, shareToken)
+  const roleAccess = await canAccessProjectWithRole(projectId, req.principal, requiredRole)
   if (!roleAccess.ok) {
     return false
   }
@@ -169,7 +148,7 @@ async function canAccessProjectForRequest(
   return true
 }
 
-function requireProjectParamAccess(requiredRole: ProjectRole, createIfMissing = false): preHandlerHookHandler {
+function requireProjectParamAccess(requiredRole: ProjectRole): preHandlerHookHandler {
   return async (req, reply) => {
     const params = req.params as { projectId?: string }
     const projectId = String(params.projectId ?? '')
@@ -178,7 +157,7 @@ function requireProjectParamAccess(requiredRole: ProjectRole, createIfMissing = 
       return
     }
 
-    if (!(await canAccessProjectForRequest(req, projectId, requiredRole, createIfMissing))) {
+    if (!(await canAccessProjectForRequest(req, projectId, requiredRole))) {
       reply.status(403).send({ error: 'Forbidden' })
       return
     }
@@ -341,7 +320,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Protected static asset serving for uploaded project files.
   app.get('/assets/:projectId(^[a-f0-9]{32}$)/*', {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -543,7 +522,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     },
   }, createProjectRoute)
   app.patch<{ Params: { projectId: string }; Body: { title: string } }>(apiPath('/projects/:projectId'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',
@@ -569,7 +548,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.delete(apiPath('/projects/:projectId/permanent'), permanentDeleteProjectRoute)
   app.get(apiPath('/projects/:projectId/metadata'), getProjectMetadataRoute)
   app.patch(apiPath('/projects/:projectId/metadata'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',
@@ -623,7 +602,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Document routes
   app.get(apiPath('/document/:projectId'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
   }, async (req, reply) => {
     const projectId = (req.params as { projectId: string }).projectId
 
@@ -650,7 +629,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.post(apiPath('/save/:projectId'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
   }, async (req, reply) => {
     const projectId = (req.params as { projectId: string }).projectId
     const body = req.body as { documentUpdateBase64?: string; reason?: string } | null
@@ -664,6 +643,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     let clientUpdate: Uint8Array
     try {
       clientUpdate = Uint8Array.from(Buffer.from(documentUpdateBase64, 'base64'))
+      // Validate the update against a scratch doc now, so any failure after
+      // this point is a server-side problem, not a malformed payload.
+      const probe = new Y.Doc()
+      try {
+        Y.applyUpdate(probe, clientUpdate)
+      } finally {
+        probe.destroy()
+      }
     } catch {
       reply.status(400).send({ error: 'Invalid documentUpdateBase64 payload' })
       return
@@ -742,8 +729,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           console.warn(`[save] commit-on-${reason}-failed projectId=${projectId} error=${String(err)}`)
         })
       }
-    } catch {
-      reply.status(400).send({ error: 'Save failed' })
+    } catch (err) {
+      // The payload was validated above, so this is a persistence failure
+      // (DB outage, disk, …) — log it and report a server error, not a 400.
+      console.error(`[save] failed projectId=${projectId} error=${String(err)}`)
+      reply.status(500).send({ error: 'Save failed' })
     }
   })
 
@@ -777,7 +767,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       return
     }
 
-    if (!(await canAccessProjectForRequest(req, String(projectId), 'view', true))) {
+    if (!(await canAccessProjectForRequest(req, String(projectId), 'view'))) {
       reply.status(403).send({ error: 'Forbidden' })
       return
     }
@@ -882,7 +872,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.get(apiPath('/projects/:projectId/preview.pdf'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -918,7 +908,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.delete(apiPath('/projects/:projectId/preview.pdf'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',
@@ -939,7 +929,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.get(apiPath('/bibliography/:projectId'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
   }, bibliographyRoute)
   app.get(apiPath('/references/search'), {
     schema: {
@@ -957,21 +947,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     },
   }, referenceSearchRoute)
   app.post(apiPath('/export/:projectId'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
   }, exportRoute)
   app.post(apiPath('/upload/:projectId'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
   }, uploadRoute)
   app.delete(apiPath('/upload/:projectId/:storageKey'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
   }, deleteAssetRoute)
   app.get(apiPath('/upload/:projectId'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
   }, listAssetsRoute)
 
   // History routes
   app.get(apiPath('/projects/:projectId/history'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -1000,7 +990,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.get(apiPath('/projects/:projectId/history/:sha/files'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -1018,7 +1008,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.get(apiPath('/projects/:projectId/history/:sha/diff'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -1050,7 +1040,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.post(apiPath('/projects/:projectId/history/snapshot'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',
@@ -1081,7 +1071,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.get(apiPath('/projects/:projectId/history/snapshots'), {
-    preHandler: requireProjectParamAccess('view', false),
+    preHandler: requireProjectParamAccess('view'),
     schema: {
       params: {
         type: 'object',
@@ -1096,7 +1086,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.post(apiPath('/projects/:projectId/history/restore'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',
@@ -1185,7 +1175,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   })
 
   app.post(apiPath('/projects/:projectId/history/restore-file'), {
-    preHandler: requireProjectParamAccess('edit', false),
+    preHandler: requireProjectParamAccess('edit'),
     schema: {
       params: {
         type: 'object',

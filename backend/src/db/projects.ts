@@ -1,3 +1,4 @@
+import type postgres from 'postgres'
 import { normalizeRelativePath } from '../security.js'
 import { sql } from './connection.js'
 import { runWithIdentityContext } from './request-context.js'
@@ -225,14 +226,24 @@ export async function restoreProject(projectId: string): Promise<boolean> {
   return result.count > 0
 }
 
-export async function permanentDeleteProject(projectId: string): Promise<boolean> {
-  const result = await sql`DELETE FROM projects WHERE id = ${projectId}`
-  await sql`DELETE FROM documents WHERE name = ${projectId}`
-  await sql`DELETE FROM project_comments WHERE project_id = ${projectId}`
-  await sql`DELETE FROM project_members WHERE project_id = ${projectId}`
-  await sql`DELETE FROM share_tokens WHERE project_id = ${projectId}`
-  await sql`DELETE FROM project_recents WHERE project_id = ${projectId}`
+/**
+ * Delete every database row belonging to a project, including the
+ * collaboration document and its `:chat` sidecar. Shared by the user-facing
+ * permanent delete and the trash purge; run it inside a transaction.
+ */
+export async function deleteProjectRows(tx: postgres.Sql | postgres.TransactionSql, projectId: string): Promise<boolean> {
+  const chatDocumentName = `${projectId}:chat`
+  await tx`DELETE FROM documents WHERE name = ${projectId} OR name = ${chatDocumentName}`
+  await tx`DELETE FROM project_comments WHERE project_id = ${projectId}`
+  await tx`DELETE FROM project_members WHERE project_id = ${projectId}`
+  await tx`DELETE FROM share_tokens WHERE project_id = ${projectId}`
+  await tx`DELETE FROM project_recents WHERE project_id = ${projectId}`
+  const result = await tx`DELETE FROM projects WHERE id = ${projectId}`
   return result.count > 0
+}
+
+export async function permanentDeleteProject(projectId: string): Promise<boolean> {
+  return await sql.begin(async (tx) => deleteProjectRows(tx, projectId))
 }
 
 export async function listTrashForPrincipal(principal: Principal): Promise<Array<ProjectSummary & { deletedAt: number }>> {

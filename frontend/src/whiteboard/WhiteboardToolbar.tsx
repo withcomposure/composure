@@ -1,18 +1,11 @@
 import { Download, Eye, FileImage, FileType2, Pencil, Share2 } from 'lucide-react'
-import {
-  exportToBlob,
-  exportToSvg,
-} from '@excalidraw/excalidraw'
-import type {
-  ExcalidrawImperativeAPI,
-  SocketId,
-} from '@excalidraw/excalidraw/types'
+import type { SocketId } from '@excalidraw/excalidraw/types'
 import { CollaboratorStrip } from '@/components/CollaboratorStrip'
 import { WorkspaceProjectTitle } from '@/components/WorkspaceProjectTitle'
 import { IconDropdown, type DropdownOption } from '@/components/IconDropdown'
 import type { ConnectionState } from '@/types'
 import { ProfileMenu } from '@/workspace/ProfileMenu'
-import type { WhiteboardPresenceUser } from './useWhiteboardCollab'
+import type { WhiteboardPresenceUser } from './use-whiteboard-collab'
 
 interface WhiteboardToolbarProps {
   title: string
@@ -118,56 +111,6 @@ function connectionLabel(connectionState: ConnectionState): string {
     return 'Connecting'
   }
   return 'Disconnected'
-}
-
-export async function exportWhiteboardAsPng(api: ExcalidrawImperativeAPI, title: string): Promise<void> {
-  const elements = api.getSceneElements()
-  const files = api.getFiles()
-  const appState = api.getAppState()
-
-  if (elements.length === 0) {
-    throw new Error('Add at least one element before exporting PNG.')
-  }
-
-  const blob = await exportToBlob({
-    elements,
-    files,
-    appState,
-    mimeType: 'image/png',
-    exportPadding: 16,
-  })
-
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${title || 'whiteboard'}.png`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-export async function exportWhiteboardAsSvg(api: ExcalidrawImperativeAPI, title: string): Promise<void> {
-  const elements = api.getSceneElements()
-  const files = api.getFiles()
-  const appState = api.getAppState()
-
-  if (elements.length === 0) {
-    throw new Error('Add at least one element before exporting SVG.')
-  }
-
-  const svg = await exportToSvg({
-    elements,
-    files,
-    appState,
-    exportPadding: 16,
-  })
-
-  const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${title || 'whiteboard'}.svg`
-  link.click()
-  URL.revokeObjectURL(url)
 }
 
 export function WhiteboardToolbar({

@@ -678,7 +678,44 @@ export default function App() {
     }
   }, [oauthProfileCompletion])
 
-  const requestDeleteAccount = useCallback(() => {
+  const requestDeleteAccount = useCallback(async () => {
+    const submitDeleteAccount = async (password: string | null) => {
+      const next = await fetchJson<AuthSession>('/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(password ? { password } : {}),
+      })
+      setSession(next)
+      revokeAuthEntry()
+      setAuthEntryMode('login')
+      setAuthEntryError('Account deleted. Please log in to continue.')
+      navigateToProjects()
+    }
+
+    // OAuth-/passkey-only accounts have no password to confirm with; ask for
+    // a plain confirmation instead of an unanswerable password prompt.
+    let hasPassword = true
+    try {
+      const res = await fetchJson<{ linked: Array<{ provider: string }> }>('/auth/providers')
+      hasPassword = res.linked.some((entry) => entry.provider === 'password')
+    } catch {
+      // If the lookup fails, fall back to the password prompt.
+    }
+
+    if (!hasPassword) {
+      setPopup({
+        kind: 'confirm',
+        title: 'Delete Account',
+        message: 'This permanently deletes your account and all projects you own. This cannot be undone.',
+        confirmLabel: 'Delete account',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          await submitDeleteAccount(null)
+        },
+      })
+      return
+    }
+
     setPopupInput('')
     setPopup({
       kind: 'prompt',
@@ -693,17 +730,7 @@ export default function App() {
         if (!trimmed) {
           throw new Error('Password is required to delete your account.')
         }
-
-        const next = await fetchJson<AuthSession>('/auth/delete-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: trimmed }),
-        })
-        setSession(next)
-        revokeAuthEntry()
-        setAuthEntryMode('login')
-        setAuthEntryError('Account deleted. Please log in to continue.')
-        navigateToProjects()
+        await submitDeleteAccount(trimmed)
       },
     })
   }, [revokeAuthEntry])

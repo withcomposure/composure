@@ -5,7 +5,7 @@ import { runMigrations } from '../../src/db/migrate.js'
 import { buildApp } from '../../src/app.js'
 import { createToken, createUid } from '../../src/ids.js'
 import { issueRefreshToken } from '../../src/db/refresh-tokens.js'
-import { setJwtIssuer, signAccessToken } from '../../src/auth/jwt.js'
+import { signAccessToken } from '../../src/auth/jwt.js'
 import type { SessionUser } from '../../src/db/types.js'
 
 const TEST_DB_NAME_PATTERN = /(^|[_-])test([_-]|$)/i
@@ -93,7 +93,6 @@ export async function createTestUser(overrides: {
  * Create a session for a user and return the session ID.
  */
 export async function createTestSession(userId: string, maxAgeSeconds = 30 * 24 * 60 * 60): Promise<string> {
-  setJwtIssuer('http://localhost')
   const access = maxAgeSeconds > 0
     ? await signAccessToken(userId)
     : { token: 'invalid', expiresAt: 0 }

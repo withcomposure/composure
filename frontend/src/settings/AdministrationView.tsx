@@ -284,17 +284,25 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
   const [strandedCsvDownloaded, setStrandedCsvDownloaded] = useState(false)
   const [strandedConfirmText, setStrandedConfirmText] = useState('')
 
+  const loadUsersSeqRef = useRef(0)
   const loadUsers = useCallback(async (search: string) => {
+    // Sequence guard: the debounce doesn't cancel in-flight requests, so a
+    // slow older response must not overwrite a newer one.
+    const seq = ++loadUsersSeqRef.current
     setLoadingUsers(true)
     setUsersError(null)
     try {
       const response = await fetchJson<{ users: AdminUser[] }>(`/admin/users?q=${encodeURIComponent(search)}`)
+      if (seq !== loadUsersSeqRef.current) return
       setUsers(response.users)
     } catch (err) {
+      if (seq !== loadUsersSeqRef.current) return
       setUsersError(getErrorMessage(err))
       setUsers([])
     } finally {
-      setLoadingUsers(false)
+      if (seq === loadUsersSeqRef.current) {
+        setLoadingUsers(false)
+      }
     }
   }, [])
 
@@ -529,6 +537,11 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
           body: JSON.stringify({ userIds }),
         },
       )
+      // This download gates the destructive "Save Anyway" button — a failed
+      // response must not count as a successful backup.
+      if (!res.ok) {
+        throw new Error(`CSV download failed (HTTP ${res.status})`)
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -537,8 +550,8 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
       a.click()
       URL.revokeObjectURL(url)
       setStrandedCsvDownloaded(true)
-    } catch {
-      // ignore
+    } catch (err) {
+      setLoginProvidersError(getErrorMessage(err))
     }
   }, [])
 
@@ -573,8 +586,13 @@ export function AdministrationView({ currentUserId, onForceLogin }: Administrati
     void loadInvites()
     void loadSmtpSettings()
     void loadLoginProviders()
+  }, [loadServerSettings, loadInvites, loadSmtpSettings, loadLoginProviders])
+
+  // Kept separate from the settings loaders: changing the monitoring
+  // timeframe must not re-fetch the settings forms and wipe unsaved edits.
+  useEffect(() => {
     void loadMonitoringData(jobsTimeframe)
-  }, [loadServerSettings, loadInvites, loadSmtpSettings, loadLoginProviders, loadMonitoringData, jobsTimeframe])
+  }, [loadMonitoringData, jobsTimeframe])
 
   const beginEditUser = useCallback((user: AdminUser) => {
     setEditingUser(user)

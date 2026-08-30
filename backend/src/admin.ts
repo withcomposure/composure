@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import nodemailer from 'nodemailer'
 import { setMaxConcurrentPerCompiler } from './compile-dispatch.js'
+import { hashPassword } from './auth/password.js'
 import {
   countAdminUsers,
   createInviteToken,
@@ -77,12 +78,6 @@ function getTrustedFrontendOrigins(): Set<string> {
     trusted.add(configuredFrontendOrigin)
   }
   return trusted
-}
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
-  return `${salt}:${hash}`
 }
 
 function ensureAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
@@ -179,7 +174,7 @@ export async function createAdminUserRoute(
   const created = await createUser({
     email,
     displayName,
-    passwordHash: hashPassword(password),
+    passwordHash: await hashPassword(password),
     role,
   })
 
@@ -263,7 +258,7 @@ export async function updateAdminUserRoute(
       reply.status(400).send({ error: 'New password must be at least 8 characters.' })
       return
     }
-    await updateUserPasswordHash(userId, hashPassword(req.body.newPassword))
+    await updateUserPasswordHash(userId, await hashPassword(req.body.newPassword))
     passwordChanged = true
   }
 
@@ -388,13 +383,17 @@ export async function updateAdminServerSettingsRoute(
 ): Promise<void> {
   if (!ensureAdmin(req, reply)) return
 
+  // Validate every field first and queue the writes, so a validation failure
+  // half-way through the body cannot leave earlier fields already committed.
+  const applyQueue: Array<() => Promise<void>> = []
+
   if (req.body?.passwordResetExpiryHours != null) {
     const rawHours = Number(req.body.passwordResetExpiryHours)
     if (!Number.isFinite(rawHours)) {
       reply.status(400).send({ error: 'passwordResetExpiryHours must be a number.' })
       return
     }
-    await setPasswordResetExpirySeconds(Math.round(rawHours * 3600))
+    applyQueue.push(async () => { await setPasswordResetExpirySeconds(Math.round(rawHours * 3600)) })
   }
 
   if (req.body?.signupMode != null) {
@@ -403,11 +402,12 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'signupMode must be "open" or "invite-only".' })
       return
     }
-    await setSignupMode(mode)
+    applyQueue.push(async () => { await setSignupMode(mode) })
   }
 
   if (req.body?.guestSignupsEnabled != null) {
-    await setGuestSignupsEnabled(Boolean(req.body.guestSignupsEnabled))
+    const enabled = Boolean(req.body.guestSignupsEnabled)
+    applyQueue.push(async () => { await setGuestSignupsEnabled(enabled) })
   }
 
   if (req.body?.inviteExpiryHours != null) {
@@ -416,11 +416,12 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'inviteExpiryHours must be a number >= 1.' })
       return
     }
-    await setInviteExpiryHours(rawHours)
+    applyQueue.push(async () => { await setInviteExpiryHours(rawHours) })
   }
 
   if (req.body?.maxProjectsPerUser != null) {
-    await setMaxProjectsPerUser(String(req.body.maxProjectsPerUser))
+    const raw = String(req.body.maxProjectsPerUser)
+    applyQueue.push(async () => { await setMaxProjectsPerUser(raw) })
   }
 
   if (req.body?.maxConcurrentJobs != null) {
@@ -429,8 +430,10 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'maxConcurrentJobs must be a number >= 1.' })
       return
     }
-    const clamped = await setMaxConcurrentJobs(raw)
-    setMaxConcurrentPerCompiler(clamped)
+    applyQueue.push(async () => {
+      const clamped = await setMaxConcurrentJobs(raw)
+      setMaxConcurrentPerCompiler(clamped)
+    })
   }
 
   if (req.body?.maxUploadFileSizeBytes != null) {
@@ -439,7 +442,7 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'maxUploadFileSizeBytes must be a positive number or "unlimited".' })
       return
     }
-    await setMaxUploadFileSize(raw === 'unlimited' ? 'unlimited' : Number(raw))
+    applyQueue.push(async () => { await setMaxUploadFileSize(raw === 'unlimited' ? 'unlimited' : Number(raw)) })
   }
 
   if (req.body?.maxTextFileSizeBytes != null) {
@@ -448,7 +451,7 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'maxTextFileSizeBytes must be a positive number or "unlimited".' })
       return
     }
-    await setMaxTextFileSize(raw === 'unlimited' ? 'unlimited' : Number(raw))
+    applyQueue.push(async () => { await setMaxTextFileSize(raw === 'unlimited' ? 'unlimited' : Number(raw)) })
   }
 
   if (req.body?.maxFilesPerProject != null) {
@@ -457,7 +460,7 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'maxFilesPerProject must be a positive number or "unlimited".' })
       return
     }
-    await setMaxFilesPerProject(raw === 'unlimited' ? 'unlimited' : Number(raw))
+    applyQueue.push(async () => { await setMaxFilesPerProject(raw === 'unlimited' ? 'unlimited' : Number(raw)) })
   }
 
   if (req.body?.trashRetentionDays != null) {
@@ -466,7 +469,7 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'trashRetentionDays must be a number >= 1.' })
       return
     }
-    await setTrashRetentionDays(raw)
+    applyQueue.push(async () => { await setTrashRetentionDays(raw) })
   }
 
   if (req.body?.largeFileThresholdChars != null) {
@@ -475,7 +478,7 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'largeFileThresholdChars must be a number >= 100000.' })
       return
     }
-    await setLargeFileThresholdChars(raw)
+    applyQueue.push(async () => { await setLargeFileThresholdChars(raw) })
   }
 
   if (req.body?.chatHistoryRetentionDays != null) {
@@ -484,7 +487,11 @@ export async function updateAdminServerSettingsRoute(
       reply.status(400).send({ error: 'chatHistoryRetentionDays must be a positive number, "off", or "unlimited".' })
       return
     }
-    await setChatHistoryRetentionDays(raw === 'unlimited' || raw === 'off' ? raw : Number(raw))
+    applyQueue.push(async () => { await setChatHistoryRetentionDays(raw === 'unlimited' || raw === 'off' ? raw : Number(raw)) })
+  }
+
+  for (const applySetting of applyQueue) {
+    await applySetting()
   }
 
   const seconds = await getPasswordResetExpirySeconds()
@@ -888,7 +895,16 @@ export async function getStrandedUsersCsvRoute(
   }
 
   const details = await getStrandedUserDetails(userIds)
-  const csv = ['id,email,displayName', ...details.map((d) => `${d.id},${d.email},"${d.displayName.replace(/"/g, '""')}"`)].join('\n')
+  // Quote every field and neutralize spreadsheet formula injection: a value
+  // starting with = + - @ (or tab/CR) executes when the CSV opens in Excel.
+  const csvCell = (raw: string): string => {
+    const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+    return `"${guarded.replace(/"/g, '""')}"`
+  }
+  const csv = [
+    'id,email,displayName',
+    ...details.map((d) => [d.id, d.email, d.displayName].map(csvCell).join(',')),
+  ].join('\n')
 
   reply.header('Content-Type', 'text/csv')
   reply.header('Content-Disposition', 'attachment; filename="stranded-users.csv"')

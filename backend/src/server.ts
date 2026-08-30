@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
+import { summarizeDocState } from './files.js'
 import {
   initDatabase,
   loadDocument,
@@ -52,17 +53,6 @@ async function resolveWsMaxPayloadBytes(): Promise<number> {
     defaultWsMaxPayloadBytes,
     Math.max(8 * 1024 * 1024, maxTextSize + 4 * 1024 * 1024),
   )
-}
-
-function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
-  const filesMap = doc.getMap<string>('files')
-  let fileTextCount = 0
-  for (const key of doc.share.keys()) {
-    if (key.startsWith('file:')) {
-      fileTextCount++
-    }
-  }
-  return { filesMapCount: filesMap.size, fileTextCount }
 }
 
 function getShareTokenFromUrl(rawUrl: string | undefined): string | undefined {
@@ -264,8 +254,8 @@ async function assertHocuspocusContextAccess(
   await runWithHocuspocusIdentity(context, async () => {
     const shareToken = authContext?.shareToken
     const access = documentRef.kind === 'chat'
-      ? await canAccessProjectChat(documentRef.projectId, principal, shareToken)
-      : await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken)
+      ? await canAccessProjectChat(documentRef.projectId, principal)
+      : await canAccessProjectWithRole(documentRef.projectId, principal, 'view')
     if (!access.ok) {
       console.warn(
         `[hocuspocus] denied document=${documentName} userId=${principal.userId ?? 'none'} guestId=${principal.guestId ?? 'none'}`,
@@ -310,8 +300,8 @@ const hocuspocus = new Hocuspocus({
       principal.userId,
       userRole,
       async () => documentRef.kind === 'chat'
-        ? await canAccessProjectChat(documentRef.projectId, principal, shareToken)
-        : await canAccessProjectWithRole(documentRef.projectId, principal, 'view', shareToken),
+        ? await canAccessProjectChat(documentRef.projectId, principal)
+        : await canAccessProjectWithRole(documentRef.projectId, principal, 'view'),
     )
     if (!access.ok) {
       console.warn(
@@ -368,7 +358,7 @@ const hocuspocus = new Hocuspocus({
     const canWrite = principal
       ? (await runWithHocuspocusIdentity(
         data.context,
-        async () => await canAccessProjectWithRole(documentRef.projectId, principal, requiredWriteRole, shareToken),
+        async () => await canAccessProjectWithRole(documentRef.projectId, principal, requiredWriteRole),
       )).ok
       : false
 

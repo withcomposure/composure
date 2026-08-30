@@ -46,6 +46,13 @@ export function NumberStepper({
   const inputRef = useRef<HTMLInputElement>(null)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Hold-to-repeat runs from a setInterval whose closure would otherwise pin
+  // the `value` prop from the render it started in, emitting the same step
+  // forever. The ref always carries the latest committed value.
+  const valueRef = useRef(value)
+  useEffect(() => {
+    valueRef.current = value
+  })
 
   function formatDisplay(n: number): string {
     if (allowDecimals) {
@@ -75,8 +82,9 @@ export function NumberStepper({
   }
 
   const nudge = (direction: 1 | -1) => {
-    const next = clamp(value + step * direction)
-    if (next !== value) {
+    const current = valueRef.current
+    const next = clamp(current + step * direction)
+    if (next !== current) {
       onChange?.(next)
     }
   }

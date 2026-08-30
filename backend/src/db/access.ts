@@ -109,17 +109,15 @@ export async function updatePendingInvitesForUser(userId: string, email: string)
   return result.count
 }
 
-export async function getProjectRoleForPrincipal(projectId: string, principal: Principal, shareToken?: string): Promise<ProjectRole | null> {
-  void shareToken
+export async function getProjectRoleForPrincipal(projectId: string, principal: Principal): Promise<ProjectRole | null> {
   const resolved = await resolveProjectRoleForPrincipal(projectId, principal)
   return resolved.role
 }
 
-export async function canAccessProjectChat(projectId: string, principal: Principal, shareToken?: string): Promise<{
+export async function canAccessProjectChat(projectId: string, principal: Principal): Promise<{
   ok: boolean
   role: ProjectRole | null
 }> {
-  void shareToken
   const resolved = await resolveProjectRoleForPrincipal(projectId, principal)
   if (!resolved.role) {
     return { ok: false, role: null }
@@ -129,11 +127,11 @@ export async function canAccessProjectChat(projectId: string, principal: Princip
   return { ok: canViewChat, role: resolved.role }
 }
 
-export async function canAccessProjectWithRole(projectId: string, principal: Principal, requiredRole: ProjectRole, shareToken?: string): Promise<{
+export async function canAccessProjectWithRole(projectId: string, principal: Principal, requiredRole: ProjectRole): Promise<{
   ok: boolean
   role: ProjectRole | null
 }> {
-  const role = await getProjectRoleForPrincipal(projectId, principal, shareToken)
+  const role = await getProjectRoleForPrincipal(projectId, principal)
   if (!role) {
     return { ok: false, role: null }
   }
@@ -480,12 +478,10 @@ export async function redeemShareTokenForUser(token: string, userId: string): Pr
     VALUES (${projectId}, ${userId}, NULL, ${role}, 'accepted', NULL, extract(epoch from now())::integer, extract(epoch from now())::integer)
     ON CONFLICT (project_id, user_id)
     WHERE user_id IS NOT NULL
-    DO UPDATE SET
-      role = excluded.role,
-      status = 'accepted',
-      invited_email = NULL,
-      updated_at = excluded.updated_at
+    DO NOTHING
   `
+  // Existing memberships are left untouched: requests carrying an old share
+  // link must not revert an owner's manual role change.
 
   return { projectId, role }
 }

@@ -90,7 +90,7 @@ import {
   readWhiteboardSceneFromYDoc,
   useWhiteboardCollab,
   writeWhiteboardSceneToYDoc,
-} from '../src/whiteboard/useWhiteboardCollab'
+} from '../src/whiteboard/use-whiteboard-collab'
 
 function createMockExcalidrawApi(options?: { keepListenersOnUnsubscribe?: boolean }): {
   api: ExcalidrawImperativeAPI

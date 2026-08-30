@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createTestApp } from './helpers/setup.js'
+import { resetReferenceThrottleForTests } from '../src/references.js'
 
 let app: FastifyInstance
 
@@ -30,6 +31,7 @@ const sampleCrossrefByDoi = {
 }
 
 beforeEach(async () => {
+  resetReferenceThrottleForTests()
   app = await createTestApp()
 })
 
@@ -86,7 +88,7 @@ describe('reference search route', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('throttles repeated arXiv requests from the same client', async () => {
+  it('throttles repeated arXiv requests from the same client, ignoring spoofed X-Forwarded-For', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(sampleArxivFeed, { status: 200 }),
     )
@@ -100,11 +102,13 @@ describe('reference search route', () => {
     })
     expect(first.statusCode).toBe(200)
 
+    // A different spoofed X-Forwarded-For must not mint a fresh throttle
+    // bucket: without TRUST_PROXY the throttle keys on the socket address.
     const second = await app.inject({
       method: 'GET',
       url: '/api/v1/references/search?source=arxiv&term=test',
       headers: {
-        'x-forwarded-for': '203.0.113.44',
+        'x-forwarded-for': '198.51.100.7',
       },
     })
     expect(second.statusCode).toBe(429)

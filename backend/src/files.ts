@@ -5,6 +5,18 @@ import { loadDocument } from './db/index.js'
 import { getProjectAssetsDir } from './storage.js'
 import { isPathWithin, normalizeRelativePath } from './security.js'
 
+/** Summary counts used in save/persistence log lines. */
+export function summarizeDocState(doc: Y.Doc): { filesMapCount: number; fileTextCount: number } {
+  const filesMap = doc.getMap<string>('files')
+  let fileTextCount = 0
+  for (const key of doc.share.keys()) {
+    if (key.startsWith('file:')) {
+      fileTextCount++
+    }
+  }
+  return { filesMapCount: filesMap.size, fileTextCount }
+}
+
 /** Extract Yjs project files + assets into a directory on disk. */
 export async function extractFiles(projectId: string, dir: string): Promise<void> {
   const stored = await loadDocument(projectId)

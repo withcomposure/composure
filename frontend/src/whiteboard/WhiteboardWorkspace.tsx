@@ -7,13 +7,10 @@ import { apiFetch, getErrorMessage } from '@/utils/fetch'
 import { makeProjectUrl } from '@/utils/route'
 import { ShareModal } from '@/workspace/ShareModal'
 import { WhiteboardCanvas } from './WhiteboardCanvas'
-import {
-  exportWhiteboardAsPng,
-  exportWhiteboardAsSvg,
-  WhiteboardToolbar,
-} from './WhiteboardToolbar'
+import { WhiteboardToolbar } from './WhiteboardToolbar'
+import { exportWhiteboardAsPng, exportWhiteboardAsSvg } from './whiteboard-export'
 import { parseLibraryItemsShape } from './library-schema'
-import { useWhiteboardCollab } from './useWhiteboardCollab'
+import { useWhiteboardCollab } from './use-whiteboard-collab'
 
 interface WhiteboardWorkspaceProps {
   projectId: string

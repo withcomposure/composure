@@ -1,25 +1,32 @@
 # Shared metadata for workspace installs
-FROM node:22-alpine AS workspace-meta
+FROM node:24-alpine AS workspace-meta
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY frontend/package.json frontend/
 COPY backend/package.json backend/
+COPY compiler/package.json compiler/
 
 # Frontend builder
 FROM workspace-meta AS frontend-builder
-RUN npm install --workspace=frontend --ignore-scripts
+RUN npm ci --workspace=frontend --ignore-scripts
 COPY frontend/ frontend/
 RUN npm run build --workspace=frontend
 
 # Backend builder
 FROM workspace-meta AS backend-builder
 RUN apk add --no-cache python3 make g++
-RUN npm install --workspace=backend
+RUN npm ci --workspace=backend
 COPY backend/ backend/
 RUN npm run build --workspace=backend
 
+# Backend production dependencies only — the runtime image must not ship the
+# workspace dev dependencies.
+FROM workspace-meta AS backend-prod-deps
+RUN apk add --no-cache python3 make g++
+RUN npm ci --workspace=backend --omit=dev
+
 # Shared runtime base for both deployment modes
-FROM node:22-alpine AS runtime-base
+FROM node:24-alpine AS runtime-base
 
 RUN apk add --no-cache \
     tectonic \
@@ -32,7 +39,7 @@ WORKDIR /app
 COPY --from=backend-builder /app/backend/dist ./backend/dist
 COPY --from=backend-builder /app/backend/migrations ./backend/migrations
 COPY --from=backend-builder /app/backend/package.json ./backend/
-COPY --from=backend-builder /app/node_modules ./node_modules
+COPY --from=backend-prod-deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY templates ./templates
 

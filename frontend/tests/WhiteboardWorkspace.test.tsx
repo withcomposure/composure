@@ -21,7 +21,7 @@ vi.mock('@excalidraw/excalidraw', () => ({
   loadLibraryFromBlob: vi.fn(async () => []),
 }))
 
-vi.mock('../src/whiteboard/useWhiteboardCollab', () => ({
+vi.mock('../src/whiteboard/use-whiteboard-collab', () => ({
   useWhiteboardCollab: () => ({
     connectionState: 'connected',
     collaborators: new Map(),

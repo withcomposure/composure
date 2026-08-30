@@ -178,10 +178,13 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedSha, setExpandedSha] = useState<string | null>(null)
-  const [expandedSession, setExpandedSession] = useState<number | null>(null)
+  // Keyed by the session's first commit sha: array indices shift when more
+  // commits load, which silently moved the expanded state to a different row.
+  const [expandedSession, setExpandedSession] = useState<string | null>(null)
   const [showNewSnapshot, setShowNewSnapshot] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const [menuSha, setMenuSha] = useState<string | null>(null)
@@ -226,13 +229,16 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
     const name = snapshotName.trim()
     if (!name) return
     setCreating(true)
+    setSnapshotError(null)
     try {
       await createSnapshotApi(projectId, name)
       setSnapshotName('')
       setShowNewSnapshot(false)
       await loadData()
     } catch (err) {
-      setError(getErrorMessage(err))
+      // A failed snapshot POST must not blank the (still valid) history list,
+      // so it gets its own error slot instead of the load error.
+      setSnapshotError(getErrorMessage(err))
     } finally {
       setCreating(false)
     }
@@ -293,6 +299,9 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
               Cancel
             </button>
           </div>
+          {snapshotError && (
+            <div className="mt-1.5 text-[11px] text-red-300">{snapshotError}</div>
+          )}
         </div>
       )}
 
@@ -370,14 +379,15 @@ export function HistoryPanel({ projectId, canEdit, refreshKey, onViewDiff, onRes
                 )
               }
 
-              const sessionExpanded = expandedSession === idx
+              const sessionKey = group.commits[0]?.sha ?? String(idx)
+              const sessionExpanded = expandedSession === sessionKey
               return (
-                <div key={idx} className="relative pb-2">
+                <div key={sessionKey} className="relative pb-2">
                   <div className="relative">
                     <span className="absolute left-[6px] top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 rounded-full border border-cz-accent/70 bg-cz-surface" />
 
                     <button
-                      onClick={() => setExpandedSession(sessionExpanded ? null : idx)}
+                      onClick={() => setExpandedSession(sessionExpanded ? null : sessionKey)}
                       className="ml-8 flex w-[calc(100%-2rem)] items-center gap-2 rounded-lg border border-cz-border/80 bg-cz-surface/80 px-3 py-2 text-left hover:border-cz-accent/25 hover:bg-cz-surface-hover"
                     >
                       {sessionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

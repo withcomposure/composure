@@ -10,6 +10,7 @@ import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { Eye, FolderTree, History as HistoryIcon, MessageSquare, X } from "lucide-react";
 import MarkdownIt from "markdown-it";
+import DOMPurify from "dompurify";
 import Asciidoctor from "@asciidoctor/core";
 import {
   CommentsPanel,
@@ -224,7 +225,6 @@ export function ProjectWorkspace({
   const [clearingCompileOutput, setClearingCompileOutput] = useState(false);
   const [autoCompileEnabled, setAutoCompileEnabled] =
     useState(autoCompileDefault);
-  const [autoCompileRevision, setAutoCompileRevision] = useState(0);
   const [markdownHtml, setMarkdownHtml] = useState("");
   const [rightPreviewPinnedFilePath, setRightPreviewPinnedFilePath] =
     useState<string | null>(null);
@@ -300,6 +300,8 @@ export function ProjectWorkspace({
   const lastTextLimitPopupAtRef = useRef(0);
   const lastAutoCompiledRevisionRef = useRef(0);
   const autoCompileRevisionRef = useRef(0);
+  const autoCompileTimerRef = useRef<number | null>(null);
+  const runAutoCompileRef = useRef<() => void>(() => {});
   const lastFocusedEditorFileRef = useRef<string>("");
   const paneIdCounterRef = useRef(2);
   const splitIdCounterRef = useRef(1);
@@ -2234,7 +2236,25 @@ export function ProjectWorkspace({
         }
       });
 
-      setActiveEditors(Array.from(seen.values()));
+      // Awareness fires on every remote cursor move; only re-render when the
+      // collaborator list itself actually changed.
+      setActiveEditors((prev) => {
+        const next = Array.from(seen.values());
+        const unchanged =
+          prev.length === next.length &&
+          prev.every((p, i) => {
+            const n = next[i];
+            return (
+              p.clientId === n.clientId &&
+              p.name === n.name &&
+              p.color === n.color &&
+              p.userId === n.userId &&
+              p.profileImageUrl === n.profileImageUrl &&
+              p.hasCursor === n.hasCursor
+            );
+          });
+        return unchanged ? prev : next;
+      });
     };
 
     awareness.on("change", update);
@@ -2577,6 +2597,37 @@ export function ProjectWorkspace({
     ],
   );
 
+  // Auto-compile scheduling lives entirely in refs and a timer: bumping React
+  // state per keystroke re-rendered the whole workspace tree.
+  useEffect(() => {
+    runAutoCompileRef.current = () => {
+      if (
+        !autoCompileEnabled ||
+        !canEdit ||
+        !initialSyncDone ||
+        !autoCompileScheduleEligible
+      )
+        return;
+      // While a compile runs, leave the pending revision in place; the effect
+      // watching `compiling` below reschedules once it finishes.
+      if (compiling) return;
+      if (autoCompileRevisionRef.current <= lastAutoCompiledRevisionRef.current)
+        return;
+      lastAutoCompiledRevisionRef.current = autoCompileRevisionRef.current;
+      void handleCompile({ isAutoCompile: true });
+    };
+  });
+
+  const scheduleAutoCompile = useCallback(() => {
+    if (autoCompileTimerRef.current !== null) {
+      window.clearTimeout(autoCompileTimerRef.current);
+    }
+    autoCompileTimerRef.current = window.setTimeout(() => {
+      autoCompileTimerRef.current = null;
+      runAutoCompileRef.current();
+    }, autoCompileTimeoutSeconds * 1000);
+  }, [autoCompileTimeoutSeconds]);
+
   useEffect(() => {
     const onDocUpdate = (_update: Uint8Array, origin: unknown) => {
       if (
@@ -2588,16 +2639,21 @@ export function ProjectWorkspace({
         return;
       if (origin === provider) return;
       if (typeof origin === "string" && origin.startsWith("composure:")) return;
-      setAutoCompileRevision((prev) => {
-        const next = prev + 1;
-        autoCompileRevisionRef.current = next;
-        return next;
-      });
+      autoCompileRevisionRef.current += 1;
+      scheduleAutoCompile();
     };
 
     ydoc.on("update", onDocUpdate);
+    // Changes that arrived while this effect was unsubscribed still need a run.
+    if (autoCompileRevisionRef.current > lastAutoCompiledRevisionRef.current) {
+      scheduleAutoCompile();
+    }
     return () => {
       ydoc.off("update", onDocUpdate);
+      if (autoCompileTimerRef.current !== null) {
+        window.clearTimeout(autoCompileTimerRef.current);
+        autoCompileTimerRef.current = null;
+      }
     };
   }, [
     ydoc,
@@ -2606,37 +2662,17 @@ export function ProjectWorkspace({
     canEdit,
     initialSyncDone,
     autoCompileScheduleEligible,
+    scheduleAutoCompile,
   ]);
 
+  // When a compile finishes, edits typed in the meantime get a fresh debounce
+  // window (matching the previous state-driven behavior).
   useEffect(() => {
-    if (
-      !autoCompileEnabled ||
-      !canEdit ||
-      !initialSyncDone ||
-      !autoCompileScheduleEligible ||
-      compiling
-    )
-      return;
-    if (autoCompileRevision <= lastAutoCompiledRevisionRef.current) return;
-
-    const timeout = window.setTimeout(() => {
-      lastAutoCompiledRevisionRef.current = autoCompileRevision;
-      void handleCompile({ isAutoCompile: true });
-    }, autoCompileTimeoutSeconds * 1000);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [
-    autoCompileEnabled,
-    canEdit,
-    initialSyncDone,
-    autoCompileScheduleEligible,
-    compiling,
-    autoCompileRevision,
-    autoCompileTimeoutSeconds,
-    handleCompile,
-  ]);
+    if (compiling) return;
+    if (autoCompileRevisionRef.current > lastAutoCompiledRevisionRef.current) {
+      scheduleAutoCompile();
+    }
+  }, [compiling, scheduleAutoCompile]);
 
   // Live Markdown/AsciiDoc preview: render on doc changes with 300ms debounce
   useEffect(() => {
@@ -2653,8 +2689,14 @@ export function ProjectWorkspace({
       if (rightPreviewFormat === "markdown") {
         setMarkdownHtml(md.render(text));
       } else {
+        // Asciidoctor passes raw-HTML passthrough blocks (`++++`, `pass:[]`)
+        // through unescaped in every safe mode, and the preview HTML is also
+        // opened as a same-origin blob document via "Open in new tab" — so
+        // unsanitized output here is stored XSS with app-origin script access.
         setMarkdownHtml(
-          adoc.convert(text, { safe: "safe", standalone: false }) as string,
+          DOMPurify.sanitize(
+            adoc.convert(text, { safe: "safe", standalone: false }) as string,
+          ),
         );
       }
     };

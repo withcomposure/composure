@@ -72,7 +72,6 @@ type FilePopupState =
   | { kind: 'delete'; path: string; nodeType: NodeType; childCount?: number }
   | { kind: 'multi-delete'; paths: string[] }
   | { kind: 'alert'; title: string; message: string }
-  | { kind: 'rename'; path: string; nodeType: NodeType; input: string }
 
 type RenameState = {
   path: string
@@ -1808,13 +1807,11 @@ export function FileTree({
       {/* Popups */}
       <PopupDialog
         open={popup !== null}
-        title={popup?.kind === 'rename'
-          ? (popup.nodeType === 'folder' ? 'Rename folder' : 'Rename file')
-          : popup?.kind === 'delete'
-            ? (popup.nodeType === 'folder' ? 'Delete folder' : 'Delete file')
-            : popup?.kind === 'multi-delete'
-              ? `Delete ${popup.paths.length} items`
-              : popup?.title ?? ''}
+        title={popup?.kind === 'delete'
+          ? (popup.nodeType === 'folder' ? 'Delete folder' : 'Delete file')
+          : popup?.kind === 'multi-delete'
+            ? `Delete ${popup.paths.length} items`
+            : popup?.title ?? ''}
         message={popup?.kind === 'delete'
           ? (popup.nodeType === 'folder'
             ? `Delete folder "${popup.path.split('/').pop()}"${popup.childCount ? ` and ${popup.childCount} file${popup.childCount > 1 ? 's' : ''}` : ''}?`
@@ -1830,27 +1827,11 @@ export function FileTree({
         actions={popup
           ? popup.kind === 'alert'
             ? [{ label: 'OK', onClick: closePopup, autoFocus: true }]
-            : popup.kind === 'rename'
-              ? [{ label: 'Rename', onClick: confirmRename, autoFocus: true }]
-              : popup.kind === 'multi-delete'
-                ? [{ label: 'Delete', onClick: () => void confirmMultiDelete(), variant: 'danger', autoFocus: true }]
-                : [{ label: 'Delete', onClick: () => void confirmDelete(), variant: 'danger', autoFocus: true }]
+            : popup.kind === 'multi-delete'
+              ? [{ label: 'Delete', onClick: () => void confirmMultiDelete(), variant: 'danger', autoFocus: true }]
+              : [{ label: 'Delete', onClick: () => void confirmDelete(), variant: 'danger', autoFocus: true }]
           : []}
       >
-        {popup?.kind === 'rename' && (
-          <input
-            value={popup.input}
-            onChange={(e) => {
-              const value = e.target.value
-              setPopup((prev) => (prev && prev.kind === 'rename' ? { ...prev, input: value } : prev))
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); confirmRename() }
-            }}
-            autoFocus
-            className="w-full rounded-md border border-cz-border bg-cz-bg px-3 py-2 text-sm text-cz-text outline-none focus:border-cz-accent"
-          />
-        )}
       </PopupDialog>
     </div>
   )

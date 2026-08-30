@@ -72,15 +72,23 @@ export class FixedWindowRateLimiter {
  * lets an attacker spoof `X-Forwarded-For` for a fresh bucket per request, so
  * that is opt-in only. Default: trust nothing (use the socket address).
  *
- * Accepted: unset/"false" → false; "true" → true; an integer → hop count;
- * anything else → a comma-separated IP/subnet allowlist passed through verbatim.
+ * Accepted: unset/"false" → false; "true" → true; anything else → a
+ * comma-separated IP/subnet allowlist passed through verbatim. Numeric hop
+ * counts are rejected (fail closed): Fastify >= 5.12 ignores them because a
+ * hop count cannot validate the immediate peer, so honoring one here would
+ * silently trust nothing anyway.
  */
-export function resolveTrustProxy(raw: string | undefined): boolean | number | string {
+export function resolveTrustProxy(raw: string | undefined): boolean | string {
   const value = String(raw ?? '').trim()
   if (!value || value.toLowerCase() === 'false') return false
   if (value.toLowerCase() === 'true') return true
   const asNumber = Number(value)
-  if (Number.isInteger(asNumber) && asNumber >= 0) return asNumber
+  if (Number.isInteger(asNumber) && asNumber >= 0) {
+    console.warn(
+      `[server] TRUST_PROXY=${value}: numeric hop counts are no longer supported; trusting nothing. List your proxy IPs/subnets instead.`,
+    )
+    return false
+  }
   return value
 }
 

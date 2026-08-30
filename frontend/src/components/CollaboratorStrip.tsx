@@ -5,7 +5,7 @@ import { useClickOutside } from '@/hooks/use-click-outside'
 import { useEscapeKey } from '@/hooks/use-escape-key'
 import { useMenuPosition } from '@/hooks/use-menu-position'
 
-const AVATAR_PX = 24
+const avatarPx = 24
 
 export interface CollaboratorStripPerson {
   name: string
@@ -133,7 +133,7 @@ export function CollaboratorStrip<T extends CollaboratorStripPerson>({
                 name={person.name}
                 imageUrl={person.profileImageUrl}
                 isGuest={person.isGuest}
-                size={AVATAR_PX}
+                size={avatarPx}
               />
             </button>
             <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-4 -translate-x-1/2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
@@ -192,7 +192,7 @@ export function CollaboratorStrip<T extends CollaboratorStripPerson>({
                     name={person.name}
                     imageUrl={person.profileImageUrl}
                     isGuest={person.isGuest}
-                    size={AVATAR_PX}
+                    size={avatarPx}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs text-cz-text">{person.name}</div>

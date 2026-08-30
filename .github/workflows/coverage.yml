@@ -24,8 +24,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -33,6 +33,6 @@ jobs:
       - run: npm test -w backend -- --coverage
       - run: npm test -w frontend -- --coverage
       - run: npm test -w compiler -- --coverage
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -2,16 +2,20 @@ FROM texlive/texlive:latest
 
 ARG TECTONIC_VERSION=0.16.8
 ARG TYPST_VERSION=0.14.2
+ARG NODE_MAJOR=24
 
 RUN set -eux; \
   apt-get update; \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    nodejs \
-    npm \
     pandoc \
     xz-utils; \
+  # Pin Node to the same major as CI and the backend image instead of taking
+  # whatever Debian apt happens to ship.
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -; \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nodejs; \
+  node --version; \
   rm -rf /var/lib/apt/lists/*; \
   arch="$(dpkg --print-architecture)"; \
   case "$arch" in \
@@ -37,8 +41,10 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
 COPY compiler/package.json ./compiler/
-RUN npm install --workspace=compiler --ignore-scripts
+RUN npm ci --workspace=compiler --ignore-scripts
 
 COPY compiler/ ./compiler/
 RUN npm run build --workspace=compiler

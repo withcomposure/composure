@@ -147,14 +147,8 @@ export function IconDropdown<T extends string>({
         }
       : null)
 
-  if (!triggerConfig) return null
-
-  const TriggerIcon = triggerConfig.icon
-  const buttonTitle = triggerConfig.title ?? selected?.label ?? triggerConfig.label ?? 'Options'
-  const buttonAriaLabel = triggerConfig.ariaLabel ?? buttonTitle
-  const showButtonLabel = !(triggerConfig.iconOnly ?? iconOnly)
-  const showChevron = triggerConfig.showChevron ?? true
-
+  // Hooks must run before the early return below, or a null↔non-null flip of
+  // triggerConfig changes the hook order and React unmounts the tree.
   const menuPosition = useMenuPosition(buttonRef, menuRef, {
     enabled: open,
     fallbackWidth,
@@ -163,6 +157,14 @@ export function IconDropdown<T extends string>({
 
   useClickOutside([rootRef, menuRef], closeMenu, open)
   useEscapeKey(closeMenu, open)
+
+  if (!triggerConfig) return null
+
+  const TriggerIcon = triggerConfig.icon
+  const buttonTitle = triggerConfig.title ?? selected?.label ?? triggerConfig.label ?? 'Options'
+  const buttonAriaLabel = triggerConfig.ariaLabel ?? buttonTitle
+  const showButtonLabel = !(triggerConfig.iconOnly ?? iconOnly)
+  const showChevron = triggerConfig.showChevron ?? true
 
   const buttonBaseClass = `flex ${size === 'sm' ? 'h-7' : 'h-8'} items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50`
   const buttonSkinClass = unstyledButton

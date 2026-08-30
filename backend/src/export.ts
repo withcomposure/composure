@@ -1,10 +1,13 @@
 import path from 'path'
 import fs from 'fs'
+import dns from 'dns'
+import https from 'https'
+import type net from 'net'
 import { v4 as uuid } from 'uuid'
 import git from 'isomorphic-git'
 import http from 'isomorphic-git/http/node'
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { isPrivateOrLocalHostname, isValidProjectId } from './security.js'
+import { isPrivateOrLocalHostname, isPrivateOrReservedAddress, isValidProjectId } from './security.js'
 import { dispatchExport } from './compile-dispatch.js'
 import { extractFiles } from './files.js'
 import { findProjectById } from './db/index.js'
@@ -20,6 +23,47 @@ function validateGitRemote(remote: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * The hostname string check above is not enough on its own: an attacker's
+ * domain can pass it and then resolve to 169.254.169.254 or 10.x when
+ * git.push re-resolves DNS (rebinding). This lookup validates every address
+ * a connection actually uses, at connect time, so a rebind fails closed.
+ */
+const validatingLookup = ((
+  hostname: string,
+  options: dns.LookupOptions,
+  callback: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family?: number) => void,
+): void => {
+  dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) {
+      callback(err, '')
+      return
+    }
+    const list = addresses as dns.LookupAddress[]
+    if (list.length === 0 || list.some((a) => isPrivateOrReservedAddress(a.address))) {
+      const blockedErr: NodeJS.ErrnoException = new Error(
+        `git remote ${hostname} resolves to a blocked address`,
+      )
+      blockedErr.code = 'ENOTFOUND'
+      callback(blockedErr, '')
+      return
+    }
+    if (options.all) {
+      callback(null, list)
+    } else {
+      callback(null, list[0].address, list[0].family)
+    }
+  })
+}) as net.LookupFunction
+
+// https-only agent: a redirect that downgrades to http:// makes Node reject
+// the protocol mismatch, which also fails closed.
+const gitExportAgent = new https.Agent({ lookup: validatingLookup })
+
+const gitExportHttp: typeof http = {
+  request: (config) => http.request({ ...config, agent: gitExportAgent }),
 }
 
 /**
@@ -147,7 +191,7 @@ async function handleGitExport(
     message: `Composure snapshot — ${new Date().toISOString()}`,
   })
   await git.addRemote({ fs, dir, remote: 'origin', url: remote })
-  await git.push({ fs, dir, http, remote: 'origin', remoteRef: branch, force: true })
+  await git.push({ fs, dir, http: gitExportHttp, remote: 'origin', remoteRef: branch, force: true })
 
   reply.send({ success: true, branch })
 }

@@ -646,11 +646,27 @@ export async function restoreSingleFile(
 }
 
 /**
+ * Permanently delete a project's git history from disk. Serialized on the
+ * per-project queue so it cannot race an in-flight auto-commit.
+ */
+export function deleteProjectRepo(projectId: string): Promise<void> {
+  return enqueue(projectId, async () => {
+    fs.rmSync(repoDir(projectId), { recursive: true, force: true })
+  })
+}
+
+/**
  * Restore project to the state at a given commit.
  * Creates a new commit on HEAD with the restored tree.
  * Returns the commit info and the restored file data for applying to the live Yjs doc.
+ * Serialized per project: it rewrites the whole working directory, so it must
+ * not interleave with auto-commits.
  */
-export async function restoreToCommit(projectId: string, sha: string): Promise<RestoreResult | null> {
+export function restoreToCommit(projectId: string, sha: string): Promise<RestoreResult | null> {
+  return enqueue(projectId, () => doRestoreToCommit(projectId, sha))
+}
+
+async function doRestoreToCommit(projectId: string, sha: string): Promise<RestoreResult | null> {
   const dir = await ensureRepo(projectId)
 
   // Read the tree at the target commit

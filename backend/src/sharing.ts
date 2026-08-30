@@ -57,7 +57,7 @@ async function requireRole(
   principal: Principal,
   shareToken?: string,
 ): Promise<boolean> {
-  const access = await canAccessProjectWithRole(projectId, principal, requiredRole, shareToken)
+  const access = await canAccessProjectWithRole(projectId, principal, requiredRole)
   if (!access.ok) {
     reply.status(403).send({ error: 'Forbidden' })
     return false
@@ -126,8 +126,8 @@ export async function getProjectAccessRoute(
     return
   }
 
-  const currentRole = await getProjectRoleForPrincipal(projectId, req.principal, shareToken)
-  const canViewChat = (await canAccessProjectChat(projectId, req.principal, shareToken)).ok
+  const currentRole = await getProjectRoleForPrincipal(projectId, req.principal)
+  const canViewChat = (await canAccessProjectChat(projectId, req.principal)).ok
   const requestingIdentityId = req.principal.userId ?? req.principal.guestId
   if (!requestingIdentityId) {
     reply.status(401).send({ error: 'Sign in to view project access details' })
@@ -423,7 +423,7 @@ export async function patchProjectCommentRoute(
     return
   }
 
-  const ownerAccess = await canAccessProjectWithRole(projectId, req.principal, 'owner', shareToken)
+  const ownerAccess = await canAccessProjectWithRole(projectId, req.principal, 'owner')
   if (!canPrincipalModifyComment(comment, req.principal) && !ownerAccess.ok) {
     reply.status(403).send({ error: 'Only the author or project owner can edit this comment' })
     return
@@ -472,7 +472,7 @@ export async function deleteProjectCommentRoute(
     return
   }
 
-  const ownerAccess = await canAccessProjectWithRole(projectId, req.principal, 'owner', shareToken)
+  const ownerAccess = await canAccessProjectWithRole(projectId, req.principal, 'owner')
   if (!canPrincipalModifyComment(comment, req.principal) && !ownerAccess.ok) {
     reply.status(403).send({ error: 'Only the author or project owner can delete this comment' })
     return

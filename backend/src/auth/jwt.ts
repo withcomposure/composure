@@ -14,8 +14,28 @@ import {
 const jwtAlgorithm = 'ES256'
 const accessTokenTtlSeconds = 15 * 60
 
+/**
+ * The issuer is resolved once from configuration and never from request
+ * headers: deriving it per request from a spoofable Host header made
+ * verification state race across concurrent requests.
+ */
+function resolveIssuer(): string {
+  const explicit = process.env.JWT_ISSUER?.trim()
+  if (explicit) return explicit
+  const backendUrl = process.env.BACKEND_URL?.trim()
+  if (backendUrl) {
+    try {
+      const parsed = new URL(backendUrl)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.origin
+    } catch {
+      // fall through to default
+    }
+  }
+  return 'composure'
+}
+
 let initialized = false
-let issuer = process.env.JWT_ISSUER?.trim() || 'composure'
+let issuer = resolveIssuer()
 let privateKey: CryptoKey
 let jwks: { keys: JWK[] }
 let localJwks: ReturnType<typeof createLocalJWKSet>
@@ -136,21 +156,13 @@ export function getJwtIssuer(): string {
   return issuer
 }
 
-export function setJwtIssuer(nextIssuer: string | null | undefined): void {
-  const normalized = nextIssuer?.trim()
-  if (!normalized) {
-    return
-  }
-  issuer = normalized
-}
-
 export function resetJwtForTests(): void {
   if (process.env.NODE_ENV !== 'test') {
     throw new Error('resetJwtForTests is only available in test mode.')
   }
 
   initialized = false
-  issuer = process.env.JWT_ISSUER?.trim() || 'composure'
+  issuer = resolveIssuer()
 }
 
 export function tokenExpiresInSeconds(expiresAtUnix: number): number {

@@ -75,7 +75,7 @@ export async function listRecentProjectsForPrincipal(principal: Principal): Prom
 
   const validRows: (typeof rows)[number][] = []
   for (const row of rows) {
-    if ((await canAccessProjectWithRole(row.id as string, principal, 'view', (row.share_token as string | null) ?? undefined)).ok) {
+    if ((await canAccessProjectWithRole(row.id as string, principal, 'view')).ok) {
       validRows.push(row)
       continue
     }

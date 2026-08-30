@@ -8,6 +8,7 @@ import * as Y from 'yjs'
 import { normalizeRelativePath, isPathWithin, hasLeadingDashSegment, sanitizeCompileLog as _sanitizeCompileLog, syncProjectSource } from './utils.js'
 import { selectRenderer } from './renderers/index.js'
 import { pandocRenderer, type PandocCompileContext } from './renderers/pandoc.js'
+import type { OutputFile } from './renderers/types.js'
 import { createUid } from './ids.js'
 
 const port = Number.parseInt(process.env.PORT ?? '4000', 10)
@@ -319,45 +320,69 @@ async function runWithGlobalProjectSlot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
-  const projectDir = path.join(compileDir, payload.projectId)
+// Serializes all work that touches a project's directory (queued compiles and
+// pandoc exports) so neither can rewrite src/ out from under the other.
+const projectDirLocks = new Map<string, Promise<void>>()
+
+async function withProjectDirLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = projectDirLocks.get(projectId) ?? Promise.resolve()
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  projectDirLocks.set(projectId, gate)
+  await prev
+  try {
+    return await fn()
+  } finally {
+    release()
+    if (projectDirLocks.get(projectId) === gate) projectDirLocks.delete(projectId)
+  }
+}
+
+interface PreparedSource {
+  srcDir: string
+  outDir: string
+  sync: { written: number; unchanged: number; removed: number }
+}
+
+interface PrepareError {
+  error: string
+  statusCode: number
+}
+
+/**
+ * Materialize a project's Yjs snapshot into its src/ directory: sync text
+ * files (incremental — unchanged files are left alone), copy assets, and
+ * validate the root file. Callers must hold the project dir lock.
+ */
+function prepareProjectSource(
+  projectId: string,
+  documentUpdateBase64: string | undefined,
+  rootFile: string,
+): PreparedSource | PrepareError {
+  const projectDir = path.join(compileDir, projectId)
   const srcDir = path.join(projectDir, 'src')
   const outDir = path.join(projectDir, 'out')
-  const assetsProjectDir = path.join(assetsDir, payload.projectId)
-
-  fs.rmSync(srcDir, { recursive: true, force: true })
+  const assetsProjectDir = path.join(assetsDir, projectId)
 
   fs.mkdirSync(srcDir, { recursive: true })
   fs.mkdirSync(outDir, { recursive: true })
-  fs.mkdirSync(tectonicCache, { recursive: true })
-  fs.mkdirSync(typstCache, { recursive: true })
 
-  const snapshot = parseSnapshot(payload.documentUpdateBase64)
+  const snapshot = parseSnapshot(documentUpdateBase64)
   if (snapshot === null) {
-    return {
-      success: false,
-      error: 'Invalid documentUpdateBase64 payload',
-      statusCode: 422,
-    }
+    return { error: 'Invalid documentUpdateBase64 payload', statusCode: 422 }
   }
 
   if (!snapshot || snapshot.length === 0) {
-    return {
-      success: false,
-      error: 'No document snapshot provided and no fallback snapshot configured',
-      statusCode: 422,
-    }
+    return { error: 'No document snapshot provided and no fallback snapshot configured', statusCode: 422 }
   }
 
   let collected: CollectedDoc
   try {
     collected = collectDocFiles(snapshot)
   } catch {
-    return {
-      success: false,
-      error: 'Invalid Yjs snapshot',
-      statusCode: 422,
-    }
+    return { error: 'Invalid Yjs snapshot', statusCode: 422 }
   }
 
   const sync = syncProjectSource(srcDir, collected.textFiles)
@@ -384,13 +409,28 @@ async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
     }
   }
 
-  const rootPath = path.resolve(srcDir, payload.rootFile)
+  const rootPath = path.resolve(srcDir, rootFile)
   if (!isPathWithin(srcDir, rootPath)) {
-    return { success: false, error: 'Path traversal attempt blocked', statusCode: 400 }
+    return { error: 'Path traversal attempt blocked', statusCode: 400 }
   }
   if (!fs.existsSync(rootPath)) {
-    return { success: false, error: `Root file not found: ${payload.rootFile}`, statusCode: 422 }
+    return { error: `Root file not found: ${rootFile}`, statusCode: 422 }
   }
+
+  return { srcDir, outDir, sync }
+}
+
+async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
+  const projectDir = path.join(compileDir, payload.projectId)
+
+  fs.mkdirSync(tectonicCache, { recursive: true })
+  fs.mkdirSync(typstCache, { recursive: true })
+
+  const prepared = prepareProjectSource(payload.projectId, payload.documentUpdateBase64, payload.rootFile)
+  if ('error' in prepared) {
+    return { success: false, error: prepared.error, statusCode: prepared.statusCode }
+  }
+  const { srcDir, outDir, sync } = prepared
 
   const renderer = selectRenderer(payload.rootFile)
   const output = await renderer.compile({
@@ -429,6 +469,40 @@ async function executeCompile(payload: CompilePayload): Promise<CompileResult> {
   }
 }
 
+interface ExportPayload {
+  projectId: string
+  rootFile: string
+  documentUpdateBase64?: string
+  outputFormat: string
+}
+
+type ExportResult =
+  | { success: true; output: OutputFile }
+  | { success: false; error: string; log?: string; statusCode: number }
+
+async function executeExport(payload: ExportPayload): Promise<ExportResult> {
+  const prepared = prepareProjectSource(payload.projectId, payload.documentUpdateBase64, payload.rootFile)
+  if ('error' in prepared) {
+    return { success: false, error: prepared.error, statusCode: prepared.statusCode }
+  }
+
+  const ctx: PandocCompileContext = {
+    rootFile: payload.rootFile,
+    srcDir: prepared.srcDir,
+    outDir: prepared.outDir,
+    timeoutMs: compileTimeoutMs,
+    outputFormat: payload.outputFormat,
+  }
+
+  const result = await pandocRenderer.compile(ctx)
+
+  if (!result.success || result.outputs.length === 0) {
+    return { success: false, error: result.error ?? 'Export failed', log: result.log, statusCode: 422 }
+  }
+
+  return { success: true, output: result.outputs[0] }
+}
+
 function queueCompile(payload: CompilePayload): Promise<CompileResult> {
   return new Promise<CompileResult>((resolve, reject) => {
     const waiter: Waiter = { resolve, reject }
@@ -463,7 +537,10 @@ async function drainProjectQueue(projectId: string, firstPayload: CompilePayload
   while (true) {
     let result: CompileResult
     try {
-      result = await runWithGlobalProjectSlot(() => executeCompile(currentPayload))
+      const payload = currentPayload
+      result = await withProjectDirLock(projectId, () =>
+        runWithGlobalProjectSlot(() => executeCompile(payload)),
+      )
     } catch (err) {
       result = {
         success: false,
@@ -596,79 +673,27 @@ app.post('/export', {
     return
   }
 
-  // Reuse executeCompile infrastructure for file extraction, then run pandoc
-  const projectDir = path.join(compileDir, projectId)
-  const srcDir = path.join(projectDir, 'src')
-  const outDir = path.join(projectDir, 'out')
-  const assetsProjectDir = path.join(assetsDir, projectId)
+  // Exports share the project dir lock and the global concurrency slots with
+  // compiles: a pandoc run can no longer interleave with a compile on the
+  // same project or exceed MAX_CONCURRENT_PROJECTS.
+  const result = await withProjectDirLock(projectId, () =>
+    runWithGlobalProjectSlot(() => executeExport({
+      projectId,
+      rootFile: safeRootFile,
+      documentUpdateBase64,
+      outputFormat,
+    })),
+  )
 
-  fs.rmSync(srcDir, { recursive: true, force: true })
-  fs.mkdirSync(srcDir, { recursive: true })
-  fs.mkdirSync(outDir, { recursive: true })
-
-  const snapshot = parseSnapshot(documentUpdateBase64)
-  if (snapshot === null) {
-    reply.status(422).send({ error: 'Invalid documentUpdateBase64 payload' })
-    return
-  }
-  if (!snapshot || snapshot.length === 0) {
-    reply.status(422).send({ error: 'No document snapshot provided' })
-    return
-  }
-
-  let collected: CollectedDoc
-  try {
-    collected = collectDocFiles(snapshot)
-  } catch {
-    reply.status(422).send({ error: 'Invalid Yjs snapshot' })
-    return
-  }
-
-  syncProjectSource(srcDir, collected.textFiles)
-
-  // Copy assets from storage into srcDir at their display paths
-  for (const { displayPath, storageKey } of collected.assetEntries) {
-    const destPath = path.resolve(srcDir, displayPath)
-    if (!isPathWithin(srcDir, destPath)) continue
-    const srcAssetPath = path.join(assetsProjectDir, storageKey)
-    if (!fs.existsSync(srcAssetPath)) continue
-    fs.mkdirSync(path.dirname(destPath), { recursive: true })
-    fs.copyFileSync(srcAssetPath, destPath)
-    const stat = fs.lstatSync(destPath)
-    if (!stat.isFile()) {
-      fs.rmSync(destPath, { force: true })
-    }
-  }
-
-  const rootPath = path.resolve(srcDir, safeRootFile)
-  if (!isPathWithin(srcDir, rootPath)) {
-    reply.status(400).send({ error: 'Path traversal attempt blocked' })
-    return
-  }
-  if (!fs.existsSync(rootPath)) {
-    reply.status(422).send({ error: `Root file not found: ${safeRootFile}` })
-    return
-  }
-
-  const ctx: PandocCompileContext = {
-    rootFile: safeRootFile,
-    srcDir,
-    outDir,
-    timeoutMs: compileTimeoutMs,
-    outputFormat,
-  }
-
-  const result = await pandocRenderer.compile(ctx)
-
-  if (!result.success || result.outputs.length === 0) {
-    reply.status(422).send({
-      error: result.error ?? 'Export failed',
+  if (!result.success) {
+    reply.status(result.statusCode ?? 422).send({
+      error: result.error,
       log: result.log,
     })
     return
   }
 
-  const output = result.outputs[0]
+  const output = result.output
   reply.header('Content-Type', output.mimeType)
   reply.header('X-Content-Type-Options', 'nosniff')
   reply.header('Content-Disposition', `attachment; filename="${output.filename}"`)

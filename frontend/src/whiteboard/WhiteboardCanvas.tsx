@@ -9,7 +9,7 @@ import type {
   Collaborator,
 } from '@excalidraw/excalidraw/types'
 import '@excalidraw/excalidraw/index.css'
-import type { WhiteboardSceneData } from './useWhiteboardCollab'
+import type { WhiteboardSceneData } from './use-whiteboard-collab'
 
 interface WhiteboardCanvasProps {
   canEdit: boolean

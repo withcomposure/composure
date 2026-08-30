@@ -55,15 +55,16 @@ import {
   parseUrlEnv,
 } from './env.js'
 import { createUid } from './ids.js'
+import { hashPassword, verifyPassword } from './auth/password.js'
 import { isValidEmail } from './security.js'
 import {
   getRefreshTokenTtlSeconds,
-  setJwtIssuer,
   signAccessToken,
   verifyAccessToken,
   tokenExpiresInSeconds,
 } from './auth/jwt.js'
 import { pathnameFromRawUrl } from './routing.js'
+import { getShareTokenFromRequest } from './sharing.js'
 
 const isProd = isProductionEnv(process.env.NODE_ENV)
 
@@ -210,25 +211,6 @@ function parseCookieHeader(raw: string | undefined): Record<string, string> {
   return cookies
 }
 
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
-  return `${salt}:${hash}`
-}
-
-function verifyPassword(password: string, passwordHash: string | null | undefined): boolean {
-  if (!passwordHash) return false
-  const [salt, expectedHash] = passwordHash.split(':')
-  if (!salt || !expectedHash) return false
-
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
-  const a = Buffer.from(hash, 'hex')
-  const b = Buffer.from(expectedHash, 'hex')
-
-  if (a.length !== b.length) return false
-  return crypto.timingSafeEqual(a, b)
-}
-
 function getCookieValue(req: FastifyRequest, name: string): string | undefined {
   const value = req.cookies?.[name]
   return typeof value === 'string' ? value : undefined
@@ -336,14 +318,6 @@ function isIdentityRequiredRoute(req: FastifyRequest): boolean {
 function isAnonymousSideEffectFreeRoute(req: FastifyRequest): boolean {
   const path = pathnameFromRawUrl(req.url)
   return path === '/health' || path === '/.well-known/jwks.json'
-}
-
-function getShareTokenFromRequest(req: FastifyRequest): string | undefined {
-  const headerValueRaw = req.headers['x-share-token']
-  const headerValue = typeof headerValueRaw === 'string' ? headerValueRaw : undefined
-  const query = req.query as { share?: string } | undefined
-  const queryValue = typeof query?.share === 'string' ? query.share : undefined
-  return headerValue ?? queryValue
 }
 
 function clearAuthCookies(reply: FastifyReply): void {
@@ -458,21 +432,6 @@ export async function resolvePrincipalFromCookieHeader(cookieHeader: string | un
 }
 
 export const authHook: preHandlerHookHandler = async (req, reply) => {
-  const explicitJwtIssuer = process.env.JWT_ISSUER?.trim()
-  if (explicitJwtIssuer) {
-    setJwtIssuer(explicitJwtIssuer)
-  } else {
-    const backendUrl = parseUrlEnv(process.env.BACKEND_URL)
-    if (backendUrl) {
-      setJwtIssuer(backendUrl)
-    } else {
-      setJwtIssuer(inferRequestOrigin({
-        hostHeader: req.headers['x-forwarded-host'] ?? req.headers.host,
-        forwardedProtoHeader: req.headers['x-forwarded-proto'],
-      }) ?? null)
-    }
-  }
-
   if (isAnonymousSideEffectFreeRoute(req)) {
     req.principal = { userId: null, guestId: null }
     req.authUser = null
@@ -654,7 +613,7 @@ export async function signupRoute(req: FastifyRequest<{ Body: AuthBody }>, reply
     return
   }
 
-  const passwordHash = hashPassword(password)
+  const passwordHash = await hashPassword(password)
   const created = await runWithIdentityContext(null, 'system', async () => await createUser({
     email,
     passwordHash,
@@ -722,7 +681,7 @@ export async function loginRoute(req: FastifyRequest<{ Body: AuthBody }>, reply:
     return
   }
 
-  if (!user || !verifyPassword(password, user.password_hash)) {
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
     reply.status(401).send({ error: 'Invalid credentials' })
     return
   }
@@ -893,13 +852,13 @@ export async function changePasswordRoute(
   }
 
   if (user.password_hash != null) {
-    if (!currentPassword || !verifyPassword(currentPassword, user.password_hash)) {
+    if (!currentPassword || !(await verifyPassword(currentPassword, user.password_hash))) {
       reply.status(401).send({ error: 'Current password is incorrect' })
       return
     }
   }
 
-  const nextPasswordHash = hashPassword(newPassword)
+  const nextPasswordHash = await hashPassword(newPassword)
   const updated = await updateUserPasswordHash(req.authUser.id, nextPasswordHash)
   if (!updated) {
     reply.status(500).send({ error: 'Failed to update password' })
@@ -1125,16 +1084,24 @@ export async function deleteAccountRoute(
     return
   }
 
-  const password = String(req.body?.password ?? '')
-  if (!password) {
-    reply.status(400).send({ error: 'Password is required' })
+  const user = await findUserByEmail(req.authUser.email)
+  if (!user) {
+    reply.status(401).send({ error: 'Authentication required' })
     return
   }
 
-  const user = await findUserByEmail(req.authUser.email)
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    reply.status(401).send({ error: 'Current password is incorrect' })
-    return
+  // OAuth-only accounts have no password hash and can never supply one, so
+  // deletion for them rests on the authenticated session alone.
+  if (user.password_hash) {
+    const password = String(req.body?.password ?? '')
+    if (!password) {
+      reply.status(400).send({ error: 'Password is required' })
+      return
+    }
+    if (!(await verifyPassword(password, user.password_hash))) {
+      reply.status(401).send({ error: 'Current password is incorrect' })
+      return
+    }
   }
 
   await softDeleteProjectsOwnedByUser(req.authUser.id)
@@ -1239,7 +1206,7 @@ export async function applyPasswordResetRoute(
   const updated = await runWithIdentityContext(
     null,
     'system',
-    async () => await updateUserPasswordHash(reset.userId, hashPassword(newPassword)),
+    async () => await updateUserPasswordHash(reset.userId, await hashPassword(newPassword)),
   )
   if (!updated) {
     reply.status(500).send({ error: 'Failed to update password' })

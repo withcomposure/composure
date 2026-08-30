@@ -22,19 +22,30 @@ export async function createUser(input: {
   const explicitRole = input.role === 'admin' ? 'admin' : 'user'
   const emailVerified = input.emailVerified === true
 
-  const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
-  const role = count === 0 ? 'admin' : explicitRole
-
   try {
-    await sql`
-      INSERT INTO users (id, email, email_verified, password_hash, display_name, role, is_guest, created_at)
-      VALUES (${id}, ${email}, ${emailVerified}, ${input.passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
-    `
-  } catch {
-    return null
-  }
+    return await sql.begin(async (tx) => {
+      // Serialize the first-user-becomes-admin check: without the lock, two
+      // concurrent first registrations can both count zero users and both
+      // become admin.
+      await tx`SELECT pg_advisory_xact_lock(hashtext('composure:first-user-admin'))`
+      const [{ count }] = await tx<[{ count: number }]>`SELECT COUNT(1)::integer AS count FROM users WHERE is_guest = FALSE`
+      const role = count === 0 ? 'admin' : explicitRole
 
-  return { id, email, displayName, profileImageUrl: null, role, isGuest: false }
+      await tx`
+        INSERT INTO users (id, email, email_verified, password_hash, display_name, role, is_guest, created_at)
+        VALUES (${id}, ${email}, ${emailVerified}, ${input.passwordHash}, ${displayName}, ${role}, FALSE, extract(epoch from now())::integer)
+      `
+
+      return { id, email, displayName, profileImageUrl: null, role, isGuest: false }
+    })
+  } catch (err) {
+    // Only a duplicate email means "already registered"; anything else is a
+    // real failure the caller must not mistake for a conflict.
+    if ((err as { code?: string })?.code === '23505') {
+      return null
+    }
+    throw err
+  }
 }
 
 export async function countUsers(): Promise<number> {

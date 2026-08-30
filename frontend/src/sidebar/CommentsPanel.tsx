@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import type { ProjectComment } from '@/types'
 import { fmtTime } from '@/utils/format-time'
+import { getErrorMessage } from '@/utils/fetch'
 
 export interface CommentLineNumbers {
   startLine: number | null
@@ -145,6 +146,8 @@ export function CommentsPanel({
     setEditFocusId(null)
   }, [canComment])
 
+  const [actionError, setActionError] = useState<string | null>(null)
+
   const submitReply = async (parent: ProjectComment) => {
     const draft = (replyById[parent.id] ?? '').trim()
     if (!draft) return
@@ -166,6 +169,9 @@ export function CommentsPanel({
         delete next[parent.id]
         return next
       })
+      setActionError(null)
+    } catch (err) {
+      setActionError(getErrorMessage(err))
     } finally {
       setBusyById((prev) => ({ ...prev, [parent.id]: false }))
     }
@@ -183,6 +189,9 @@ export function CommentsPanel({
         delete next[comment.id]
         return next
       })
+      setActionError(null)
+    } catch (err) {
+      setActionError(getErrorMessage(err))
     } finally {
       setBusyById((prev) => ({ ...prev, [comment.id]: false }))
     }
@@ -192,6 +201,9 @@ export function CommentsPanel({
     setBusyById((prev) => ({ ...prev, [commentId]: true }))
     try {
       await onDeleteComment(commentId)
+      setActionError(null)
+    } catch (err) {
+      setActionError(getErrorMessage(err))
     } finally {
       setBusyById((prev) => ({ ...prev, [commentId]: false }))
     }
@@ -227,6 +239,9 @@ export function CommentsPanel({
         >
           {activeFile || 'No file selected'}
         </div>
+        {actionError && (
+          <div className="mt-1 text-[11px] text-red-300">{actionError}</div>
+        )}
       </div>
 
       <div className="h-full overflow-y-auto px-3 pb-3">

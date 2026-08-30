@@ -5,7 +5,6 @@ import {
   setProjectWorkspaceState,
 } from './db/index.js'
 import { isValidProjectId } from './security.js'
-import { getShareTokenFromRequest } from './sharing.js'
 
 interface ProjectParams {
   projectId: string
@@ -25,8 +24,7 @@ export async function getProjectWorkspaceStateRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  const access = await canAccessProjectWithRole(projectId, req.principal, 'view', shareToken)
+  const access = await canAccessProjectWithRole(projectId, req.principal, 'view')
   if (!access.ok) {
     reply.status(403).send({ error: 'Forbidden' })
     return
@@ -46,8 +44,7 @@ export async function patchProjectWorkspaceStateRoute(
     return
   }
 
-  const shareToken = getShareTokenFromRequest(req)
-  const access = await canAccessProjectWithRole(projectId, req.principal, 'view', shareToken)
+  const access = await canAccessProjectWithRole(projectId, req.principal, 'view')
   if (!access.ok) {
     reply.status(403).send({ error: 'Forbidden' })
     return
