@@ -413,24 +413,29 @@ export function SettingsView({
                       imageUrl={profileImageUrl || null}
                       size={88}
                     />
-                    <button
-                      type="button"
-                      onClick={() => profileImageUploadRef.current?.click()}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-cz-border px-2 py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text"
-                    >
-                      <Camera size={13} />
-                      Upload
-                    </button>
-                    {hasCustomAvatar && (
+                    <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setProfileImageUrl('')}
-                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                        onClick={() => profileImageUploadRef.current?.click()}
+                        title={hasCustomAvatar ? 'Change photo' : 'Upload photo'}
+                        aria-label={hasCustomAvatar ? 'Change photo' : 'Upload photo'}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-md border border-cz-border py-1.5 text-xs text-cz-text-muted hover:bg-cz-surface-hover hover:text-cz-text ${hasCustomAvatar ? 'px-2' : 'w-full px-2'}`}
                       >
-                        <Trash2 size={13} />
-                        Delete
+                        <Camera size={13} />
+                        {!hasCustomAvatar && 'Upload'}
                       </button>
-                    )}
+                      {hasCustomAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileImageUrl('')}
+                          title="Remove photo"
+                          aria-label="Remove photo"
+                          className="inline-flex items-center justify-center rounded-md border border-cz-danger/30 px-2 py-1.5 text-xs text-cz-danger hover:bg-cz-danger/10"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                     <input
                       ref={profileImageUploadRef}
                       type="file"

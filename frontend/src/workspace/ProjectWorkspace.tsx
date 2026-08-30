@@ -75,7 +75,7 @@ import { restoreVersion } from "@/sidebar/history-api";
 import { collaborationWsUrl } from "@/utils/api-routing";
 import { apiFetch, apiUrl, getErrorMessage } from "@/utils/fetch";
 import { WorkspaceProjectTitle } from "@/components/WorkspaceProjectTitle";
-import { makeProjectUrl, navigateToProjects, navigateToSettings } from "@/utils/route";
+import { makeProjectUrl, navigateToSettings } from "@/utils/route";
 import {
   applyDroppedPathsToPaneState,
 } from "@/editor/tab-drop-state";
@@ -3668,7 +3668,7 @@ export function ProjectWorkspace({
             className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-cz-text"
             title={projectTitle}
             canRename={canEdit}
-            onBack={navigateToProjects}
+            fillWidth
             onRename={onRenameProject}
             onRenameError={(message) => onPopupAlert(message, "Rename failed")}
           />
